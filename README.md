@@ -147,6 +147,7 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
 | `Watchious.Controls` | `Microsoft.Maui.Controls` | Razor controls, navigation, app builder |
 | `Watchious.Core` | `Microsoft.Maui.Core` | Renderer, UI-change protocol, native hosts |
 | `Watchious.Essentials` | `Microsoft.Maui.Essentials` | Phone ↔ watch messaging, device APIs |
+| `Watchious.Health` | none | Heart rate and workout sessions (HealthKit / Health Services) |
 | `Watchious.Sdk` | the `maui` workload | `UseWatchious`, the `net10.0-watchos` target, build integration |
 | `Watchious.Templates` | `Microsoft.Maui.Templates` | `dotnet new watchious` |
 
@@ -166,6 +167,8 @@ Versions stay at `0.x.x` until the API is stable.
 | App startup | MAUI-style `WatchiousApp.CreateBuilder()` with dependency injection |
 | Control names | MAUI names: `VerticalStackLayout`, `Label`, `Switch`, `Entry`... |
 | Events and binding | Blazor style: `OnClick`, `@bind-IsToggled` |
+| App state | Blazor style: state in components with `@bind`, shared logic in services through dependency injection |
+| Health and workouts | In scope later, as a separate `Watchious.Health` package after messaging |
 | Styling | Semantic tokens plus a few explicit values. Never CSS. |
 | Navigation | Blazor `@page` routes plus source-generated typed helpers: `Navigation.GoToAsync(Routes.Workout(exerciseId: 5))` |
 | Phone ↔ watch messaging | Part of Watchious: typed C# messages over WatchConnectivity (Apple) and the Data Layer (Wear OS) |
@@ -201,6 +204,7 @@ Versions stay at `0.x.x` until the API is stable.
 4. **Navigation** with typed routes, and the rest of the planned controls.
 5. **Messaging** between phone and watch (`Watchious.Essentials`).
 6. **Preview host:** the same screens in a desktop window, for debugging in Visual Studio.
+7. **Health and workouts** (`Watchious.Health`).
 
 ## Prior art
 
