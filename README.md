@@ -63,24 +63,34 @@ public static class WatchiousProgram
 }
 ```
 
-A page uses MAUI control names (API shape not final):
+A page uses MAUI control names with Blazor-style events and binding (API shape not final):
 
 ```razor
 @page "/workout/{ExerciseId:int}"
+@inject INavigation Navigation
 
 <VerticalStackLayout>
     <Label Text="@exercise.Name" Style="TextStyle.Title" />
     <Label Text="@($"{reps} reps")" />
-    <Button Text="+1" Clicked="() => reps++" />
+    <Switch @bind-IsToggled="isWarmup" />
+    <Button Text="+1" OnClick="() => reps++" />
+    <Button Text="Next" OnClick="GoToNextAsync" />
 </VerticalStackLayout>
+
+@code {
+    private Task GoToNextAsync() => Navigation.GoToAsync(Routes.Workout(exerciseId: ExerciseId + 1));
+}
 ```
+
+`Routes.Workout(...)` is generated from the `@page` directive by a source generator, so navigation is
+checked by the compiler instead of relying on raw strings.
 
 ## Platforms
 
 | Platform | Watches | Where your C# runs | Native host |
 |---|---|---|---|
 | **Wear OS** | Samsung Galaxy Watch4 and newer, Google Pixel Watch, other Wear OS watches. Minimum Wear OS 3 (Android API 30). | On the watch, via .NET for Android | Compose for Wear OS, written in Kotlin |
-| **watchOS** | Apple Watch. Supported models not decided yet (see open questions). | On the watch, compiled by NativeAOT into a static native library | SwiftUI, written in Swift |
+| **watchOS** | Apple Watch Series 9 / Ultra 2 / SE 3 and newer, on watchOS 26+ (the `arm64` watches). Older `arm64_32` watches are not supported. | On the watch, compiled by NativeAOT into a static native library | SwiftUI, written in Swift |
 
 > ⚠️ **.NET does not run on watchOS today.** Watchious has to make it run, and nobody has done that since
 > Xamarin. The plan is NativeAOT: compile the C# into a static native library, link it into a SwiftUI
@@ -126,7 +136,8 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
 - **Template:** `dotnet new watchious`.
 - **Build:** `dotnet build -f net10.0-watchos` builds the complete watch app with no manual Xcode step.
   The .NET SDK does not support `net10.0-watchos` today, so Watchious provides it through its own MSBuild
-  SDK, which runs NativeAOT and Apple's build tools on a Mac.
+  SDK, which runs NativeAOT and Apple's build tools on a Mac: either locally, or from Windows on a remote
+  Mac, like MAUI's "Pair to Mac".
 - **Companion apps:** a watch app can ship inside a .NET iPhone app (for example a MAUI app) using the
   `AdditionalWatchOSApp` item that dotnet/macios is adding in
   https://github.com/dotnet/macios/pull/27284 (still open).
@@ -150,28 +161,25 @@ Versions stay at `0.x.x` until the API is stable.
 | Where C# runs | On the watch on both platforms. No phone proxy. |
 | UI language | Razor only (no XAML) |
 | Wear OS native layer | Compose for Wear OS host written in Kotlin |
-| Target versions | .NET 10 only. Minimum Wear OS 3 (Android API 30). |
+| Target versions | .NET 10 only. Minimum Wear OS 3 (Android API 30). Minimum watchOS 26. |
+| Supported Apple Watches | Series 9 / Ultra 2 / SE 3 and newer (`arm64`). No `arm64_32` watches. |
 | App startup | MAUI-style `WatchiousApp.CreateBuilder()` with dependency injection |
 | Control names | MAUI names: `VerticalStackLayout`, `Label`, `Switch`, `Entry`... |
+| Events and binding | Blazor style: `OnClick`, `@bind-IsToggled` |
 | Styling | Semantic tokens plus a few explicit values. Never CSS. |
-| Navigation | Blazor `@page` routes, each with a strongly typed identifier, so navigation doesn't rely on raw strings |
+| Navigation | Blazor `@page` routes plus source-generated typed helpers: `Navigation.GoToAsync(Routes.Workout(exerciseId: 5))` |
 | Phone ↔ watch messaging | Part of Watchious: typed C# messages over WatchConnectivity (Apple) and the Data Layer (Wear OS) |
 | watchOS runtime | Research running .NET on the watch now (NativeAOT static library) |
-| Build | Automatic through `dotnet build`, no manual Xcode step |
+| Build | Automatic through `dotnet build`, no manual Xcode step. watchOS builds run on a Mac, or from Windows on a remote Mac like MAUI's "Pair to Mac". |
+| Debugging | A desktop preview host that renders the same screens, after the first version |
+| Testing | Watch simulators and emulators first, real watches later |
 | Packaging | Mirror MAUI's packages and project template. Nothing published until decided. |
 | Versioning | `0.x.x` |
 
 ## Open questions
 
-1. **Supported Apple Watches.** Running .NET on the watch needs the `arm64` architecture, which means
-   watchOS 26+ on Series 9 / Ultra 2 / SE 3 and newer. Older watches (`arm64_32`) are probably impossible.
-   Still to verify: whether the App Store accepts a watch app without `arm64_32`.
-2. **Preview host.** A desktop window that renders the same screens, to make up for the missing C#
-   debugger on Apple Watch.
-3. **Shape of typed routes.** For example, generated helpers (`Navigation.GoToAsync(Routes.Workout(exerciseId: 5))`)
-   or navigation by page type (`Navigation.GoToAsync<WorkoutPage>(p => p.ExerciseId = 5)`).
-4. **Building for watchOS from Windows.** Mac-only, or a "pair to Mac" remote build like MAUI's.
-5. **Event names.** MAUI style (`Clicked`, `Toggled`) or Blazor style (`OnClick`, `OnToggle`).
+1. **App Store and `arm64`-only watch apps.** Watchious does not support `arm64_32`, so its watch apps
+   ship without that architecture. Still to verify: whether the App Store accepts that.
 
 ## What Watchious is not
 
@@ -189,9 +197,10 @@ Versions stay at `0.x.x` until the API is stable.
    `CollectionView`, running a counter app on the Wear OS emulator.
 2. **SwiftUI host** with the same controls as Wear OS.
 3. **Project model:** `Watchious.Sdk`, `UseWatchious`, `dotnet new watchious` and
-   `dotnet build -f net10.0-watchos`.
+   `dotnet build -f net10.0-watchos`, including remote builds from Windows on a Mac.
 4. **Navigation** with typed routes, and the rest of the planned controls.
 5. **Messaging** between phone and watch (`Watchious.Essentials`).
+6. **Preview host:** the same screens in a desktop window, for debugging in Visual Studio.
 
 ## Prior art
 
