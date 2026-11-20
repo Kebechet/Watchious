@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>30</SupportedOSPlatformVersion>
+    <RootNamespace>Watchious.Hosts.WearOS</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <WatchiousWearOSHostBuildDir>$(MSBuildThisFileDirectory)..\..\platforms\wearos\host\build\</WatchiousWearOSHostBuildDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AndroidLibrary Include="$(WatchiousWearOSHostBuildDir)outputs\aar\host-release.aar" />
+    <AndroidLibrary Include="$(WatchiousWearOSHostBuildDir)watchious-runtime\*.aar" Bind="false" />
+    <AndroidLibrary Include="$(WatchiousWearOSHostBuildDir)watchious-runtime\*.jar" Bind="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Watchious.Controls\Watchious.Controls.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -132,7 +132,7 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
     <UseWatchious>true</UseWatchious>
   </PropertyGroup>
   ```
-  with `Platforms/Android`, `Platforms/watchOS` and shared `Resources/` (app icon, fonts, images).
+  with `Platforms/WearOS`, `Platforms/watchOS` and shared `Resources/` (app icon, fonts, images).
 - **Template:** `dotnet new watchious`.
 - **Build:** `dotnet build -f net10.0-watchos` builds the complete watch app with no manual Xcode step.
   The .NET SDK does not support `net10.0-watchos` today, so Watchious provides it through its own MSBuild
@@ -163,6 +163,8 @@ Versions stay at `0.x.x` until the API is stable.
 | UI language | Razor only (no XAML) |
 | Wear OS native layer | Compose for Wear OS host written in Kotlin |
 | Target versions | .NET 10 only. Minimum Wear OS 3 (Android API 30). Minimum watchOS 26. |
+| Target frameworks | Wear OS uses the standard `net10.0-android`, so the .NET for Android build, debugger and Android NuGet packages keep working. A custom `net10.0-wearos` would lose all of them. watchOS gets Watchious's own `net10.0-watchos`, because .NET has none and there are no watchOS packages to lose. |
+| Naming | Watchious's own folders, projects and packages say `WearOS` and `watchOS`, never `Android` or `iOS`. Those names mean the phone, where the messaging code also runs. |
 | Supported Apple Watches | Series 9 / Ultra 2 / SE 3 and newer (`arm64`). No `arm64_32` watches. |
 | App startup | MAUI-style `WatchiousApp.CreateBuilder()` with dependency injection |
 | Control names | MAUI names: `VerticalStackLayout`, `Label`, `Switch`, `Entry`... |

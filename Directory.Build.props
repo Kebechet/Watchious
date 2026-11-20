@@ -1,0 +1,15 @@
+<Project>
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- BL0006 warns against using Blazor's RenderTree types outside the framework. Watchious is a Blazor
+         renderer, like BlazorWebView, so it has to use them. -->
+    <NoWarn>$(NoWarn);BL0006</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Versions">
+    <WatchiousDotNetPackagesVersion>10.0.15</WatchiousDotNetPackagesVersion>
+  </PropertyGroup>
+
+</Project>

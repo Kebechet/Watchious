@@ -1,0 +1,6 @@
+<metadata>
+  <!-- Only the host entry point and its listener are public API. The rest of the package is Kotlin
+       internals (compiled as public JVM classes) that reference unbound Compose types. -->
+  <remove-node path="/api/package[@name='com.kebechet.watchious.host']/class[@name!='WatchiousComposeHost']" />
+  <attr path="/api/package[@name='com.kebechet.watchious.host']" name="managedName">Watchious.Hosts.WearOS.Native</attr>
+</metadata>

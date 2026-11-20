@@ -1,0 +1,7 @@
+* text=auto
+
+# Run on the Mac / Linux; CRLF line endings break the shebang and bash.
+*.sh text eol=lf
+*.py text eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>30</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <ApplicationId>com.kebechet.watchious.samples.counter</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <RootNamespace>Watchious.Samples.Counter.WearOS</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Watchious.Hosts.WearOS\Watchious.Hosts.WearOS.csproj" />
+    <ProjectReference Include="..\Watchious.Samples.Counter\Watchious.Samples.Counter.csproj" />
+  </ItemGroup>
+
+</Project>

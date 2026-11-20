@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="Watchious.Core\Watchious.Core.csproj" />
+    <Project Path="Watchious.Controls\Watchious.Controls.csproj" />
+    <Project Path="Watchious.Hosts.WatchOS\Watchious.Hosts.WatchOS.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="..\samples\Watchious.Samples.Counter\Watchious.Samples.Counter.csproj" />
+    <Project Path="..\samples\Watchious.Samples.Counter.WatchOS\Watchious.Samples.Counter.WatchOS.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="..\tests\Watchious.Core.Tests\Watchious.Core.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Watchious</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components" Version="$(WatchiousDotNetPackagesVersion)" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(WatchiousDotNetPackagesVersion)" />
+  </ItemGroup>
+
+</Project>
