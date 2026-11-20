@@ -6,7 +6,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 OUT="${WATCHIOUS_OUT:-$HOME/watchious/out}"
 CONFIGURATION="${CONFIGURATION:-Release}"
-DOTNET="${DOTNET:-$HOME/.dotnet/dotnet}"
+DOTNET="${DOTNET:-$(command -v dotnet || echo "$HOME/.dotnet/dotnet")}"
 MIN_WATCHOS="26.0"
 RID="iossimulator-arm64"
 SDK_NAME="watchsimulator"

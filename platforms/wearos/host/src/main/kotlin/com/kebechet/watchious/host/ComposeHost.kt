@@ -19,10 +19,7 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
-// Works with a plain android.app.Activity, so the .NET app needs no AndroidX bindings. The public API uses
-// platform types only: a public class implementing an AndroidX interface would be dropped by the .NET
-// binding generator, which cannot see the unbound AndroidX types.
-class WatchiousComposeHost(activity: Activity) {
+internal class ComposeHost(activity: Activity) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val owner = HostOwner(activity)
     private var tree by mutableStateOf(emptyList<UiNode>())

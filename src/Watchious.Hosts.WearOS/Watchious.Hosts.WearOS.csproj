@@ -10,8 +10,13 @@
     <WatchiousWearOSHostBuildDir>$(MSBuildThisFileDirectory)..\..\platforms\wearos\host\build\</WatchiousWearOSHostBuildDir>
   </PropertyGroup>
 
+  <!-- The AAR also holds Kotlin internals and Compose-generated classes that use AndroidX types. The binding
+       generator can resolve those only through Xamarin.AndroidX bindings, which Watchious does not use, so it
+       binds a jar with just the public API (built by Gradle's watchiousBindingApi task) and the AAR ships
+       unbound. -->
   <ItemGroup>
-    <AndroidLibrary Include="$(WatchiousWearOSHostBuildDir)outputs\aar\host-release.aar" />
+    <InputJar Include="$(WatchiousWearOSHostBuildDir)watchious-binding\watchious-host-api.jar" />
+    <AndroidLibrary Include="$(WatchiousWearOSHostBuildDir)outputs\aar\host-release.aar" Bind="false" />
     <AndroidLibrary Include="$(WatchiousWearOSHostBuildDir)watchious-runtime\*.aar" Bind="false" />
     <AndroidLibrary Include="$(WatchiousWearOSHostBuildDir)watchious-runtime\*.jar" Bind="false" />
   </ItemGroup>

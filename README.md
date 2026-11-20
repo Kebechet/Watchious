@@ -10,8 +10,9 @@ Write your smartwatch app once in C# and Razor. Watchious renders it as **native
 and native Compose on Wear OS (Samsung Galaxy Watch, Google Pixel Watch and others). Your C# runs **on
 the watch itself** on both platforms, so the app keeps working without the phone.
 
-> ⚠️ **Status: early concept.** There is nothing to install yet, and no package is published. This README
-> records the design, the decisions made so far and the open questions.
+> ⚠️ **Status: proof of concept.** The same Razor counter app runs as native UI in the watchOS simulator and
+> the Wear OS emulator, not yet on real watches. There is nothing to install yet, and no package is
+> published. This README records the design, the decisions made so far and the open questions.
 
 ## Why
 
@@ -111,7 +112,7 @@ checked by the compiler instead of relying on raw strings.
 | `CollectionView` | `List` | `ScalingLazyColumn` |
 | `Label` | `Text` | `Text` |
 | `Button` | `Button` | `Button` |
-| `Switch` | `Toggle` | `SwitchButton` |
+| `Switch` (plus a `Text` label) | `Toggle` | `SwitchButton` |
 | `Image` | `Image` (incl. SF Symbols) | `Image` / `Icon` |
 | `ProgressBar` / `ActivityIndicator` | `ProgressView` / `Gauge` | `CircularProgressIndicator` |
 | `Picker` | `Picker` | `Picker` |
@@ -168,6 +169,7 @@ Versions stay at `0.x.x` until the API is stable.
 | Supported Apple Watches | Series 9 / Ultra 2 / SE 3 and newer (`arm64`). No `arm64_32` watches. |
 | App startup | MAUI-style `WatchiousApp.CreateBuilder()` with dependency injection |
 | Control names | MAUI names: `VerticalStackLayout`, `Label`, `Switch`, `Entry`... |
+| Switch label | `Switch` has a `Text` parameter, unlike MAUI's. Both native toggles carry their own label, which looks native and is read together with the switch by VoiceOver and TalkBack. |
 | Events and binding | Blazor style: `OnClick`, `@bind-IsToggled` |
 | App state | Blazor style: state in components with `@bind`, shared logic in services through dependency injection |
 | Health and workouts | In scope later, as a separate `Watchious.Health` package after messaging |
@@ -196,11 +198,12 @@ Versions stay at `0.x.x` until the API is stable.
 
 ## Roadmap
 
-0. **watchOS runtime research:** C# compiled by NativeAOT, rendering a counter through a SwiftUI host in
-   the watchOS simulator. This runs alongside step 1.
-1. **Wear OS proof of concept:** the renderer plus a Compose host with `Label`, `Button` and
-   `CollectionView`, running a counter app on the Wear OS emulator.
-2. **SwiftUI host** with the same controls as Wear OS.
+0. ✅ **watchOS runtime research:** C# compiled by NativeAOT, rendering a counter through a SwiftUI host in
+   the watchOS simulator.
+1. ✅ **Wear OS proof of concept:** the renderer plus a Compose host with `Label`, `Button` and
+   `CollectionView`, running a counter app on the Wear OS emulator. `CollectionView` is still to do.
+2. ✅ **SwiftUI host** with the same controls as Wear OS. From now on, each new control is added to both
+   hosts together.
 3. **Project model:** `Watchious.Sdk`, `UseWatchious`, `dotnet new watchious` and
    `dotnet build -f net10.0-watchos`, including remote builds from Windows on a Mac.
 4. **Navigation** with typed routes, and the rest of the planned controls.

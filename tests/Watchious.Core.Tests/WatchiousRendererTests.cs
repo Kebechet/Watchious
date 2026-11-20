@@ -69,6 +69,20 @@ public class WatchiousRendererTests
     }
 
     [Fact]
+    public async Task Start_SendsTheSwitchLabel()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        await using var app = CounterApp.CreateWatchiousApp();
+
+        // Act
+        await app.StartAsync(host);
+
+        // Assert
+        host.LastTree.Single("Switch").Attribute("Text").ShouldBe("Warm-up");
+    }
+
+    [Fact]
     public async Task Start_FlattensComponentsIntoTheirParentElement()
     {
         // Arrange

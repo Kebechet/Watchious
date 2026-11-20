@@ -43,3 +43,13 @@ tasks.register<Sync>("watchiousRuntimeDependencies") {
     from(configurations.named("releaseRuntimeClasspath"))
     into(layout.buildDirectory.dir("watchious-runtime"))
 }
+
+// The .NET binding generator binds this jar, not the AAR: see Watchious.Hosts.WearOS.csproj.
+tasks.register<Jar>("watchiousBindingApi") {
+    from(tasks.named<JavaCompile>("compileReleaseJavaWithJavac").flatMap { it.destinationDirectory }) {
+        include("com/kebechet/watchious/host/WatchiousComposeHost.class")
+        include("com/kebechet/watchious/host/WatchiousEventListener.class")
+    }
+    archiveFileName.set("watchious-host-api.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("watchious-binding"))
+}

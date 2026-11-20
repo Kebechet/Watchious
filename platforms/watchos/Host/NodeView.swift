@@ -9,6 +9,7 @@ struct NodeView: View {
         case "ScrollView":
             ScrollView {
                 children
+                    .scenePadding(.horizontal)
             }
         case "VerticalStackLayout":
             VStack(alignment: .leading, spacing: spacing) {
@@ -27,10 +28,14 @@ struct NodeView: View {
             }
             .disabled(node.attribute("IsEnabled") == "false")
         case "Switch":
-            Toggle(isOn: toggledBinding) {
-                EmptyView()
+            if let text = node.attribute("Text"), !text.isEmpty {
+                Toggle(text, isOn: toggledBinding)
+            } else {
+                Toggle(isOn: toggledBinding) {
+                    EmptyView()
+                }
+                .labelsHidden()
             }
-            .labelsHidden()
         case "#text":
             Text(node.text ?? "")
         default:

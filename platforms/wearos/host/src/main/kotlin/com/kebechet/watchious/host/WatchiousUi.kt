@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
@@ -69,12 +70,15 @@ private fun RenderNode(node: UiNode, dispatch: EventDispatch) {
             enabled = node.attribute("IsEnabled") != "false",
             label = { Text(node.attribute("Text").orEmpty()) },
         )
-        "Switch" -> SwitchButton(
-            checked = node.attribute("IsToggled") == "true",
-            onCheckedChange = { isChecked -> node.dispatch("toggled", isChecked.toString(), dispatch) },
-            modifier = Modifier.wrapContentWidth(),
-            label = {},
-        )
+        "Switch" -> {
+            val text = node.attribute("Text")
+            SwitchButton(
+                checked = node.attribute("IsToggled") == "true",
+                onCheckedChange = { isChecked -> node.dispatch("toggled", isChecked.toString(), dispatch) },
+                modifier = if (text.isNullOrEmpty()) Modifier.wrapContentWidth() else Modifier.fillMaxWidth(),
+                label = { if (!text.isNullOrEmpty()) Text(text) },
+            )
+        }
         UiNode.TEXT_TYPE -> Text(node.text.orEmpty())
         else -> RenderNodes(node.children, dispatch)
     }

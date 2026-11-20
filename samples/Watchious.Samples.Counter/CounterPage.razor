@@ -3,10 +3,7 @@
         <Label Text="Watchious" Style="TextStyle.Title" />
         <Label Text="@($"Count: {count}")" />
         <Button Text="+1" OnClick="() => count++" />
-        <HorizontalStackLayout Spacing="4">
-            <Label Text="Warm-up" />
-            <Switch @bind-IsToggled="isWarmup" />
-        </HorizontalStackLayout>
+        <Switch Text="Warm-up" @bind-IsToggled="isWarmup" />
         @if (isWarmup)
         {
             <Label Text="Warm-up set" Style="TextStyle.Caption" />
