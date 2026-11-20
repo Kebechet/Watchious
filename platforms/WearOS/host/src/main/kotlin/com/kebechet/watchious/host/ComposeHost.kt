@@ -6,9 +6,12 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -18,6 +21,7 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import kotlinx.coroutines.flow.first
 
 internal class ComposeHost(activity: Activity) {
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -28,7 +32,21 @@ internal class ComposeHost(activity: Activity) {
     val view: View = ComposeView(activity).apply {
         setViewTreeLifecycleOwner(owner)
         setViewTreeSavedStateRegistryOwner(owner)
-        setContent { WatchiousScreen(tree, ::dispatch) }
+        setContent {
+            WatchiousScreen(tree, ::dispatch)
+            LaunchedEffect(Unit) { reportFullyDrawnAfterFirstTree(activity) }
+        }
+    }
+
+    // The first frame Android times on launch is drawn before .NET has rendered anything; reportFullyDrawn marks
+    // when the first Watchious screen is on the display ("Fully drawn" in logcat).
+    private suspend fun reportFullyDrawnAfterFirstTree(activity: Activity) {
+        snapshotFlow { tree }.first { it.isNotEmpty() }
+        // The first wait can resume at the start of the frame that composes the tree, before it is drawn; the
+        // second resumes only after that frame was drawn.
+        withFrameNanos { }
+        withFrameNanos { }
+        activity.reportFullyDrawn()
     }
 
     fun render(uiTreeJson: String) {

@@ -40,12 +40,15 @@ internal fun WatchiousScreen(nodes: List<UiNode>, dispatch: EventDispatch) {
 }
 
 @Composable
-private fun RenderNodes(nodes: List<UiNode>, dispatch: EventDispatch) {
-    nodes.forEach { node -> RenderNode(node, dispatch) }
+private fun RenderNodes(nodes: List<UiNode>, dispatch: EventDispatch, isInRow: Boolean = false) {
+    nodes.forEach { node -> RenderNode(node, dispatch, isInRow) }
 }
 
 @Composable
-private fun RenderNode(node: UiNode, dispatch: EventDispatch) {
+private fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean) {
+    // Like MAUI's default HorizontalOptions.Fill: a control spans the width of a vertical layout, but takes only
+    // the width it needs in a HorizontalStackLayout, where filling would push its siblings out.
+    val fillWidth = if (isInRow) Modifier else Modifier.fillMaxWidth()
     when (node.type) {
         "ScrollView" -> WatchScrollView(node, dispatch)
         "VerticalStackLayout" -> Column(
@@ -58,7 +61,7 @@ private fun RenderNode(node: UiNode, dispatch: EventDispatch) {
             horizontalArrangement = Arrangement.spacedBy(node.spacing().dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RenderNodes(node.children, dispatch)
+            RenderNodes(node.children, dispatch, isInRow = true)
         }
         "Label" -> Text(
             text = node.attribute("Text").orEmpty(),
@@ -67,20 +70,27 @@ private fun RenderNode(node: UiNode, dispatch: EventDispatch) {
         )
         "Button" -> Button(
             onClick = { node.dispatch("click", null, dispatch) },
+            modifier = fillWidth,
             enabled = node.attribute("IsEnabled") != "false",
-            label = { Text(node.attribute("Text").orEmpty()) },
+            label = {
+                Text(
+                    text = node.attribute("Text").orEmpty(),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                )
+            },
         )
         "Switch" -> {
             val text = node.attribute("Text")
             SwitchButton(
                 checked = node.attribute("IsToggled") == "true",
                 onCheckedChange = { isChecked -> node.dispatch("toggled", isChecked.toString(), dispatch) },
-                modifier = if (text.isNullOrEmpty()) Modifier.wrapContentWidth() else Modifier.fillMaxWidth(),
+                modifier = if (text.isNullOrEmpty()) Modifier.wrapContentWidth() else fillWidth,
                 label = { if (!text.isNullOrEmpty()) Text(text) },
             )
         }
         UiNode.TEXT_TYPE -> Text(node.text.orEmpty())
-        else -> RenderNodes(node.children, dispatch)
+        else -> RenderNodes(node.children, dispatch, isInRow)
     }
 }
 
