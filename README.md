@@ -163,7 +163,7 @@ Versions stay at `0.x.x` until the API is stable.
 | Where C# runs | On the watch on both platforms. No phone proxy. |
 | UI language | Razor only (no XAML) |
 | Wear OS native layer | Compose for Wear OS host written in Kotlin |
-| Target versions | .NET 10 only. Minimum Wear OS 3 (Android API 30). Minimum watchOS 26. |
+| Target versions | .NET 10 only. Minimum Wear OS 3 (Android API 30), built for 32-bit and 64-bit ARM: Samsung's Galaxy Watches run 32-bit Android even on 64-bit chips, and .NET 10 builds 64-bit only by default. Minimum watchOS 26. |
 | Target frameworks | Wear OS uses the standard `net10.0-android`, so the .NET for Android build, debugger and Android NuGet packages keep working. A custom `net10.0-wearos` would lose all of them. watchOS gets Watchious's own `net10.0-watchos`, because .NET has none and there are no watchOS packages to lose. |
 | Naming | Watchious's own folders, projects and packages say `WearOS` and `watchOS`, never `Android` or `iOS`. Those names mean the phone, where the messaging code also runs. Like MAUI (`Platforms/iOS`, `DevicePlatform.watchOS`), a platform name on its own keeps Apple's casing (`Watchious.Hosts.watchOS`); inside a longer identifier it is Pascal-cased, as in .NET's `OperatingSystem.IsWatchOS()` (`WatchOSBridge`). Names are lowercase only where the tool requires it: the `net10.0-watchos` target framework, compiler target triples and Gradle project names. |
 | Supported Apple Watches | Series 9 / Ultra 2 / SE 3 and newer (`arm64`). No `arm64_32` watches. |

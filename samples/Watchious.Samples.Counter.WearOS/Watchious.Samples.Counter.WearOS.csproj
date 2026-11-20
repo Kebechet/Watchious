@@ -8,6 +8,9 @@
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
     <RootNamespace>Watchious.Samples.Counter.WearOS</RootNamespace>
+    <!-- .NET 10 builds only android-arm64 and android-x64 by default, but Samsung's Galaxy Watches run 32-bit
+         Android even on 64-bit chips (a Galaxy Watch7 reports armeabi-v7a only). -->
+    <RuntimeIdentifiers>android-arm;android-arm64;android-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
