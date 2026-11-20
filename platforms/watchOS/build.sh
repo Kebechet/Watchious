@@ -26,7 +26,7 @@ for argument in "$@"; do
 done
 
 export DOTNET_ROOT="$(dirname "$DOTNET")" DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
-PROJECT="$HERE/../../samples/Watchious.Samples.Counter.WatchOS/Watchious.Samples.Counter.WatchOS.csproj"
+PROJECT="$HERE/../../samples/Watchious.Samples.Counter.watchOS/Watchious.Samples.Counter.watchOS.csproj"
 SDK_VERSION="$(xcrun --sdk "$SDK_NAME" --show-sdk-version)"
 
 echo "==> NativeAOT static library ($RID)"

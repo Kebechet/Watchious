@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using Watchious.Hosts.WatchOS;
+using Watchious.Hosts.watchOS;
 
-namespace Watchious.Samples.Counter.WatchOS;
+namespace Watchious.Samples.Counter.watchOS;
 
 public static unsafe class WatchOSExports
 {

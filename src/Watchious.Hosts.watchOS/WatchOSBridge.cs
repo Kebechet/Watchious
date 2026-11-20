@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Watchious.Hosting;
 
-namespace Watchious.Hosts.WatchOS;
+namespace Watchious.Hosts.watchOS;
 
 // Called from the [UnmanagedCallersOnly] exports of the app project. NativeAOT only exports entry points
 // from the app's own assembly, so the exports live there and forward here.

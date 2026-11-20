@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Watchious.Hosts.WatchOS;
+namespace Watchious.Hosts.watchOS;
 
 // The Swift side copies the bytes before the callback returns, so the pinned buffer only has to live for
 // the duration of the call.

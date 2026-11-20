@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <WatchiousWearOSHostBuildDir>$(MSBuildThisFileDirectory)..\..\platforms\wearos\host\build\</WatchiousWearOSHostBuildDir>
+    <WatchiousWearOSHostBuildDir>$(MSBuildThisFileDirectory)..\..\platforms\WearOS\host\build\</WatchiousWearOSHostBuildDir>
   </PropertyGroup>
 
   <!-- The AAR also holds Kotlin internals and Compose-generated classes that use AndroidX types. The binding

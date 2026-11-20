@@ -148,7 +148,7 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
 | `Watchious.Controls` | `Microsoft.Maui.Controls` | Razor controls, navigation, app builder |
 | `Watchious.Core` | `Microsoft.Maui.Core` | Renderer, UI-change protocol, native hosts |
 | `Watchious.Essentials` | `Microsoft.Maui.Essentials` | Phone ↔ watch messaging, device APIs |
-| `Watchious.Health` | none | Heart rate and workout sessions (HealthKit / Health Services) |
+| `Watchious.Health` | [`Kebechet.Maui.Health`](https://github.com/Kebechet/Maui.Health) (not part of MAUI itself) | Heart rate and workout sessions (HealthKit / Health Services) |
 | `Watchious.Sdk` | the `maui` workload | `UseWatchious`, the `net10.0-watchos` target, build integration |
 | `Watchious.Templates` | `Microsoft.Maui.Templates` | `dotnet new watchious` |
 
@@ -165,7 +165,7 @@ Versions stay at `0.x.x` until the API is stable.
 | Wear OS native layer | Compose for Wear OS host written in Kotlin |
 | Target versions | .NET 10 only. Minimum Wear OS 3 (Android API 30). Minimum watchOS 26. |
 | Target frameworks | Wear OS uses the standard `net10.0-android`, so the .NET for Android build, debugger and Android NuGet packages keep working. A custom `net10.0-wearos` would lose all of them. watchOS gets Watchious's own `net10.0-watchos`, because .NET has none and there are no watchOS packages to lose. |
-| Naming | Watchious's own folders, projects and packages say `WearOS` and `watchOS`, never `Android` or `iOS`. Those names mean the phone, where the messaging code also runs. |
+| Naming | Watchious's own folders, projects and packages say `WearOS` and `watchOS`, never `Android` or `iOS`. Those names mean the phone, where the messaging code also runs. Like MAUI (`Platforms/iOS`, `DevicePlatform.watchOS`), a platform name on its own keeps Apple's casing (`Watchious.Hosts.watchOS`); inside a longer identifier it is Pascal-cased, as in .NET's `OperatingSystem.IsWatchOS()` (`WatchOSBridge`). Names are lowercase only where the tool requires it: the `net10.0-watchos` target framework, compiler target triples and Gradle project names. |
 | Supported Apple Watches | Series 9 / Ultra 2 / SE 3 and newer (`arm64`). No `arm64_32` watches. |
 | App startup | MAUI-style `WatchiousApp.CreateBuilder()` with dependency injection |
 | Control names | MAUI names: `VerticalStackLayout`, `Label`, `Switch`, `Entry`... |

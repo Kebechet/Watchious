@@ -3,13 +3,13 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>WatchiousCounter</AssemblyName>
-    <RootNamespace>Watchious.Samples.Counter.WatchOS</RootNamespace>
+    <RootNamespace>Watchious.Samples.Counter.watchOS</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <!-- There is no watchOS runtime identifier. The library is compiled for the iOS simulator and its
-       objects are re-tagged for the watchOS simulator by platforms/watchos/build.sh. -->
+       objects are re-tagged for the watchOS simulator by platforms/watchOS/build.sh. -->
   <PropertyGroup Label="NativeAOT static library">
     <PublishAot>true</PublishAot>
     <NativeLib>Static</NativeLib>
@@ -19,7 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Watchious.Hosts.WatchOS\Watchious.Hosts.WatchOS.csproj" />
+    <ProjectReference Include="..\..\src\Watchious.Hosts.watchOS\Watchious.Hosts.watchOS.csproj" />
     <ProjectReference Include="..\Watchious.Samples.Counter\Watchious.Samples.Counter.csproj" />
   </ItemGroup>
 
