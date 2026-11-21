@@ -9,7 +9,7 @@
     <key>CFBundleExecutable</key>
     <string>WatchiousHost</string>
     <key>CFBundleIdentifier</key>
-    <string>com.kebechet.watchious.counter</string>
+    <string>com.kebechet.watchious.counter.watchkitapp</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
@@ -20,14 +20,6 @@
     <string>0.1.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
-    <key>CFBundleSupportedPlatforms</key>
-    <array>
-        <string>WatchSimulator</string>
-    </array>
-    <key>DTPlatformName</key>
-    <string>watchsimulator</string>
-    <key>MinimumOSVersion</key>
-    <string>26.0</string>
     <key>UIDeviceFamily</key>
     <array>
         <integer>4</integer>

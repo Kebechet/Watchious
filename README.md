@@ -10,8 +10,9 @@ Write your smartwatch app once in C# and Razor. Watchious renders it as **native
 and native Compose on Wear OS (Samsung Galaxy Watch, Google Pixel Watch and others). Your C# runs **on
 the watch itself** on both platforms, so the app keeps working without the phone.
 
-> ⚠️ **Status: proof of concept.** The same Razor counter app runs as native UI in the watchOS simulator and
-> the Wear OS emulator, not yet on real watches. There is nothing to install yet, and no package is
+> ⚠️ **Status: proof of concept.** The same Razor counter app runs as native UI on a real Apple Watch SE 3
+> (watchOS 27) and a Galaxy Watch7, and in the watchOS simulator and the Wear OS emulator. The watchOS device
+> build also passes App Store validation. There is nothing to install yet, and no package is
 > published. This README records the design, the decisions made so far and the open questions.
 
 ## Why
@@ -91,14 +92,18 @@ checked by the compiler instead of relying on raw strings.
 | Platform | Watches | Where your C# runs | Native host |
 |---|---|---|---|
 | **Wear OS** | Samsung Galaxy Watch4 and newer, Google Pixel Watch, other Wear OS watches. Minimum Wear OS 3 (Android API 30). | On the watch, via .NET for Android | Compose for Wear OS, written in Kotlin |
-| **watchOS** | Apple Watch Series 9 / Ultra 2 / SE 3 and newer, on watchOS 26+ (the `arm64` watches). Older `arm64_32` watches are not supported. | On the watch, compiled by NativeAOT into a static native library | SwiftUI, written in Swift |
+| **watchOS** | Apple Watch Series 9 / Ultra 2 / SE 3 and newer, on watchOS 27+ (the `arm64` watches). Older `arm64_32` watches are not supported. | On the watch, compiled by NativeAOT into a static native library | SwiftUI, written in Swift |
 
-> ⚠️ **.NET does not run on watchOS today.** Watchious has to make it run, and nobody has done that since
-> Xamarin. The plan is NativeAOT: compile the C# into a static native library, link it into a SwiftUI
-> watch app, and let Swift and C# talk through exported C functions. NativeAOT already does this on iOS
-> and tvOS on the same `arm64` CPU, and since watchOS 26 Apple Watch Series 9 / Ultra 2 and newer use
-> `arm64` as well. This is the riskiest part of the project, so it is researched first. If it fails,
-> Watchious becomes Wear OS only.
+> ⚠️ **.NET does not support watchOS.** Watchious makes it run itself: NativeAOT compiles the C# into a
+> static native library, which is linked into a SwiftUI watch app, and Swift and C# talk through exported C
+> functions. NativeAOT already does this on iOS and tvOS on the same `arm64` CPU, and since watchOS 26 Apple
+> Watch Series 9 / Ultra 2 and newer use `arm64` as well. This works on a real Apple Watch SE 3.
+
+> ⚠️ **On a real Apple Watch, a null dereference in C# ends the app** instead of throwing
+> `NullReferenceException`. watchOS stops any app that installs a handler for a fatal signal ("sigaction on
+> fatal signals is not supported"), which is how the .NET runtime turns memory faults into exceptions, so
+> Watchious keeps the runtime from installing it (`platforms/watchOS/Host/FatalSignals.c`). The watchOS
+> simulator behaves the same way.
 
 > ⚠️ NativeAOT has no managed (C#) debugger on Apple platforms. On Apple Watch, debugging means logs and
 > Xcode's native debugger.
@@ -129,14 +134,14 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
 - **Single project**, like MAUI:
   ```xml
   <PropertyGroup>
-    <TargetFrameworks>net10.0-android;net10.0-watchos</TargetFrameworks>
+    <TargetFrameworks>net11.0-android;net11.0-watchos</TargetFrameworks>
     <UseWatchious>true</UseWatchious>
   </PropertyGroup>
   ```
   with `Platforms/WearOS`, `Platforms/watchOS` and shared `Resources/` (app icon, fonts, images).
 - **Template:** `dotnet new watchious`.
-- **Build:** `dotnet build -f net10.0-watchos` builds the complete watch app with no manual Xcode step.
-  The .NET SDK does not support `net10.0-watchos` today, so Watchious provides it through its own MSBuild
+- **Build:** `dotnet build -f net11.0-watchos` builds the complete watch app with no manual Xcode step.
+  The .NET SDK does not support `net11.0-watchos` today, so Watchious provides it through its own MSBuild
   SDK, which runs NativeAOT and Apple's build tools on a Mac: either locally, or from Windows on a remote
   Mac, like MAUI's "Pair to Mac".
 - **Companion apps:** a watch app can ship inside a .NET iPhone app (for example a MAUI app) using the
@@ -149,7 +154,7 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
 | `Watchious.Core` | `Microsoft.Maui.Core` | Renderer, UI-change protocol, native hosts |
 | `Watchious.Essentials` | `Microsoft.Maui.Essentials` | Phone ↔ watch messaging, device APIs |
 | `Watchious.Health` | [`Kebechet.Maui.Health`](https://github.com/Kebechet/Maui.Health) (not part of MAUI itself) | Heart rate and workout sessions (HealthKit / Health Services) |
-| `Watchious.Sdk` | the `maui` workload | `UseWatchious`, the `net10.0-watchos` target, build integration |
+| `Watchious.Sdk` | the `maui` workload | `UseWatchious`, the `net11.0-watchos` target, build integration |
 | `Watchious.Templates` | `Microsoft.Maui.Templates` | `dotnet new watchious` |
 
 Versions stay at `0.x.x` until the API is stable.
@@ -163,9 +168,9 @@ Versions stay at `0.x.x` until the API is stable.
 | Where C# runs | On the watch on both platforms. No phone proxy. |
 | UI language | Razor only (no XAML) |
 | Wear OS native layer | Compose for Wear OS host written in Kotlin |
-| Target versions | .NET 10 only. Minimum Wear OS 3 (Android API 30), built for 32-bit and 64-bit ARM: Samsung's Galaxy Watches run 32-bit Android even on 64-bit chips, and .NET 10 builds 64-bit only by default. Minimum watchOS 26. |
-| Target frameworks | Wear OS uses the standard `net10.0-android`, so the .NET for Android build, debugger and Android NuGet packages keep working. A custom `net10.0-wearos` would lose all of them. watchOS gets Watchious's own `net10.0-watchos`, because .NET has none and there are no watchOS packages to lose. |
-| Naming | Watchious's own folders, projects and packages say `WearOS` and `watchOS`, never `Android` or `iOS`. Those names mean the phone, where the messaging code also runs. Like MAUI (`Platforms/iOS`, `DevicePlatform.watchOS`), a platform name on its own keeps Apple's casing (`Watchious.Hosts.watchOS`); inside a longer identifier it is Pascal-cased, as in .NET's `OperatingSystem.IsWatchOS()` (`WatchOSBridge`). Names are lowercase only where the tool requires it: the `net10.0-watchos` target framework, compiler target triples and Gradle project names. |
+| Target versions | .NET 11 and later. Minimum Wear OS 3 (Android API 30), built for 32-bit and 64-bit ARM: Samsung's Galaxy Watches run 32-bit Android even on 64-bit chips, and .NET builds 64-bit only by default. Minimum watchOS 27: below it the App Store requires an `arm64_32` slice (ITMS-90733), which NativeAOT cannot build. |
+| Target frameworks | Wear OS uses the standard `net11.0-android`, so the .NET for Android build, debugger and Android NuGet packages keep working. A custom `net11.0-wearos` would lose all of them. watchOS gets Watchious's own `net11.0-watchos`, because .NET has none and there are no watchOS packages to lose. |
+| Naming | Watchious's own folders, projects and packages say `WearOS` and `watchOS`, never `Android` or `iOS`. Those names mean the phone, where the messaging code also runs. Like MAUI (`Platforms/iOS`, `DevicePlatform.watchOS`), a platform name on its own keeps Apple's casing (`Watchious.Hosts.watchOS`); inside a longer identifier it is Pascal-cased, as in .NET's `OperatingSystem.IsWatchOS()` (`WatchOSBridge`). Names are lowercase only where the tool requires it: the `net11.0-watchos` target framework, compiler target triples and Gradle project names. |
 | Supported Apple Watches | Series 9 / Ultra 2 / SE 3 and newer (`arm64`). No `arm64_32` watches. |
 | App startup | MAUI-style `WatchiousApp.CreateBuilder()` with dependency injection |
 | Control names | MAUI names: `VerticalStackLayout`, `Label`, `Switch`, `Entry`... |
@@ -185,8 +190,9 @@ Versions stay at `0.x.x` until the API is stable.
 
 ## Open questions
 
-1. **App Store and `arm64`-only watch apps.** Watchious does not support `arm64_32`, so its watch apps
-   ship without that architecture. Still to verify: whether the App Store accepts that.
+1. ✅ **App Store and `arm64`-only watch apps.** Watchious does not support `arm64_32`, so its watch apps
+   ship without that architecture. Answered: App Store validation accepts such an app when its minimum is
+   watchOS 27, and rejects it below that (ITMS-90733).
 
 ## What Watchious is not
 
@@ -199,17 +205,23 @@ Versions stay at `0.x.x` until the API is stable.
 ## Roadmap
 
 0. ✅ **watchOS runtime research:** C# compiled by NativeAOT, rendering a counter through a SwiftUI host in
-   the watchOS simulator.
+   the watchOS simulator and on a real Apple Watch SE 3. The device build, signed and packaged as a
+   watch-only app, passes App Store validation.
 1. ✅ **Wear OS proof of concept:** the renderer plus a Compose host with `Label`, `Button` and
-   `CollectionView`, running a counter app on the Wear OS emulator. `CollectionView` is still to do.
+   `CollectionView`, running a counter app on the Wear OS emulator and a Galaxy Watch7. `CollectionView` is
+   still to do.
 2. ✅ **SwiftUI host** with the same controls as Wear OS. From now on, each new control is added to both
    hosts together.
 3. **Project model:** `Watchious.Sdk`, `UseWatchious`, `dotnet new watchious` and
-   `dotnet build -f net10.0-watchos`, including remote builds from Windows on a Mac.
-4. **Navigation** with typed routes, and the rest of the planned controls.
-5. **Messaging** between phone and watch (`Watchious.Essentials`).
-6. **Preview host:** the same screens in a desktop window, for debugging in Visual Studio.
-7. **Health and workouts** (`Watchious.Health`).
+   `dotnet build -f net11.0-watchos`, including remote builds from Windows on a Mac.
+4. **Patch-based protocol:** send only what changed, as typed binary patches, instead of the whole UI tree as
+   JSON after every change (https://github.com/Kebechet/Watchious/issues/2).
+5. **Navigation** with typed routes, and the rest of the planned controls.
+6. **Messaging** between phone and watch (`Watchious.Essentials`).
+7. **Preview host:** the same screens in a desktop window, for debugging in Visual Studio.
+8. **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
+   it events (https://github.com/Kebechet/Watchious/issues/5).
+9. **Health and workouts** (`Watchious.Health`).
 
 ## Prior art
 
@@ -219,6 +231,16 @@ Versions stay at `0.x.x` until the API is stable.
   for .NET MAUI
 - [RazorConsole](https://github.com/RazorConsole/RazorConsole): Razor components rendered to a terminal
 - Blazor Server: the same renderer, sending UI changes to a remote client
+- [BlazorNative](https://github.com/MarcelRoozekrans/BlazorNative): Blazor components compiled by NativeAOT
+  and shown as native Android and iOS views, sent as typed patches through a C interface and laid out by
+  Yoga. Phones only. Its patch protocol is the reference for Watchious's
+  (https://github.com/Kebechet/Watchious/issues/2).
+- [Codename One](https://www.codenameone.com/blog/native-apple-watch-and-wear/): Java apps for Apple Watch
+  and Wear OS from one code base. On watchOS it draws with Core Graphics inside a SwiftUI shell instead of
+  using SwiftUI controls.
+- [Uno Platform 6.7](https://platform.uno/blog/uno-platform-6-7/): Wear OS as an opt-in for an Android
+  project (AndroidX Wear libraries and manifest entries). The watch UI is still yours to build, and there
+  is no watchOS.
 
 ## License
 
