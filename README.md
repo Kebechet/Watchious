@@ -22,8 +22,9 @@ the watch itself** on both platforms, so the app keeps working without the phone
 - So a .NET team that wants a watch app today writes it twice: once in Swift for Apple Watch and once in
   Kotlin for Wear OS.
 
-Watchious copies the MAUI way of doing things (single project, app builder, dependency injection, control
-names), so a MAUI developer feels at home.
+Watchious copies the MAUI way of doing things (single project, app builder, dependency injection, platform
+code in C#), so a MAUI developer feels at home. Its controls use SwiftUI's names, the vocabulary of watch UI,
+which Compose for Wear OS largely shares.
 
 ## How it works
 
@@ -32,7 +33,7 @@ batches of changes. Blazor in the browser applies them to the DOM, while Blazor 
 the network. Watchious applies them to native watch UI:
 
 ```
-Shared Razor components (<VerticalStackLayout>, <Label>, <Button>, <CollectionView>...)
+Shared Razor components (<VStack>, <Text>, <Button>, <List>...)
         |  Watchious renderer (a Blazor Renderer), running on the watch
         v
 compact UI changes (create / update / remove node, attach event)
@@ -65,19 +66,19 @@ public static class WatchiousProgram
 }
 ```
 
-A page uses MAUI control names with Blazor-style events and binding (API shape not final):
+A page uses SwiftUI's control names with Blazor-style events and binding (API shape not final):
 
 ```razor
 @page "/workout/{ExerciseId:int}"
 @inject INavigation Navigation
 
-<VerticalStackLayout>
-    <Label Text="@exercise.Name" Style="TextStyle.Title" />
-    <Label Text="@($"{reps} reps")" />
-    <Switch @bind-IsToggled="isWarmup" />
+<VStack>
+    <Text Style="TextStyle.Title">@exercise.Name</Text>
+    <Text>@reps reps</Text>
+    <Toggle Text="Warm-up" @bind-IsOn="isWarmup" />
     <Button Text="+1" OnClick="() => reps++" />
     <Button Text="Next" OnClick="GoToNextAsync" />
-</VerticalStackLayout>
+</VStack>
 
 @code {
     private Task GoToNextAsync() => Navigation.GoToAsync(Routes.Workout(exerciseId: ExerciseId + 1));
@@ -110,18 +111,21 @@ checked by the compiler instead of relying on raw strings.
 
 ## Planned controls
 
-| Watchious (MAUI name) | watchOS (SwiftUI) | Wear OS (Compose) |
+| Watchious (SwiftUI's names) | watchOS (SwiftUI) | Wear OS (Compose) |
 |---|---|---|
-| `VerticalStackLayout` / `HorizontalStackLayout` | `VStack` / `HStack` | `Column` / `Row` |
+| `VStack` / `HStack` | `VStack` / `HStack` | `Column` / `Row` |
 | `ScrollView` | `ScrollView` | `ScalingLazyColumn` |
-| `CollectionView` | `List` | `ScalingLazyColumn` |
-| `Label` | `Text` | `Text` |
+| `List` | `List` | `ScalingLazyColumn` |
+| `Text` | `Text` | `Text` |
 | `Button` | `Button` | `Button` |
-| `Switch` (plus a `Text` label) | `Toggle` | `SwitchButton` |
+| `Toggle` (with a `Text` label) | `Toggle` | `SwitchButton` |
 | `Image` | `Image` (incl. SF Symbols) | `Image` / `Icon` |
-| `ProgressBar` / `ActivityIndicator` | `ProgressView` / `Gauge` | `CircularProgressIndicator` |
+| `ProgressView` | `ProgressView` / `Gauge` | `CircularProgressIndicator` |
 | `Picker` | `Picker` | `Picker` |
-| `Entry` | `TextField` | `RemoteInput` |
+| `TextField` | `TextField` | `RemoteInput` |
+
+The controls built so far still have their earlier MAUI names (`Label`, `VerticalStackLayout`,
+`HorizontalStackLayout`, `Switch`) until they are renamed in the controls step of the roadmap.
 
 Platform-only controls will be available as platform-specific components (for example
 `<Apple.Gauge>` or `<Wear.CurvedText>`). Styling uses semantic tokens (`TextStyle.Title`,
@@ -143,7 +147,10 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
 - **Build:** `dotnet build -f net11.0-watchos` builds the complete watch app with no manual Xcode step.
   The .NET SDK does not support `net11.0-watchos` today, so Watchious provides it through its own MSBuild
   SDK, which runs NativeAOT and Apple's build tools on a Mac: either locally, or from Windows on a remote
-  Mac, like MAUI's "Pair to Mac".
+  Mac, like MAUI's "Pair to Mac". Underneath, the watchOS side is a .NET for iOS NativeAOT build
+  (`ios-arm64`) relabelled for watchOS, so it reuses Microsoft's toolchain and bindings.
+- **Release:** from CI pipelines, like a MAUI app: `dotnet publish` gives the Play Store bundle and, on a
+  macOS runner, the App Store `.ipa`, with signing from the pipeline's secrets.
 - **Companion apps:** a watch app can ship inside a .NET iPhone app (for example a MAUI app) using the
   `AdditionalWatchOSApp` item that dotnet/macios is adding in
   https://github.com/dotnet/macios/pull/27284 (still open).
@@ -152,8 +159,9 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
 |---|---|---|
 | `Watchious.Controls` | `Microsoft.Maui.Controls` | Razor controls, navigation, app builder |
 | `Watchious.Core` | `Microsoft.Maui.Core` | Renderer, UI-change protocol, native hosts |
-| `Watchious.Essentials` | `Microsoft.Maui.Essentials` | Phone ↔ watch messaging, device APIs |
-| `Watchious.Health` | [`Kebechet.Maui.Health`](https://github.com/Kebechet/Maui.Health) (not part of MAUI itself) | Heart rate and workout sessions (HealthKit / Health Services) |
+| `Watchious.Essentials` | `Microsoft.Maui.Essentials` | The common watch APIs, unified across both platforms |
+| `Watchious.Messaging` | none (closest: [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging) on the phone) | Phone ↔ watch messaging. Optional. |
+| `Watchious.Health` | [`Kebechet.Maui.Health`](https://github.com/Kebechet/Maui.Health) (not part of MAUI itself) | Heart rate and workout sessions (HealthKit / Health Services). Optional. |
 | `Watchious.Sdk` | the `maui` workload | `UseWatchious`, the `net11.0-watchos` target, build integration |
 | `Watchious.Templates` | `Microsoft.Maui.Templates` | `dotnet new watchious` |
 
@@ -173,16 +181,18 @@ Versions stay at `0.x.x` until the API is stable.
 | Naming | Watchious's own folders, projects and packages say `WearOS` and `watchOS`, never `Android` or `iOS`. Those names mean the phone, where the messaging code also runs. Like MAUI (`Platforms/iOS`, `DevicePlatform.watchOS`), a platform name on its own keeps Apple's casing (`Watchious.Hosts.watchOS`); inside a longer identifier it is Pascal-cased, as in .NET's `OperatingSystem.IsWatchOS()` (`WatchOSBridge`). Names are lowercase only where the tool requires it: the `net11.0-watchos` target framework, compiler target triples and Gradle project names. |
 | Supported Apple Watches | Series 9 / Ultra 2 / SE 3 and newer (`arm64`). No `arm64_32` watches. |
 | App startup | MAUI-style `WatchiousApp.CreateBuilder()` with dependency injection |
-| Control names | MAUI names: `VerticalStackLayout`, `Label`, `Switch`, `Entry`... |
-| Switch label | `Switch` has a `Text` parameter, unlike MAUI's. Both native toggles carry their own label, which looks native and is read together with the switch by VoiceOver and TalkBack. |
-| Events and binding | Blazor style: `OnClick`, `@bind-IsToggled` |
+| Control names | SwiftUI's vocabulary: `VStack`, `Text`, `Toggle`, `List`, `TextField`... Not MAUI's names. Every common UI element is wrapped with its common parameters. |
+| Toggle label | `Toggle` has a `Text` parameter. Both native toggles carry their own label, which looks native and is read together with the switch by VoiceOver and TalkBack. |
+| Events and binding | Blazor style: `OnClick`, `@bind-IsOn` |
 | App state | Blazor style: state in components with `@bind`, shared logic in services through dependency injection |
-| Health and workouts | In scope later, as a separate `Watchious.Health` package after messaging |
+| Watch APIs | All common watch APIs wrapped as C# services in dependency injection, unified across the platforms as far as possible, in the style of [`Kebechet.Maui.RevenueCat.InAppBilling`](https://github.com/Kebechet/Maui.RevenueCat.InAppBilling). A feature only one platform has stays in the API and throws on the other. |
+| Platform-specific code | C# in `Platforms/WearOS` and `Platforms/watchOS`, like MAUI. Wear OS: Android and AndroidX APIs through .NET for Android. watchOS: Apple's frameworks (HealthKit, Foundation, CoreMotion...) through Microsoft's .NET for iOS bindings, which run on the watch (shown on an Apple Watch SE 3). Watch-only Apple APIs that .NET for iOS lacks get small bindings in Watchious. |
+| Health and workouts | In scope later, as a separate, optional `Watchious.Health` package after messaging |
 | Styling | Semantic tokens plus a few explicit values. Never CSS. |
 | Navigation | Blazor `@page` routes plus source-generated typed helpers: `Navigation.GoToAsync(Routes.Workout(exerciseId: 5))` |
-| Phone ↔ watch messaging | Part of Watchious: typed C# messages over WatchConnectivity (Apple) and the Data Layer (Wear OS) |
-| watchOS runtime | Research running .NET on the watch now (NativeAOT static library) |
-| Build | Automatic through `dotnet build`, no manual Xcode step. watchOS builds run on a Mac, or from Windows on a remote Mac like MAUI's "Pair to Mac". |
+| Phone ↔ watch messaging | A separate, optional `Watchious.Messaging` package: typed C# messages over WatchConnectivity (Apple) and the Data Layer (Wear OS), ideally compatible with Plugin.Maui.WearableMessaging on the phone (https://github.com/Kebechet/Watchious/issues/4) |
+| watchOS runtime | NativeAOT, built as .NET for iOS (`ios-arm64`) and relabelled for watchOS. Microsoft's runtime glue (`libxamarin`) is started the way its own `main` starts it, minus the iPhone app. ⚠️ That relies on internal start-up functions of .NET for iOS, which may change between versions. |
+| Build | Automatic through `dotnet build`, no manual Xcode step. watchOS builds run on a Mac, or from Windows on a remote Mac like MAUI's "Pair to Mac". Releases come from CI pipelines, like a MAUI app. |
 | Debugging | A desktop preview host that renders the same screens, after the first version |
 | Testing | Watch simulators and emulators first, real watches later |
 | Packaging | Mirror MAUI's packages and project template. Nothing published until decided. |
@@ -207,21 +217,26 @@ Versions stay at `0.x.x` until the API is stable.
 0. ✅ **watchOS runtime research:** C# compiled by NativeAOT, rendering a counter through a SwiftUI host in
    the watchOS simulator and on a real Apple Watch SE 3. The device build, signed and packaged as a
    watch-only app, passes App Store validation.
-1. ✅ **Wear OS proof of concept:** the renderer plus a Compose host with `Label`, `Button` and
-   `CollectionView`, running a counter app on the Wear OS emulator and a Galaxy Watch7. `CollectionView` is
-   still to do.
+1. ✅ **Wear OS proof of concept:** the renderer plus a Compose host with `Label`, `Button` and a list,
+   running a counter app on the Wear OS emulator and a Galaxy Watch7. The list is still to do.
 2. ✅ **SwiftUI host** with the same controls as Wear OS. From now on, each new control is added to both
    hosts together.
 3. **Project model:** `Watchious.Sdk`, `UseWatchious`, `dotnet new watchious` and
-   `dotnet build -f net11.0-watchos`, including remote builds from Windows on a Mac.
+   `dotnet build -f net11.0-watchos` on top of .NET for iOS, releases from CI pipelines, and remote builds
+   from Windows on a Mac.
 4. **Patch-based protocol:** send only what changed, as typed binary patches, instead of the whole UI tree as
    JSON after every change (https://github.com/Kebechet/Watchious/issues/2).
-5. **Navigation** with typed routes, and the rest of the planned controls.
-6. **Messaging** between phone and watch (`Watchious.Essentials`).
-7. **Preview host:** the same screens in a desktop window, for debugging in Visual Studio.
-8. **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
+5. **Controls and navigation:** the controls under SwiftUI's names (renaming today's `Label`,
+   `VerticalStackLayout`, `HorizontalStackLayout` and `Switch`), the rest of the planned controls including
+   `List`, and navigation with typed routes.
+6. **Watch APIs** (`Watchious.Essentials`): the common watch features as unified C# services, with
+   platform C# as the escape hatch.
+7. **Messaging** between phone and watch (`Watchious.Messaging`, optional,
+   https://github.com/Kebechet/Watchious/issues/4).
+8. **Preview host:** the same screens in a desktop window, for debugging in Visual Studio.
+9. **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
    it events (https://github.com/Kebechet/Watchious/issues/5).
-9. **Health and workouts** (`Watchious.Health`).
+10. **Health and workouts** (`Watchious.Health`, optional).
 
 ## Prior art
 
