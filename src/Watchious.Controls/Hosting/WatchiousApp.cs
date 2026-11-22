@@ -21,8 +21,9 @@ public sealed class WatchiousApp : IAsyncDisposable
 
     public IServiceProvider Services => _services;
 
-    // The ws:// address of a Watchious inspector to mirror the app to. The platform hosts set it from the app's
-    // launch arguments (--watchious-inspector=...), on Wear OS only in debuggable builds. Set before StartAsync.
+    // The ws:// address of a Watchious inspector to mirror the app to. The platform hosts set it: watchOS from the
+    // launch argument --watchious-inspector=..., Wear OS from the watchious_inspector intent extra in debuggable
+    // builds only. Set before StartAsync.
     public Uri? InspectorUrl { get; set; }
 
     public static WatchiousAppBuilder CreateBuilder()
@@ -62,18 +63,23 @@ public sealed class WatchiousApp : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_renderer is not null)
+        try
         {
-            await _renderer.DisposeAsync();
-            _renderer = null;
-        }
+            if (_renderer is not null)
+            {
+                await _renderer.DisposeAsync();
+                _renderer = null;
+            }
 
-        if (_inspector is not null)
+            if (_inspector is not null)
+            {
+                await _inspector.DisposeAsync();
+                _inspector = null;
+            }
+        }
+        finally
         {
-            await _inspector.DisposeAsync();
-            _inspector = null;
+            await _services.DisposeAsync();
         }
-
-        await _services.DisposeAsync();
     }
 }

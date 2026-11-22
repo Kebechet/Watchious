@@ -10,17 +10,21 @@ namespace Watchious.Hosting;
 // dispatches the events the inspector page sends. The native host keeps working if the inspector is unreachable.
 internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
 {
-    // Batches wait here until the connection is up; past this many unsent messages the inspector is given up.
+    // Batches wait here until the connection is up; past this many unsent messages the inspector is given up, since
+    // a mirror with a batch missing would show a wrong tree.
     private const int MaxPendingMessages = 10_000;
+
+    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
 
     private readonly IWatchiousHost _host;
     private readonly Func<ulong, string, string?, Task> _dispatchEventAsync;
     private readonly ClientWebSocket _socket = new();
     private readonly CancellationTokenSource _stopping = new();
     private readonly Channel<OutgoingMessage> _outgoing = Channel.CreateBounded<OutgoingMessage>(
-        new BoundedChannelOptions(MaxPendingMessages) { SingleReader = true, FullMode = BoundedChannelFullMode.DropWrite });
+        new BoundedChannelOptions(MaxPendingMessages) { SingleReader = true });
 
     private readonly Task _connection;
+    private volatile bool _isStopped;
 
     public InspectorHost(IWatchiousHost host, Uri inspectorUrl, Func<ulong, string, string?, Task> dispatchEventAsync)
     {
@@ -29,10 +33,15 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
         _connection = RunAsync(inspectorUrl, _stopping.Token);
     }
 
-    public void ApplyPatches(ReadOnlySpan<byte> patches)
+    public Task ApplyPatches(ReadOnlySpan<byte> patches)
     {
-        _host.ApplyPatches(patches);
-        _outgoing.Writer.TryWrite(new OutgoingMessage(patches.ToArray(), WebSocketMessageType.Binary));
+        var applied = _host.ApplyPatches(patches);
+        if (!_isStopped)
+        {
+            Enqueue(new OutgoingMessage(patches.ToArray(), WebSocketMessageType.Binary));
+        }
+
+        return applied;
     }
 
     public void ReportError(Exception exception)
@@ -48,7 +57,7 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        _outgoing.Writer.TryComplete();
+        StopMirroring();
         await _stopping.CancelAsync();
         try
         {
@@ -64,20 +73,42 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
 
     private void WriteJson<T>(T message)
     {
+        if (_isStopped)
+        {
+            return;
+        }
+
         var json = JsonSerializer.SerializeToUtf8Bytes(message, InspectorJsonContext.Default.GetTypeInfo(typeof(T))!);
-        _outgoing.Writer.TryWrite(new OutgoingMessage(json, WebSocketMessageType.Text));
+        Enqueue(new OutgoingMessage(json, WebSocketMessageType.Text));
+    }
+
+    private void Enqueue(OutgoingMessage message)
+    {
+        if (!_outgoing.Writer.TryWrite(message))
+        {
+            StopMirroring();
+        }
+    }
+
+    // Nothing more is queued: the inspector is unreachable, went away or fell too far behind.
+    private void StopMirroring()
+    {
+        _isStopped = true;
+        _outgoing.Writer.TryComplete();
     }
 
     private async Task RunAsync(Uri inspectorUrl, CancellationToken cancellationToken)
     {
         try
         {
-            await _socket.ConnectAsync(inspectorUrl, cancellationToken);
+            using var connectTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            connectTimeout.CancelAfter(ConnectTimeout);
+            await _socket.ConnectAsync(inspectorUrl, connectTimeout.Token);
         }
-        catch (Exception exception) when (exception is WebSocketException or HttpRequestException or OperationCanceledException)
+        catch (Exception)
         {
-            // No inspector listening: the app runs on without it.
-            _outgoing.Writer.TryComplete();
+            // No inspector listening, or an address that isn't ws:// or wss://: the app runs on without it.
+            StopMirroring();
             return;
         }
 
@@ -88,9 +119,16 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
             {
                 await _socket.SendAsync(message.Bytes, message.Type, endOfMessage: true, cancellationToken);
             }
+
+            // Given up: the page must not go on clicking in an app it no longer mirrors.
+            await _socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
         }
         catch (Exception exception) when (exception is WebSocketException or OperationCanceledException)
         {
+        }
+        finally
+        {
+            StopMirroring();
         }
 
         await receiving;
@@ -116,7 +154,7 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
                     continue;
                 }
 
-                var pageEvent = JsonSerializer.Deserialize(message.ToArray(), InspectorJsonContext.Default.InspectorEvent);
+                var pageEvent = ReadEvent(message.ToArray());
                 message.SetLength(0);
                 if (pageEvent is not null)
                 {
@@ -124,8 +162,25 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
                 }
             }
         }
-        catch (Exception exception) when (exception is WebSocketException or OperationCanceledException or JsonException)
+        catch (Exception exception) when (exception is WebSocketException or OperationCanceledException)
         {
+        }
+        finally
+        {
+            StopMirroring();
+        }
+    }
+
+    // A malformed message is skipped: one bad message must not end the inspector's clicks.
+    private static InspectorEvent? ReadEvent(byte[] json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize(json, InspectorJsonContext.Default.InspectorEvent);
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 

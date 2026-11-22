@@ -30,7 +30,8 @@ cp "$PLIST" "$GENERATED"
 if [ -n "${WATCHIOUS_INFO_PLIST:-}" ] && [ -f "$WATCHIOUS_INFO_PLIST" ]; then
     cp "$WATCHIOUS_INFO_PLIST" "$PLIST"
     plutil -convert xml1 "$PLIST"
-    /usr/libexec/PlistBuddy -c "Merge $GENERATED" "$PLIST" > /dev/null
+    # The path is quoted inside PlistBuddy's command, which splits at spaces.
+    /usr/libexec/PlistBuddy -c "Merge '$GENERATED'" "$PLIST" > /dev/null
 fi
 
 # Keys that only make sense for an iPhone app.
@@ -66,7 +67,7 @@ if [ -n "${WATCHIOUS_ASSETS:-}" ] && [ -d "$WATCHIOUS_ASSETS" ]; then
     xcrun actool "$WATCHIOUS_ASSETS" --compile "$APP" --platform "$WATCHIOUS_SDK_NAME" --target-device watch \
         --minimum-deployment-target "$WATCHIOUS_MIN_OS" --app-icon AppIcon --output-partial-info-plist "$WORK/icon.plist" \
         --output-format human-readable-text --errors --warnings > "$WORK/actool.log" || { cat "$WORK/actool.log"; exit 1; }
-    /usr/libexec/PlistBuddy -c "Merge $WORK/icon.plist" "$PLIST" > /dev/null
+    /usr/libexec/PlistBuddy -c "Merge '$WORK/icon.plist'" "$PLIST" > /dev/null
 fi
 plutil -convert binary1 "$PLIST"
 
@@ -108,7 +109,7 @@ $beta_reports_entry
 EOF
 # The app's own entitlements (HealthKit, app groups...). Merge keeps the keys above, which the profile decides.
 if [ -n "${WATCHIOUS_ENTITLEMENTS:-}" ]; then
-    /usr/libexec/PlistBuddy -c "Merge $WATCHIOUS_ENTITLEMENTS" "$WORK/app.entitlements" > /dev/null
+    /usr/libexec/PlistBuddy -c "Merge '$WATCHIOUS_ENTITLEMENTS'" "$WORK/app.entitlements" > /dev/null
 fi
 codesign --force --sign "${WATCHIOUS_SIGN_IDENTITY:?CodesignKey is required with CodesignProvision}" \
     --entitlements "$WORK/app.entitlements" --generate-entitlement-der "$APP"

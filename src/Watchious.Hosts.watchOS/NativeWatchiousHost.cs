@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace Watchious.Hosts.watchOS;
@@ -8,6 +9,7 @@ internal sealed unsafe class NativeWatchiousHost : IWatchiousHost
 {
     private readonly delegate* unmanaged<byte*, int, void> _applyPatches;
     private readonly delegate* unmanaged<byte*, int, void> _reportError;
+    private readonly ConcurrentQueue<TaskCompletionSource> _pendingBatches = new();
 
     public NativeWatchiousHost(
         delegate* unmanaged<byte*, int, void> applyPatches,
@@ -17,11 +19,24 @@ internal sealed unsafe class NativeWatchiousHost : IWatchiousHost
         _reportError = reportError;
     }
 
-    public void ApplyPatches(ReadOnlySpan<byte> patches)
+    public Task ApplyPatches(ReadOnlySpan<byte> patches)
     {
+        var applied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingBatches.Enqueue(applied);
         fixed (byte* pointer = patches)
         {
             _applyPatches(pointer, patches.Length);
+        }
+
+        return applied.Task;
+    }
+
+    // The SwiftUI host confirms each batch once it shows it (watchious_patches_applied), in the order they came.
+    public void OnPatchesApplied()
+    {
+        if (_pendingBatches.TryDequeue(out var applied))
+        {
+            applied.TrySetResult();
         }
     }
 

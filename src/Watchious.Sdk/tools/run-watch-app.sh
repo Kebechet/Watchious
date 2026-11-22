@@ -15,7 +15,7 @@ if [ "$MODE" = "device" ]; then
         exit 2
     fi
     xcrun devicectl device install app --device "$TARGET" "$APP"
-    xcrun devicectl device process launch --terminate-existing --device "$TARGET" "$BUNDLE_ID"
+    xcrun devicectl device process launch --terminate-existing --device "$TARGET" "$BUNDLE_ID" -- ${WATCHIOUS_LAUNCH_ARGUMENTS:-}
     exit 0
 fi
 

@@ -28,17 +28,24 @@ xcode_build="$(xcodebuild -version | sed -n 's/^Build version //p')"
 IFS=. read -r xcode_major xcode_minor xcode_patch <<< "$xcode_version"
 minimum_ios="$(plutil -extract MinimumOSVersion raw "$APP/Info.plist")"
 
+# The names go into XML, where & and < must be escaped.
+xml_text() {
+    printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+}
+display_name="$(xml_text "$WATCHIOUS_DISPLAY_NAME")"
+app_name="$(xml_text "$APP_NAME")"
+
 cat > "$CONTAINER/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
-    <key>CFBundleDisplayName</key><string>$WATCHIOUS_DISPLAY_NAME</string>
-    <key>CFBundleExecutable</key><string>$APP_NAME</string>
+    <key>CFBundleDisplayName</key><string>$display_name</string>
+    <key>CFBundleExecutable</key><string>$app_name</string>
     <key>CFBundleIdentifier</key><string>$WATCHIOUS_CONTAINER_ID</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-    <key>CFBundleName</key><string>$APP_NAME</string>
+    <key>CFBundleName</key><string>$app_name</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>$WATCHIOUS_VERSION</string>
     <key>CFBundleVersion</key><string>$WATCHIOUS_BUILD</string>
@@ -65,7 +72,8 @@ xcrun actool "$STUB_DIR/MessagesApplicationStub.xcassets" --compile "$CONTAINER"
     --minimum-deployment-target "$minimum_ios" --app-icon MessagesApplicationStub \
     --output-partial-info-plist "$WORK/stub-icon.plist" --output-format human-readable-text --errors > "$WORK/actool.log" \
     || { cat "$WORK/actool.log"; exit 1; }
-/usr/libexec/PlistBuddy -c "Merge $WORK/stub-icon.plist" "$CONTAINER/Info.plist" > /dev/null
+# The path is quoted inside PlistBuddy's command, which splits at spaces.
+/usr/libexec/PlistBuddy -c "Merge '$WORK/stub-icon.plist'" "$CONTAINER/Info.plist" > /dev/null
 plutil -convert binary1 "$CONTAINER/Info.plist"
 ditto "$APP" "$CONTAINER/Watch/$APP_NAME.app"
 

@@ -45,12 +45,7 @@ public sealed class WatchiousRenderer : Renderer
     {
         _patches.Begin();
         _tree.Apply(renderBatch, _patches);
-        if (_patches.HasOperations)
-        {
-            _host.ApplyPatches(_patches.WrittenSpan);
-        }
-
-        return Task.CompletedTask;
+        return _patches.HasOperations ? _host.ApplyPatches(_patches.WrittenSpan) : Task.CompletedTask;
     }
 
     protected override void HandleException(Exception exception)
