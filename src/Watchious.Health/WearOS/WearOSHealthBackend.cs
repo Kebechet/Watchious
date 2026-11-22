@@ -22,6 +22,8 @@ internal sealed class WearOSHealthBackend : Java.Lang.Object, IHealthBackend, Wa
 
     public Action<double, DateTimeOffset>? HeartRateReceived { get; set; }
 
+    public Action? WorkoutEnded { get; set; }
+
     public Task<IList<string>> RequestPermissionsAsync(IList<HealthPermissionDto> permissions, CancellationToken cancellationToken)
     {
         var androidPermissions = permissions.SelectMany(ToAndroidPermissions).Distinct().ToArray();
@@ -57,9 +59,9 @@ internal sealed class WearOSHealthBackend : Java.Lang.Object, IHealthBackend, Wa
         HeartRateReceived?.Invoke(beatsPerMinute, DateTimeOffset.FromUnixTimeMilliseconds(epochMilliseconds));
     }
 
-    // HealthService keeps the workout's state itself.
-    public void OnStateChanged(string state)
+    public void OnEnded()
     {
+        WorkoutEnded?.Invoke();
     }
 
     private static IEnumerable<string> ToAndroidPermissions(HealthPermissionDto permission)

@@ -30,12 +30,17 @@ internal interface IHealthBackend
 
     // Set by HealthService before a workout starts.
     Action<double, DateTimeOffset>? HeartRateReceived { get; set; }
+
+    // Set by HealthService before a workout starts. The workout ended: through EndWorkoutAsync, or on its own when
+    // another app's workout took over or the session failed.
+    Action? WorkoutEnded { get; set; }
 }
 
 internal sealed class HealthService(IHealthBackend backend) : IHealthService, IHealthWorkoutService, IDisposable
 {
     private readonly Lock _lock = new();
     private WorkoutSession? _session;
+    private bool _isEnding;
     private int _heartRateCount;
     private double _heartRateSum;
     private double? _maxHeartRate;
@@ -108,6 +113,7 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
         }
 
         backend.HeartRateReceived = OnHeartRate;
+        backend.WorkoutEnded = OnWorkoutEnded;
         try
         {
             await backend.StartWorkoutAsync(activityType);
@@ -115,6 +121,7 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
         catch
         {
             backend.HeartRateReceived = null;
+            backend.WorkoutEnded = null;
             lock (_lock)
             {
                 _session = null;
@@ -150,15 +157,28 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
         lock (_lock)
         {
             session = _session;
+            if (session is null)
+            {
+                return null;
+            }
+
+            _isEnding = true;
         }
 
-        if (session is null)
+        try
         {
-            return null;
+            await backend.EndWorkoutAsync();
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _isEnding = false;
+            }
         }
 
-        await backend.EndWorkoutAsync();
         backend.HeartRateReceived = null;
+        backend.WorkoutEnded = null;
         lock (_lock)
         {
             var endTime = DateTimeOffset.UtcNow;
@@ -173,9 +193,56 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
         }
     }
 
+    // The workout ends with the app: a workout left running would keep the sensors on with no one to end it, and
+    // running on in the background isn't supported yet.
     public void Dispose()
     {
-        backend.HeartRateReceived = null;
+        bool isRunning;
+        lock (_lock)
+        {
+            backend.HeartRateReceived = null;
+            backend.WorkoutEnded = null;
+            isRunning = _session is not null && !_isEnding;
+            _session = null;
+        }
+
+        _ = EndAndDisposeBackendAsync(isRunning);
+    }
+
+    private async Task EndAndDisposeBackendAsync(bool endWorkout)
+    {
+        try
+        {
+            if (endWorkout)
+            {
+                await backend.EndWorkoutAsync();
+            }
+        }
+        catch (Exception)
+        {
+            // The app is going away: no one is left to report it to.
+        }
+        finally
+        {
+            (backend as IDisposable)?.Dispose();
+        }
+    }
+
+    // The platform ended the workout on its own. The session is over, though without a WorkoutDto to return.
+    private void OnWorkoutEnded()
+    {
+        lock (_lock)
+        {
+            if (_session is null || _isEnding)
+            {
+                return;
+            }
+
+            _session.End();
+            _session = null;
+            backend.HeartRateReceived = null;
+            backend.WorkoutEnded = null;
+        }
     }
 
     private void OnHeartRate(double beatsPerMinute, DateTimeOffset timestamp)

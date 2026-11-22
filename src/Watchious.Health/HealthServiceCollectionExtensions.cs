@@ -37,6 +37,8 @@ internal sealed class UnavailableHealthBackend : IHealthBackend
 
     public Action<double, DateTimeOffset>? HeartRateReceived { get; set; }
 
+    public Action? WorkoutEnded { get; set; }
+
     public Task<IList<string>> RequestPermissionsAsync(IList<HealthPermissionDto> permissions, CancellationToken cancellationToken)
     {
         return Task.FromResult<IList<string>>([.. permissions.Select(permission => permission.HealthDataType.ToString())]);

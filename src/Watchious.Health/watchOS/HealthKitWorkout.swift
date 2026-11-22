@@ -6,6 +6,7 @@ import HealthKit
 
 public typealias WatchiousHeartRateCallback = @convention(c) (Double, Double) -> Void
 public typealias WatchiousHealthCompletionCallback = @convention(c) (Int64, UnsafePointer<CChar>?) -> Void
+public typealias WatchiousWorkoutEndedCallback = @convention(c) () -> Void
 
 private final class WatchiousWorkout: NSObject, HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDelegate, @unchecked Sendable {
     static let shared = WatchiousWorkout()
@@ -13,9 +14,11 @@ private final class WatchiousWorkout: NSObject, HKWorkoutSessionDelegate, HKLive
     let store = HKHealthStore()
     var onHeartRate: WatchiousHeartRateCallback?
     var onCompleted: WatchiousHealthCompletionCallback?
+    var onWorkoutEnded: WatchiousWorkoutEndedCallback?
 
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
+    private var isEnding = false
     private let heartRateType = HKQuantityType(.heartRate)
     private let beatsPerMinute = HKUnit.count().unitDivided(by: .minute())
 
@@ -80,12 +83,16 @@ private final class WatchiousWorkout: NSObject, HKWorkoutSessionDelegate, HKLive
             complete(token, nil)
             return
         }
+        isEnding = true
         session.end()
-        builder.endCollection(withEnd: Date()) { _, _ in
+        builder.endCollection(withEnd: Date()) { _, endError in
             builder.finishWorkout { _, error in
-                self.session = nil
-                self.builder = nil
-                self.complete(token, error)
+                DispatchQueue.main.async {
+                    self.session = nil
+                    self.builder = nil
+                    self.isEnding = false
+                    self.complete(token, endError ?? error)
+                }
             }
         }
     }
@@ -110,13 +117,41 @@ private final class WatchiousWorkout: NSObject, HKWorkoutSessionDelegate, HKLive
         from fromState: HKWorkoutSessionState,
         date: Date
     ) {
+        if toState == .ended {
+            endedOnItsOwn(workoutSession)
+        }
     }
 
     func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
         NSLog("[Watchious] workout session failed: %@", error.localizedDescription)
+        endedOnItsOwn(workoutSession)
     }
 
-    // Watchious.Health.ActivityType's names.
+    // HealthKit ended the workout without end(token:): another app's workout took over, or the session failed. What
+    // was collected is saved, and C# learns that the workout is over.
+    private func endedOnItsOwn(_ workoutSession: HKWorkoutSession) {
+        DispatchQueue.main.async {
+            guard workoutSession === self.session, !self.isEnding, let builder = self.builder else {
+                return
+            }
+            self.isEnding = true
+            if workoutSession.state != .ended {
+                workoutSession.end()
+            }
+            builder.endCollection(withEnd: Date()) { _, _ in
+                builder.finishWorkout { _, _ in
+                    DispatchQueue.main.async {
+                        self.session = nil
+                        self.builder = nil
+                        self.isEnding = false
+                        self.onWorkoutEnded?()
+                    }
+                }
+            }
+        }
+    }
+
+    // Kebechet.Types.Health.Enums.ActivityType's names.
     private static func workoutActivityType(_ name: String) -> HKWorkoutActivityType {
         switch name {
         case "Running":
@@ -152,10 +187,18 @@ private final class WatchiousWorkout: NSObject, HKWorkoutSessionDelegate, HKLive
 @_cdecl("watchious_health_set_callbacks")
 public func watchiousHealthSetCallbacks(
     _ onHeartRate: WatchiousHeartRateCallback,
-    _ onCompleted: WatchiousHealthCompletionCallback
+    _ onCompleted: WatchiousHealthCompletionCallback,
+    _ onWorkoutEnded: WatchiousWorkoutEndedCallback
 ) {
     WatchiousWorkout.shared.onHeartRate = onHeartRate
     WatchiousWorkout.shared.onCompleted = onCompleted
+    WatchiousWorkout.shared.onWorkoutEnded = onWorkoutEnded
+}
+
+// Whether the user lets the app save workouts: HealthKit tells this, unlike whether it may read.
+@_cdecl("watchious_health_workout_sharing_authorized")
+public func watchiousHealthWorkoutSharingAuthorized() -> Int32 {
+    WatchiousWorkout.shared.store.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized ? 1 : 0
 }
 
 // The watch app's bundle identifier for WorkoutDto.DataOrigin. The caller frees the copy.

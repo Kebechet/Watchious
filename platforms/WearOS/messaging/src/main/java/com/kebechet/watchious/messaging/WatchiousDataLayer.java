@@ -1,6 +1,7 @@
 package com.kebechet.watchious.messaging;
 
 import android.content.Context;
+import android.net.Uri;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -10,6 +11,7 @@ import com.google.android.gms.tasks.Tasks;
 import com.google.android.gms.wearable.DataClient;
 import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataItem;
 import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.MessageClient;
@@ -46,6 +48,8 @@ public final class WatchiousDataLayer {
     private final Listener listener;
     private final MessageClient.OnMessageReceivedListener messageListener;
     private final DataClient.OnDataChangedListener dataListener;
+    @Nullable
+    private volatile String localNodeId;
 
     public WatchiousDataLayer(@NonNull Context context, @NonNull Listener listener) {
         this.context = context.getApplicationContext();
@@ -57,6 +61,20 @@ public final class WatchiousDataLayer {
     public void start() {
         Wearable.getMessageClient(context).addListener(messageListener);
         Wearable.getDataClient(context).addListener(dataListener);
+        // Then the data items set while the app wasn't running, such as the phone's latest application context, once
+        // this watch's own node id is known to tell them apart.
+        Wearable.getNodeClient(context).getLocalNode().addOnCompleteListener(nodeTask -> {
+            localNodeId = nodeTask.isSuccessful() && nodeTask.getResult() != null ? nodeTask.getResult().getId() : "";
+            Wearable.getDataClient(context).getDataItems().addOnSuccessListener(items -> {
+                try {
+                    for (DataItem item : items) {
+                        deliver(item);
+                    }
+                } finally {
+                    items.release();
+                }
+            });
+        });
     }
 
     public void stop() {
@@ -111,18 +129,29 @@ public final class WatchiousDataLayer {
     private void onDataChanged(@NonNull DataEventBuffer dataEvents) {
         try {
             for (DataEvent dataEvent : dataEvents) {
-                if (dataEvent.getType() != DataEvent.TYPE_CHANGED) {
-                    continue;
-                }
-                String path = dataEvent.getDataItem().getUri().getPath();
-                DataMap dataMap = DataMapItem.fromDataItem(dataEvent.getDataItem()).getDataMap();
-                for (String key : dataMap.keySet()) {
-                    Object value = dataMap.get(key);
-                    listener.onDataItem(path == null ? "" : path, key, value == null ? null : value.toString());
+                if (dataEvent.getType() == DataEvent.TYPE_CHANGED) {
+                    deliver(dataEvent.getDataItem());
                 }
             }
         } finally {
             dataEvents.release();
+        }
+    }
+
+    // Only the phone's items: the Data Layer reports this watch's own changes too, under its node id. Before that id
+    // is known nothing is delivered; start() delivers the items once it is.
+    private void deliver(@NonNull DataItem item) {
+        String local = localNodeId;
+        Uri uri = item.getUri();
+        if (local == null || local.equals(uri.getHost())) {
+            return;
+        }
+
+        String path = uri.getPath();
+        DataMap dataMap = DataMapItem.fromDataItem(item).getDataMap();
+        for (String key : dataMap.keySet()) {
+            Object value = dataMap.get(key);
+            listener.onDataItem(path == null ? "" : path, key, value == null ? null : value.toString());
         }
     }
 

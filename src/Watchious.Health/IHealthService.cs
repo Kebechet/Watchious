@@ -34,7 +34,7 @@ public interface IHealthWorkoutService
     // The finished workout, with the heart rate statistics the watch measured.
     Task<WorkoutDto?> End();
 
-    // The watch's own: heart rate while a workout runs, about every second or few. Raised on a background thread.
-    // Subscribers unsubscribe when they are disposed.
+    // The watch's own: heart rate while a workout runs, about every second or few. Raised on any thread: the main
+    // thread on Wear OS, a background one on watchOS. Subscribers unsubscribe when they are disposed.
     event EventHandler<HeartRateDto>? HeartRateReceived;
 }

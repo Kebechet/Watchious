@@ -29,8 +29,8 @@ public final class WatchiousHealthServices {
     public interface Listener {
         void onHeartRate(double beatsPerMinute, long epochMilliseconds);
 
-        // ExerciseState's name: ACTIVE, USER_PAUSED, ENDED...
-        void onStateChanged(@NonNull String state);
+        // The exercise ended: through endExercise, or on its own when another app's exercise took over.
+        void onEnded();
     }
 
     public interface Callback {
@@ -72,7 +72,7 @@ public final class WatchiousHealthServices {
         };
     }
 
-    // exerciseType is Watchious.Health.ActivityType's name.
+    // exerciseType is Kebechet.Types.Health.Enums.ActivityType's name.
     public void startExercise(@NonNull String exerciseType, @NonNull Listener listener, @NonNull Callback callback) {
         this.listener = listener;
         exerciseClient.setUpdateCallback(executor, updateCallback);
@@ -111,7 +111,11 @@ public final class WatchiousHealthServices {
         for (SampleDataPoint<Double> point : update.getLatestMetrics().getData(DataType.HEART_RATE_BPM)) {
             current.onHeartRate(point.getValue(), point.getTimeInstant(bootInstant).toEpochMilli());
         }
-        current.onStateChanged(update.getExerciseStateInfo().getState().getName());
+        if (update.getExerciseStateInfo().getState().isEnded()) {
+            listener = null;
+            exerciseClient.clearUpdateCallbackAsync(updateCallback);
+            current.onEnded();
+        }
     }
 
     private void complete(@NonNull ListenableFuture<?> future, @NonNull Callback callback) {

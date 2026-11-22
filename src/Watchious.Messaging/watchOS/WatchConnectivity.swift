@@ -78,9 +78,23 @@ private final class WatchiousMessagingSession: NSObject, WCSessionDelegate, @unc
 }
 
 private func watchiousJSON(_ dictionary: [String: Any]) -> String {
-    let strings = dictionary.mapValues { "\($0)" }
+    let strings = dictionary.mapValues(watchiousText)
     guard let data = try? JSONSerialization.data(withJSONObject: strings) else {
         return "{}"
+    }
+    return String(decoding: data, as: UTF8.self)
+}
+
+// A value as text, the way Watchious.Messaging reads the plugin's JSON on Wear OS (MessageJson.cs): a string as it is,
+// anything else as its JSON, so true arrives as "true" rather than NSNumber's "1".
+private func watchiousText(_ value: Any) -> String {
+    if let string = value as? String {
+        return string
+    }
+    // JSONSerialization raises an Objective-C exception, which Swift can't catch, on a value it can't encode.
+    guard JSONSerialization.isValidJSONObject([value]),
+          let data = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed) else {
+        return "\(value)"
     }
     return String(decoding: data, as: UTF8.self)
 }
