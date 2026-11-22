@@ -236,7 +236,7 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
   - **From Windows:** set `WatchiousRemoteMac=user@host` and the watchOS target builds on that Mac over ssh,
     like MAUI's "Pair to Mac", and the app comes back. Windows needs no iOS workload for it.
   - ⚠️ **Tested .NET for iOS versions only.** The watch app starts .NET for iOS through internal functions (see
-    "watchOS runtime" under Design decisions), so the SDK fails the build with `WATCHIOUS0001` on a .NET for iOS
+    "watchOS runtime" under Design decisions), so the SDK fails the build with `WATCHIOUS003` on a .NET for iOS
     version it hasn't been tested with. Tested: `27.2.10000` (.NET 10, workload set `10.0.404`:
     `dotnet workload update --version 10.0.404`; also on a real watch) and `27.2.11039` (.NET 11.0.100, in the
     watch simulator). `-p:WatchiousAllowUntestedIOSSdk=true` builds anyway, with a warning. A canary CI job

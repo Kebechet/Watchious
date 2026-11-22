@@ -5,6 +5,7 @@ struct WatchiousHostApp: App {
     private let store = WatchiousStore.shared
 
     init() {
+        DebugAutomation.clearResultsIfRequested()
         watchious_start_runtime()
         let result = watchious_start(watchiousPatchesCallback, watchiousErrorCallback)
         if result != 0 {
@@ -54,6 +55,17 @@ enum DebugAutomation {
     private static let resultsFile = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("watchious-automation.log")
 
+    // Before .NET starts, so that a run that hangs at start-up can't leave an earlier run's results behind.
+    static func clearResultsIfRequested() {
+        let prefixes = ["--watchious-autotap", "--watchious-autotoggle", "--watchious-click=", "--watchious-expect="]
+        let isRequested = ProcessInfo.processInfo.arguments.contains { argument in
+            prefixes.contains { argument.hasPrefix($0) }
+        }
+        if isRequested {
+            try? Data().write(to: resultsFile)
+        }
+    }
+
     private static func report(_ message: String) {
         NSLog("[Watchious] %@", message)
         guard let line = "[Watchious] \(message)\n".data(using: .utf8),
@@ -83,7 +95,6 @@ enum DebugAutomation {
         guard tap || toggle || !clicks.isEmpty || !expectations.isEmpty else {
             return
         }
-        try? Data().write(to: resultsFile)
 
         try? await Task.sleep(for: .seconds(1.5))
         if tap, let button = store.firstNode(ofType: "Button"), let id = button.eventHandlerId("click") {
