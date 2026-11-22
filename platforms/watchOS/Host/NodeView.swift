@@ -22,7 +22,7 @@ struct NodeView: View {
                 children
             }
         case "Label":
-            Text(joinedText)
+            Text(node.joinedText)
                 .font(font(for: node.attribute("Style")))
         case "Button":
             Button(node.attribute("Text") ?? "") {
@@ -90,10 +90,6 @@ struct NodeView: View {
         default:
             return .center
         }
-    }
-
-    private var joinedText: String {
-        node.children.filter { $0.type == UiNode.textType }.map { $0.text ?? "" }.joined()
     }
 
     private var isOnBinding: Binding<Bool> {

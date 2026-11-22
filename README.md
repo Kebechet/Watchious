@@ -235,6 +235,13 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
     Apple's frameworks that way, while NuGet still treats the project as `net*-watchos`.
   - **From Windows:** set `WatchiousRemoteMac=user@host` and the watchOS target builds on that Mac over ssh,
     like MAUI's "Pair to Mac", and the app comes back. Windows needs no iOS workload for it.
+  - ⚠️ **Tested .NET for iOS versions only.** The watch app starts .NET for iOS through internal functions (see
+    "watchOS runtime" under Design decisions), so the SDK fails the build with `WATCHIOUS0001` on a .NET for iOS
+    version it hasn't been tested with. Tested: `27.2.10000` (.NET 10, workload set `10.0.404`:
+    `dotnet workload update --version 10.0.404`; also on a real watch) and `27.2.11039` (.NET 11.0.100, in the
+    watch simulator). `-p:WatchiousAllowUntestedIOSSdk=true` builds anyway, with a warning. A canary CI job
+    (`.github/workflows/watchos-canary.yml`) builds and starts the watch sample on each new .NET for iOS version
+    before it is added to the list (`WatchiousTestedIOSSdkVersions`).
 - **Release:** from CI pipelines, like a MAUI app: `dotnet publish -f net11.0-android` gives the Play Store
   bundle, and `dotnet build -f net11.0-watchos -r ios-arm64 -p:BuildIpa=true` on a macOS runner gives the
   App Store `.ipa`, inside the watch-only container Apple requires (`WatchiousContainerProvision` is the
@@ -284,7 +291,7 @@ Versions stay at `0.x.x` until the API is stable.
 | Styling | Semantic tokens plus a few explicit values. Never CSS. |
 | Navigation | Blazor `@page` routes plus source-generated typed helpers: `Navigation.GoToAsync(Routes.Workout(exerciseId: 5))`. A stack of pages, shown with each platform's own navigation and back gestures. |
 | Phone ↔ watch messaging | A separate, optional `Watchious.Messaging` package for the watch, **wire-compatible with [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging)**, so a MAUI phone app uses that plugin unchanged: on Wear OS its `/message` JSON messages, `_requestId`/`_replyToId` replies, `/application_context` data item and `wearable_app` capability; on watchOS plain WatchConnectivity dictionaries with native replies. No Watchious phone package, because the plugin already covers the phone side of both platforms with the same concepts; gaps go upstream. The platforms require that on Wear OS the phone and watch apps share the applicationId and signing key, and that on watchOS the watch app is the iPhone app's companion (https://github.com/Kebechet/Watchious/issues/4). |
-| watchOS runtime | NativeAOT, built as .NET for iOS (`ios-arm64`) and relabelled for watchOS. Microsoft's runtime glue (`libxamarin`) is started the way its own `main` starts it, minus the iPhone app. ⚠️ That relies on internal start-up functions of .NET for iOS, which may change between versions. |
+| watchOS runtime | NativeAOT, built as .NET for iOS (`ios-arm64`) and relabelled for watchOS. Microsoft's runtime glue (`libxamarin`) is started the way its own `main` starts it, minus the iPhone app. ⚠️ That relies on internal start-up functions of .NET for iOS, which may change between versions, so the SDK builds only with the .NET for iOS versions it was tested with (`WatchiousAllowUntestedIOSSdk` overrides that) and a canary CI job tries each new one. |
 | Build | Automatic through `dotnet build`, no manual Xcode step. watchOS builds run on a Mac, or from Windows on a remote Mac like MAUI's "Pair to Mac". Releases come from CI pipelines, like a MAUI app. |
 | Debugging | A desktop preview of the same screens (`dotnet run -f net10.0`) and a live inspector of apps running on watches |
 | Testing | Watch simulators and emulators first, real watches later |

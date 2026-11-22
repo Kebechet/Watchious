@@ -22,6 +22,11 @@ final class UiNode: Identifiable {
         type == Self.textType && (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    // A Label's text: its text children joined, so a value change updates just that part.
+    var joinedText: String {
+        children.filter { $0.type == Self.textType }.map { $0.text ?? "" }.joined()
+    }
+
     func attribute(_ name: String) -> String? {
         attributes[name]
     }

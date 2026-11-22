@@ -5,11 +5,14 @@
   <Import Project="..\..\src\Watchious.Sdk\Sdk\Sdk.props" />
 
   <PropertyGroup>
-    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <!-- The canary CI job (.github/workflows/watchos-canary.yml) builds the app for newer .NET versions with
+         -p:WatchiousAppDotNet=net11.0; the libraries stay on the repository's .NET. -->
+    <WatchiousAppDotNet Condition="'$(WatchiousAppDotNet)' == ''">net10.0</WatchiousAppDotNet>
+    <TargetFrameworks>$(WatchiousAppDotNet)-android</TargetFrameworks>
     <!-- A watchOS build needs a Mac: this one, or a remote one through WatchiousRemoteMac. -->
-    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('OSX')) Or '$(WatchiousRemoteMac)' != ''">$(TargetFrameworks);net10.0-watchos</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('OSX')) Or '$(WatchiousRemoteMac)' != ''">$(TargetFrameworks);$(WatchiousAppDotNet)-watchos</TargetFrameworks>
     <!-- The desktop preview, for debugging the pages: dotnet run -f net10.0. -->
-    <TargetFrameworks>$(TargetFrameworks);net10.0</TargetFrameworks>
+    <TargetFrameworks>$(TargetFrameworks);$(WatchiousAppDotNet)</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>Watchious.Samples.Counter.App</RootNamespace>
     <ApplicationId>com.kebechet.watchious.counter</ApplicationId>
