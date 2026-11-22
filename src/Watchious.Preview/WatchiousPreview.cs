@@ -62,6 +62,7 @@ public static class WatchiousPreview
         builder.WebHost.UseUrls(options.Url);
         builder.Logging.SetMinimumLevel(LogLevel.Warning);
         var web = builder.Build();
+        web.UseLocalOnlyRequests();
         web.UseWebSockets();
 
         web.MapGet("/", () => Results.Content(PageResources.Read("index.html"), "text/html"));

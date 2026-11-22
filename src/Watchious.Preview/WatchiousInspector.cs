@@ -12,8 +12,8 @@ namespace Watchious.Preview;
 
 public sealed class WatchiousInspectorOptions
 {
-    // http://0.0.0.0:5292 lets watches reach it over the network; with adb reverse tcp:5292 tcp:5292, Wear OS
-    // emulators and USB devices reach localhost.
+    // http://0.0.0.0:5292 lets watches reach it over the network, and with it anyone on that network, so only on a
+    // trusted one; with adb reverse tcp:5292 tcp:5292, Wear OS emulators and USB devices reach localhost.
     public string Url { get; set; } = "http://localhost:5292";
 
     public bool OpenBrowser { get; set; } = true;
@@ -47,6 +47,7 @@ public static class WatchiousInspector
         builder.WebHost.UseUrls(options.Url);
         builder.Logging.SetMinimumLevel(LogLevel.Warning);
         var web = builder.Build();
+        web.UseLocalOnlyRequests();
         web.UseWebSockets();
 
         var relay = new InspectorRelay();

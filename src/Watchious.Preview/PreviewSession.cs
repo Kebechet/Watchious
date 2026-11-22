@@ -85,19 +85,27 @@ internal sealed class PreviewSession(WebSocket socket, Func<WatchiousApp> create
         }
     }
 
+    // A malformed message is skipped: one bad message must not end the session.
     private static (ulong EventHandlerId, string Name, string? Value)? ParseEvent(byte[] json)
     {
-        using var document = JsonDocument.Parse(json);
-        var root = document.RootElement;
-        if (!root.TryGetProperty("id", out var id) || !root.TryGetProperty("name", out var name))
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("id", out var id) || !root.TryGetProperty("name", out var name))
+            {
+                return null;
+            }
+
+            var value = root.TryGetProperty("value", out var valueElement) && valueElement.ValueKind == JsonValueKind.String
+                ? valueElement.GetString()
+                : null;
+            return (id.GetUInt64(), name.GetString() ?? "", value);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException)
         {
             return null;
         }
-
-        var value = root.TryGetProperty("value", out var valueElement) && valueElement.ValueKind == JsonValueKind.String
-            ? valueElement.GetString()
-            : null;
-        return (id.GetUInt64(), name.GetString() ?? "", value);
     }
 
     private async Task SendAsync(CancellationToken cancellationToken)
