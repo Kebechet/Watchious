@@ -1,0 +1,20 @@
+@inject PageState State
+
+<VStack>
+    @foreach (var item in State.Items)
+    {
+        <Button Text="@item" OnClick="() => Pick(item)" />
+    }
+    <Button Text="Refresh" OnClick="Refresh" />
+</VStack>
+
+@code {
+    private void Pick(string item)
+    {
+        State.Text = item;
+    }
+
+    private void Refresh()
+    {
+    }
+}

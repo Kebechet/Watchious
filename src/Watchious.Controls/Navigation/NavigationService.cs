@@ -32,8 +32,8 @@ internal sealed class NavigationService : INavigation
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type rootPageType,
         IEnumerable<PageRoute> routes)
     {
-        // More specific routes first, like Blazor: literal segments before parameters, constrained parameters
-        // before unconstrained ones.
+        // More specific routes first: literal segments before parameters, constrained parameters before
+        // unconstrained ones, a route without an optional parameter before one with it.
         _routes = [.. routes.OrderByDescending(route => route.Template.Precedence)];
         var rootRoute = _routes.FirstOrDefault(route => route.PageType == rootPageType && !route.Template.HasParameters);
         _entries.Add(new NavigationEntry(++_lastEntryId, rootRoute?.Template.Template ?? "/", rootPageType, NoParameters));
