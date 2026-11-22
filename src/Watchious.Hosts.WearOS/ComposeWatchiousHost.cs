@@ -10,18 +10,21 @@ public sealed class ComposeWatchiousHost : Java.Lang.Object, IWatchiousHost, IWa
 {
     private const string LogTag = "Watchious";
 
-    private readonly Activity _activity;
     private readonly WatchiousComposeHost _composeHost;
     private WatchiousApp? _app;
 
     public ComposeWatchiousHost(Activity activity)
     {
-        _activity = activity;
         _composeHost = new WatchiousComposeHost(activity);
         _composeHost.SetEventListener(this);
     }
 
     public View View => _composeHost.View;
+
+    public bool HandleBack()
+    {
+        return _composeHost.HandleBack();
+    }
 
     public Task StartAsync(WatchiousApp app)
     {
@@ -29,9 +32,10 @@ public sealed class ComposeWatchiousHost : Java.Lang.Object, IWatchiousHost, IWa
         return app.StartAsync(this);
     }
 
-    public void Render(string uiTreeJson)
+    // The Kotlin host takes batches from any thread and applies them on the main thread in arrival order.
+    public void ApplyPatches(ReadOnlySpan<byte> patches)
     {
-        _activity.RunOnUiThread(() => _composeHost.Render(uiTreeJson));
+        _composeHost.Render(patches.ToArray());
     }
 
     public void ReportError(Exception exception)

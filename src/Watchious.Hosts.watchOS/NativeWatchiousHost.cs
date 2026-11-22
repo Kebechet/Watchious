@@ -6,33 +6,31 @@ namespace Watchious.Hosts.watchOS;
 // the duration of the call.
 internal sealed unsafe class NativeWatchiousHost : IWatchiousHost
 {
-    private readonly delegate* unmanaged<byte*, int, void> _render;
+    private readonly delegate* unmanaged<byte*, int, void> _applyPatches;
     private readonly delegate* unmanaged<byte*, int, void> _reportError;
 
     public NativeWatchiousHost(
-        delegate* unmanaged<byte*, int, void> render,
+        delegate* unmanaged<byte*, int, void> applyPatches,
         delegate* unmanaged<byte*, int, void> reportError)
     {
-        _render = render;
+        _applyPatches = applyPatches;
         _reportError = reportError;
     }
 
-    public void Render(string uiTreeJson)
+    public void ApplyPatches(ReadOnlySpan<byte> patches)
     {
-        Send(_render, uiTreeJson);
+        fixed (byte* pointer = patches)
+        {
+            _applyPatches(pointer, patches.Length);
+        }
     }
 
     public void ReportError(Exception exception)
     {
-        Send(_reportError, exception.ToString());
-    }
-
-    private static void Send(delegate* unmanaged<byte*, int, void> callback, string text)
-    {
-        var bytes = Encoding.UTF8.GetBytes(text);
+        var bytes = Encoding.UTF8.GetBytes(exception.ToString());
         fixed (byte* pointer = bytes)
         {
-            callback(pointer, bytes.Length);
+            _reportError(pointer, bytes.Length);
         }
     }
 }

@@ -1,0 +1,23 @@
+<Project>
+
+  <!-- Written when the SDK is packed: the version of the Watchious packages it references. -->
+  <Import Project="$(MSBuildThisFileDirectory)Watchious.Sdk.Version.props" Condition="Exists('$(MSBuildThisFileDirectory)Watchious.Sdk.Version.props')" />
+
+  <PropertyGroup>
+    <WatchiousSdkDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..'))</WatchiousSdkDirectory>
+    <!-- A package ships the native watchOS host next to the SDK. Inside the Watchious repository,
+         Directory.Build.props points these at platforms/watchOS instead. -->
+    <WatchiousWatchOSHostDirectory Condition="'$(WatchiousWatchOSHostDirectory)' == ''">$(WatchiousSdkDirectory)host/watchOS/</WatchiousWatchOSHostDirectory>
+    <WatchiousToolsDirectory Condition="'$(WatchiousToolsDirectory)' == ''">$(WatchiousSdkDirectory)tools/</WatchiousToolsDirectory>
+    <!-- Without an arm64_32 slice, which NativeAOT can't build, the App Store accepts a watch app only from
+         watchOS 27 (ITMS-90733). -->
+    <WatchiousMinimumWatchOSVersion Condition="'$(WatchiousMinimumWatchOSVersion)' == ''">27.0</WatchiousMinimumWatchOSVersion>
+    <!-- A watch app has no web assets (wwwroot), and the Razor SDK's static web assets steps fail in the per-CPU
+         builds of .NET for Android. -->
+    <StaticWebAssetsEnabled Condition="'$(StaticWebAssetsEnabled)' == ''">false</StaticWebAssetsEnabled>
+    <!-- Like MAUI's Platforms/Android/Resources: .NET for Android otherwise takes every image under Resources/ as
+         an Android resource, including the shared Resources/Images, which go to both platforms. -->
+    <MonoAndroidResourcePrefix Condition="'$(MonoAndroidResourcePrefix)' == ''">Platforms\WearOS\Resources</MonoAndroidResourcePrefix>
+  </PropertyGroup>
+
+</Project>

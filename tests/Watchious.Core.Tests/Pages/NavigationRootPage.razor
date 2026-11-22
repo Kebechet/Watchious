@@ -1,0 +1,17 @@
+@page "/"
+@inject INavigation Navigation
+
+<VStack>
+    <Label>Count: @count</Label>
+    <Button Text="+1" OnClick="() => count++" />
+    <Button Text="Open" OnClick="OpenAsync" />
+</VStack>
+
+@code {
+    private int count;
+
+    private Task OpenAsync()
+    {
+        return Navigation.GoToAsync("/detail/7");
+    }
+}

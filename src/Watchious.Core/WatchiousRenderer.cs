@@ -2,22 +2,21 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.RenderTree;
 using Microsoft.Extensions.Logging;
+using Watchious.Protocol;
 
 namespace Watchious;
 
-// Sends the whole resolved UI tree after every render batch instead of applying Blazor's diff edits.
-// SwiftUI and Compose diff the tree themselves, and a watch screen has at most a few hundred nodes.
+// Sends the native host only what changed: each render batch becomes one buffer of patches (protocol v2).
 public sealed class WatchiousRenderer : Renderer
 {
     private readonly IWatchiousHost _host;
-    private readonly UiTreeWriter _treeWriter;
-    private int? _rootComponentId;
+    private readonly NativeTree _tree = new();
+    private readonly PatchWriter _patches = new();
 
     public WatchiousRenderer(IServiceProvider services, ILoggerFactory loggerFactory, IWatchiousHost host)
         : base(services, loggerFactory)
     {
         _host = host;
-        _treeWriter = new UiTreeWriter(GetCurrentRenderTreeFrames);
     }
 
     public override Dispatcher Dispatcher { get; } = Dispatcher.CreateDefault();
@@ -31,7 +30,7 @@ public sealed class WatchiousRenderer : Renderer
         {
             var component = InstantiateComponent(componentType);
             var componentId = AssignRootComponentId(component);
-            _rootComponentId = componentId;
+            _tree.AddRootComponent(componentId);
             return RenderRootComponentAsync(componentId);
         });
     }
@@ -44,9 +43,11 @@ public sealed class WatchiousRenderer : Renderer
 
     protected override Task UpdateDisplayAsync(in RenderBatch renderBatch)
     {
-        if (_rootComponentId is not null)
+        _patches.Begin();
+        _tree.Apply(renderBatch, _patches);
+        if (_patches.HasOperations)
         {
-            _host.Render(_treeWriter.Write(_rootComponentId.Value));
+            _host.ApplyPatches(_patches.WrittenSpan);
         }
 
         return Task.CompletedTask;

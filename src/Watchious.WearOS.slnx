@@ -2,10 +2,11 @@
   <Folder Name="/src/">
     <Project Path="Watchious.Core\Watchious.Core.csproj" />
     <Project Path="Watchious.Controls\Watchious.Controls.csproj" />
+    <Project Path="Watchious.SourceGenerators\Watchious.SourceGenerators.csproj" />
     <Project Path="Watchious.Hosts.WearOS\Watchious.Hosts.WearOS.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="..\samples\Watchious.Samples.Counter\Watchious.Samples.Counter.csproj" />
-    <Project Path="..\samples\Watchious.Samples.Counter.WearOS\Watchious.Samples.Counter.WearOS.csproj" />
+    <Project Path="..\samples\Watchious.Samples.Counter.App\Watchious.Samples.Counter.App.csproj" />
   </Folder>
 </Solution>

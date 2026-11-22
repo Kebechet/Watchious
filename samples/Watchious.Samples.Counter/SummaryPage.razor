@@ -1,0 +1,15 @@
+@page "/summary/{Count:int}"
+@inject INavigation Navigation
+
+<ScrollView>
+    <VStack Spacing="8">
+        <Label Style="TextStyle.Title">Summary</Label>
+        <Label>You tapped @Count times.</Label>
+        <Button Text="Done" OnClick="() => Navigation.GoBackAsync()" />
+    </VStack>
+</ScrollView>
+
+@code {
+    [Parameter]
+    public int Count { get; set; }
+}

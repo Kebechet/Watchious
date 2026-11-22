@@ -1,0 +1,80 @@
+<!--
+  watchOS builds need a Mac. On Windows (or Linux) these targets replace Build and Run of a net*-watchos build:
+  like MAUI's "Pair to Mac", the sources go to a Mac over ssh, dotnet builds there, and the app comes back.
+    WatchiousRemoteMac            user@host of the Mac (ssh with key authentication)
+    WatchiousRemoteSshOptions     extra ssh options, e.g. -i C:\Users\me\.ssh\mac -o IdentitiesOnly=yes
+    WatchiousRemoteDotnet         dotnet on the Mac (default ~/.dotnet/dotnet; it needs the ios workload)
+    WatchiousRemoteBeforeBuild    shell command run on the Mac first, e.g. unlocking the signing keychain
+    WatchiousRemoteSourceRoot     local folder sent to the Mac (default: the nearest folder above the project
+                                  with a Directory.Build.props, nuget.config or global.json; else the project)
+    WatchiousRemoteDirectory      folder on the Mac, relative to the ssh home (default .watchious/<project name>)
+  Signing properties (CodesignKey, CodesignProvision, CodesignEntitlements, WatchiousContainerProvision) are paths
+  and names on the Mac; a relative CodesignEntitlements works on both sides.
+-->
+<Project>
+
+  <PropertyGroup>
+    <WatchiousRemoteDotnet Condition="'$(WatchiousRemoteDotnet)' == ''">~/.dotnet/dotnet</WatchiousRemoteDotnet>
+    <WatchiousRemoteDirectory Condition="'$(WatchiousRemoteDirectory)' == ''">.watchious/$(MSBuildProjectName)</WatchiousRemoteDirectory>
+    <_WatchiousSourceRootMarker>$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', 'Directory.Build.props'))</_WatchiousSourceRootMarker>
+    <_WatchiousSourceRootMarker Condition="'$(_WatchiousSourceRootMarker)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', 'nuget.config'))</_WatchiousSourceRootMarker>
+    <_WatchiousSourceRootMarker Condition="'$(_WatchiousSourceRootMarker)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', 'global.json'))</_WatchiousSourceRootMarker>
+    <WatchiousRemoteSourceRoot Condition="'$(WatchiousRemoteSourceRoot)' == '' And '$(_WatchiousSourceRootMarker)' != ''">$(_WatchiousSourceRootMarker)</WatchiousRemoteSourceRoot>
+    <WatchiousRemoteSourceRoot Condition="'$(WatchiousRemoteSourceRoot)' == ''">$(MSBuildProjectDirectory)</WatchiousRemoteSourceRoot>
+    <_WatchiousRemoteProjectDirectory>$(WatchiousRemoteDirectory)/$([MSBuild]::MakeRelative('$([MSBuild]::EnsureTrailingSlash('$(WatchiousRemoteSourceRoot)'))', '$(MSBuildProjectDirectory)').Replace('\', '/'))</_WatchiousRemoteProjectDirectory>
+    <!-- The Mac adds the runtime identifier to the output path (bin/Debug/net10.0-watchos/iossimulator-arm64/). -->
+    <_WatchiousRemoteBinDirectory>bin/$(Configuration)/$(TargetFramework)</_WatchiousRemoteBinDirectory>
+    <_WatchiousSsh>ssh $(WatchiousRemoteSshOptions) $(WatchiousRemoteMac)</_WatchiousSsh>
+    <_WatchiousRemoteScript>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)watchious-remote-build.sh</_WatchiousRemoteScript>
+  </PropertyGroup>
+
+  <!-- Each value is single-quoted for the Mac's shell, with a ' inside written as '\''. -->
+  <ItemGroup>
+    <_WatchiousRemoteProperty Include="Configuration" Value="$(Configuration.Replace(&quot;'&quot;, &quot;'\''&quot;))" />
+    <_WatchiousRemoteProperty Include="RuntimeIdentifier" Value="$(RuntimeIdentifier.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(RuntimeIdentifier)' != ''" />
+    <_WatchiousRemoteProperty Include="CodesignKey" Value="$(CodesignKey.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(CodesignKey)' != ''" />
+    <_WatchiousRemoteProperty Include="CodesignProvision" Value="$(CodesignProvision.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(CodesignProvision)' != ''" />
+    <_WatchiousRemoteProperty Include="CodesignEntitlements" Value="$(CodesignEntitlements.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(CodesignEntitlements)' != ''" />
+    <_WatchiousRemoteProperty Include="WatchiousContainerProvision" Value="$(WatchiousContainerProvision.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(WatchiousContainerProvision)' != ''" />
+    <_WatchiousRemoteProperty Include="BuildIpa" Value="$(BuildIpa.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(BuildIpa)' != ''" />
+    <_WatchiousRemoteProperty Include="WatchiousDevice" Value="$(WatchiousDevice.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(WatchiousDevice)' != ''" />
+    <_WatchiousRemoteProperty Include="WatchiousLaunchArguments" Value="$(WatchiousLaunchArguments.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(WatchiousLaunchArguments)' != ''" />
+  </ItemGroup>
+
+  <Target Name="Build" DependsOnTargets="_WatchiousBuildOnRemoteMac" />
+
+  <Target Name="Run">
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="_WatchiousBuildOnRemoteMac" Properties="TargetFramework=$(TargetFramework);_WatchiousRemoteTargets=Run" />
+  </Target>
+
+  <Target Name="_WatchiousBuildOnRemoteMac">
+    <Error Condition="'$(WatchiousRemoteMac)' == ''"
+           Text="Watchious: a watchOS build needs a Mac. Build on a Mac, or set WatchiousRemoteMac to user@host of a Mac you can reach with ssh, like MAUI's Pair to Mac." />
+    <PropertyGroup>
+      <_WatchiousRemoteTargetsArgument Condition="'$(_WatchiousRemoteTargets)' != ''">-t:$(_WatchiousRemoteTargets)</_WatchiousRemoteTargetsArgument>
+      <_WatchiousRemoteBuild>DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 $(WatchiousRemoteDotnet) build '$(MSBuildProjectFile)' -f $(TargetFramework) $(_WatchiousRemoteTargetsArgument) @(_WatchiousRemoteProperty->'%27-p:%(Identity)=%(Value)%27', ' ') -nologo -v:m</_WatchiousRemoteBuild>
+    </PropertyGroup>
+    <Message Importance="high" Text="Watchious: building $(MSBuildProjectName) ($(TargetFramework)) on $(WatchiousRemoteMac)" />
+    <Exec Command="tar -C &quot;$(WatchiousRemoteSourceRoot)&quot; --exclude=bin --exclude=obj --exclude=.git --exclude=.vs --exclude=.gradle --exclude=artifacts -cf - . | $(_WatchiousSsh) &quot;mkdir -p $(WatchiousRemoteDirectory) &amp;&amp; tar -xf - -C $(WatchiousRemoteDirectory)&quot;" />
+    <!-- The build command reaches the Mac as a script on ssh's input, so no value passes through the local shell,
+         which on Windows is cmd.exe and would read <, > and | in it. Escape keeps ; and wildcards in the values
+         from splitting the line. tr drops the Windows line endings WriteLinesToFile writes there. -->
+    <WriteLinesToFile File="$(_WatchiousRemoteScript)"
+                      Overwrite="true"
+                      Lines="set -e;cd '$(_WatchiousRemoteProjectDirectory)';$([MSBuild]::Escape('$(WatchiousRemoteBeforeBuild)'));$([MSBuild]::Escape('$(_WatchiousRemoteBuild)'))" />
+    <Exec Command="$(_WatchiousSsh) &quot;tr -d '\r' | bash -s&quot; &lt; &quot;$(_WatchiousRemoteScript)&quot;" />
+    <!-- Only the app (and the App Store package, if any) comes back. find, because the Mac's login shell (zsh)
+         aborts on a wildcard that matches nothing. -->
+    <Exec Command="$(_WatchiousSsh) &quot;cd $(_WatchiousRemoteProjectDirectory) &amp;&amp; tar -cf - %24(find $(_WatchiousRemoteBinDirectory) -maxdepth 2 -name '*.app' -o -maxdepth 2 -name '*.ipa')&quot; | tar -xf - -C &quot;$(MSBuildProjectDirectory)&quot;" />
+    <Message Importance="high" Text="Watchious: the watch app is in $(_WatchiousRemoteBinDirectory)/" />
+  </Target>
+
+</Project>

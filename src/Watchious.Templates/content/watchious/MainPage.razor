@@ -1,0 +1,11 @@
+<ScrollView>
+    <VStack Spacing="8">
+        <Label Style="TextStyle.Title">Hello, watch!</Label>
+        <Label>Count: @count</Label>
+        <Button Text="+1" OnClick="() => count++" />
+    </VStack>
+</ScrollView>
+
+@code {
+    private int count;
+}

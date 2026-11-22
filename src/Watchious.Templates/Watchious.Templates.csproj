@@ -1,0 +1,19 @@
+<!-- Packs the dotnet new watchious template. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <PackageType>Template</PackageType>
+    <Description>Project template for Watchious watch apps: dotnet new watchious.</Description>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="content\**" Exclude="content\**\bin\**;content\**\obj\**" Pack="true" PackagePath="content\" />
+  </ItemGroup>
+
+</Project>

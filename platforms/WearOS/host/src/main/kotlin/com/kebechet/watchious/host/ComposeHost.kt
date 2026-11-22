@@ -6,10 +6,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.ComposeView
@@ -21,19 +19,24 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.flow.first
 
 internal class ComposeHost(activity: Activity) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val owner = HostOwner(activity)
-    private var tree by mutableStateOf(emptyList<UiNode>())
+    private val tree = UiTree()
+    private val backNavigation = BackNavigation(activity)
+    private val pendingPatches = ConcurrentLinkedQueue<ByteArray>()
     private var eventListener: WatchiousEventListener? = null
 
     val view: View = ComposeView(activity).apply {
         setViewTreeLifecycleOwner(owner)
         setViewTreeSavedStateRegistryOwner(owner)
         setContent {
-            WatchiousScreen(tree, ::dispatch)
+            CompositionLocalProvider(LocalBackNavigation provides backNavigation) {
+                WatchiousScreen(tree.root, ::dispatch)
+            }
             LaunchedEffect(Unit) { reportFullyDrawnAfterFirstTree(activity) }
         }
     }
@@ -41,7 +44,7 @@ internal class ComposeHost(activity: Activity) {
     // The first frame Android times on launch is drawn before .NET has rendered anything; reportFullyDrawn marks
     // when the first Watchious screen is on the display ("Fully drawn" in logcat).
     private suspend fun reportFullyDrawnAfterFirstTree(activity: Activity) {
-        snapshotFlow { tree }.first { it.isNotEmpty() }
+        snapshotFlow { tree.root.children.isNotEmpty() }.first { it }
         // The first wait can resume at the start of the frame that composes the tree, before it is drawn; the
         // second resumes only after that frame was drawn.
         withFrameNanos { }
@@ -49,14 +52,25 @@ internal class ComposeHost(activity: Activity) {
         activity.reportFullyDrawn()
     }
 
-    fun render(uiTreeJson: String) {
-        val nodes = UiNode.parseTree(uiTreeJson)
+    // Batches arrive from whichever thread .NET rendered on and must be applied in order, so they all go through
+    // one queue that only the main thread drains.
+    fun render(patches: ByteArray) {
+        pendingPatches.add(patches)
         if (Looper.myLooper() == Looper.getMainLooper()) {
-            tree = nodes
+            applyPendingPatches()
         } else {
-            mainHandler.post { tree = nodes }
+            mainHandler.post(::applyPendingPatches)
         }
     }
+
+    private fun applyPendingPatches() {
+        while (true) {
+            val patches = pendingPatches.poll() ?: return
+            tree.apply(patches)
+        }
+    }
+
+    fun handleBack(): Boolean = backNavigation.handleBack()
 
     fun setEventListener(listener: WatchiousEventListener?) {
         eventListener = listener

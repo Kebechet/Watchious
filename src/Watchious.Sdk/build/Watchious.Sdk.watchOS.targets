@@ -1,0 +1,122 @@
+<!--
+  watchOS: .NET for iOS builds the app with NativeAOT up to its native objects. These targets replace its iPhone
+  link, debug settings and .ipa with a watch app: the same native code relabelled for watchOS and linked into the
+  SwiftUI host, a watchOS Info.plist and icon, Watchious's own signing, and the App Store's watch-only container.
+  Targets that share a name with a .NET for iOS target replace it, because this file is imported after it.
+-->
+<Project>
+
+  <PropertyGroup>
+    <_WatchiousSdkName Condition="'$(_SdkIsSimulator)' == 'true'">watchsimulator</_WatchiousSdkName>
+    <_WatchiousSdkName Condition="'$(_SdkIsSimulator)' != 'true'">watchos</_WatchiousSdkName>
+    <_WatchiousWorkDirectory>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)watchious/</_WatchiousWorkDirectory>
+    <WatchiousBundleIdentifier Condition="'$(WatchiousBundleIdentifier)' == ''">$(ApplicationId).watchkitapp</WatchiousBundleIdentifier>
+    <_WatchiousInfoPlist Condition="Exists('$(MSBuildProjectDirectory)/Platforms/watchOS/Info.plist')">$(MSBuildProjectDirectory)/Platforms/watchOS/Info.plist</_WatchiousInfoPlist>
+    <_WatchiousAssets Condition="Exists('$(MSBuildProjectDirectory)/Platforms/watchOS/Assets.xcassets')">$(MSBuildProjectDirectory)/Platforms/watchOS/Assets.xcassets</_WatchiousAssets>
+    <!-- The app's entitlements (HealthKit, app groups...), like MAUI's CodesignEntitlements and
+         Platforms/iOS/Entitlements.plist. -->
+    <_WatchiousEntitlements Condition="'$(CodesignEntitlements)' != ''">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(CodesignEntitlements)'))</_WatchiousEntitlements>
+    <_WatchiousEntitlements Condition="'$(_WatchiousEntitlements)' == '' And Exists('$(MSBuildProjectDirectory)/Platforms/watchOS/Entitlements.plist')">$(MSBuildProjectDirectory)/Platforms/watchOS/Entitlements.plist</_WatchiousEntitlements>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(OutputType)' == 'Exe'">
+    <Compile Include="$(MSBuildThisFileDirectory)WatchiousWatchOSEntryPoints.cs" Link="Watchious\WatchiousWatchOSEntryPoints.cs" Visible="false" />
+    <_WatchiousHostSource Include="$(WatchiousWatchOSHostDirectory)*.swift;$(WatchiousWatchOSHostDirectory)*.c;$(WatchiousWatchOSHostDirectory)*.h" />
+    <!-- Optional packages (Watchious.Messaging, Watchious.Health) add their Swift and C files to the host with
+         WatchiousWatchOSHostSource items. -->
+    <_WatchiousHostSource Include="@(WatchiousWatchOSHostSource)" />
+  </ItemGroup>
+
+  <!-- watchOS code compiles with WATCHOS, not with the IOS constants .NET for iOS defines. -->
+  <Target Name="_WatchiousDefineWatchOSConstants" AfterTargets="AddImplicitDefineConstants">
+    <PropertyGroup>
+      <DefineConstants>;$(DefineConstants);</DefineConstants>
+      <DefineConstants>$(DefineConstants.Replace(';IOS;', ';').Replace(';__IOS__;', ';').Trim(';'));WATCHOS;__WATCHOS__</DefineConstants>
+    </PropertyGroup>
+  </Target>
+
+  <!-- The C# side of the entry points: the project's WatchiousAppFactory creates the app. -->
+  <Target Name="_WatchiousGenerateAppFactory" BeforeTargets="CoreCompile" Condition="'$(OutputType)' == 'Exe'">
+    <PropertyGroup>
+      <_WatchiousAppFactoryFile>$(IntermediateOutputPath)WatchiousWatchOSAppFactory.g.cs</_WatchiousAppFactoryFile>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_WatchiousAppFactoryFile)" Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Lines="// &lt;auto-generated/&gt;;namespace Watchious.Generated%3B;internal static partial class WatchiousWatchOSEntryPoints { private static partial global::Watchious.Hosting.WatchiousApp CreateWatchiousApp() =&gt; global::$(WatchiousAppFactory)()%3B }" />
+    <ItemGroup>
+      <Compile Include="$(_WatchiousAppFactoryFile)" />
+      <FileWrites Include="$(_WatchiousAppFactoryFile)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- iPhone debug settings (Settings.bundle, MonoTouchDebugConfiguration.txt) have no use in a watch app. -->
+  <Target Name="_CreateDebugSettings" />
+  <Target Name="_CreateDebugConfiguration" />
+
+  <!-- Replaces the .NET for iOS link of an iPhone executable. -->
+  <Target Name="_LinkNativeExecutable"
+          DependsOnTargets="$(_LinkNativeExecutableDependsOn)"
+          Inputs="@(_LinkNativeExecutableInputs);@(_WatchiousHostSource)"
+          Outputs="@(_LinkNativeExecutableOutputs)">
+    <PropertyGroup>
+      <_WatchiousInputsFile>$(_WatchiousWorkDirectory)link-inputs.txt</_WatchiousInputsFile>
+      <_WatchiousFlagsFile>$(_WatchiousWorkDirectory)link-flags.txt</_WatchiousFlagsFile>
+      <_WatchiousFrameworksFile>$(_WatchiousWorkDirectory)link-frameworks.txt</_WatchiousFrameworksFile>
+      <_WatchiousExtraSourcesFile>$(_WatchiousWorkDirectory)host-sources.txt</_WatchiousExtraSourcesFile>
+    </PropertyGroup>
+    <MakeDir Directories="$(_WatchiousWorkDirectory)" />
+    <WriteLinesToFile File="$(_WatchiousInputsFile)" Overwrite="true"
+                      Lines="@(_NativeExecutableObjectFiles->'%(FullPath)');@(_XamarinMainLibraries->'%(FullPath)');@(_BindingLibraryLinkWith->'%(FullPath)');@(_MainLinkWith->'%(FullPath)')" />
+    <WriteLinesToFile File="$(_WatchiousFlagsFile)" Overwrite="true" Lines="@(_AllLinkerFlags)" />
+    <WriteLinesToFile File="$(_WatchiousFrameworksFile)" Overwrite="true" Lines="@(_NativeExecutableFrameworks);@(_BindingLibraryFrameworks)" />
+    <WriteLinesToFile File="$(_WatchiousExtraSourcesFile)" Overwrite="true" Lines="@(WatchiousWatchOSHostSource->'%(FullPath)')" />
+    <Exec Command="bash &quot;$(WatchiousToolsDirectory)link-watch-app.sh&quot;"
+          IgnoreStandardErrorWarningFormat="true"
+          EnvironmentVariables="WATCHIOUS_SDK_NAME=$(_WatchiousSdkName);WATCHIOUS_MIN_OS=$(WatchiousMinimumWatchOSVersion);WATCHIOUS_HOST_DIR=$(WatchiousWatchOSHostDirectory);WATCHIOUS_TOOLS_DIR=$(WatchiousToolsDirectory);WATCHIOUS_WORK_DIR=$(_WatchiousWorkDirectory);WATCHIOUS_OUTPUT=$(MSBuildProjectDirectory)/$(_IntermediateNativeLibraryDir)$(_NativeExecutableName);WATCHIOUS_INPUTS_FILE=$(_WatchiousInputsFile);WATCHIOUS_FLAGS_FILE=$(_WatchiousFlagsFile);WATCHIOUS_FRAMEWORKS_FILE=$(_WatchiousFrameworksFile);WATCHIOUS_ENTITLEMENTS=$(_WatchiousEntitlements);WATCHIOUS_EXTRA_SOURCES_FILE=$(_WatchiousExtraSourcesFile);WATCHIOUS_BUNDLE_ID=$(WatchiousBundleIdentifier)" />
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(_IntermediateNativeLibraryDir)$(_NativeExecutableName)">
+        <RelativePath>$(_NativeExecutablePublishDir)\$(_NativeExecutableName)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <!-- After .NET for iOS has filled the app bundle: watchOS manifest, icon and signature. -->
+  <Target Name="_WatchiousCompleteWatchApp" AfterTargets="_CreateAppBundle">
+    <PropertyGroup>
+      <_WatchiousProfile Condition="'$(CodesignProvision)' != '' And Exists('$(CodesignProvision)')">$(CodesignProvision)</_WatchiousProfile>
+      <_WatchiousProfile Condition="'$(CodesignProvision)' != '' And '$(_WatchiousProfile)' == ''">$(HOME)/Library/MobileDevice/Provisioning Profiles/$(CodesignProvision).mobileprovision</_WatchiousProfile>
+    </PropertyGroup>
+    <Error Condition="'$(_WatchiousProfile)' != '' And !Exists('$(_WatchiousProfile)')"
+           Text="Watchious: CodesignProvision '$(CodesignProvision)' is neither a .mobileprovision file nor the UUID of an installed profile." />
+    <!-- Before complete-watch-app.sh, which signs the bundle. SwiftUI loads them with UIImage(named:). -->
+    <Copy SourceFiles="@(WatchiousImage)" DestinationFolder="$(MSBuildProjectDirectory)/$(_AppBundlePath)" SkipUnchangedFiles="true" />
+    <Exec Command="bash &quot;$(WatchiousToolsDirectory)complete-watch-app.sh&quot;"
+          EnvironmentVariables="WATCHIOUS_APP=$(MSBuildProjectDirectory)/$(_AppBundlePath);WATCHIOUS_SDK_NAME=$(_WatchiousSdkName);WATCHIOUS_MIN_OS=$(WatchiousMinimumWatchOSVersion);WATCHIOUS_BUNDLE_ID=$(WatchiousBundleIdentifier);WATCHIOUS_INFO_PLIST=$(_WatchiousInfoPlist);WATCHIOUS_ASSETS=$(_WatchiousAssets);WATCHIOUS_WORK_DIR=$(_WatchiousWorkDirectory);WATCHIOUS_SIGN_IDENTITY=$(CodesignKey);WATCHIOUS_PROFILE=$(_WatchiousProfile);WATCHIOUS_ENTITLEMENTS=$(_WatchiousEntitlements)" />
+  </Target>
+
+  <!-- App Store package: dotnet publish -f net*-watchos -r ios-arm64 -p:BuildIpa=true with CodesignKey,
+       CodesignProvision (the watch app's App Store profile) and WatchiousContainerProvision (the stub's). -->
+  <Target Name="CreateIpa" Condition="'$(BuildIpa)' == 'true'" DependsOnTargets="_WatchiousCompleteWatchApp">
+    <PropertyGroup>
+      <_WatchiousContainerProfile Condition="Exists('$(WatchiousContainerProvision)')">$(WatchiousContainerProvision)</_WatchiousContainerProfile>
+      <_WatchiousContainerProfile Condition="'$(_WatchiousContainerProfile)' == ''">$(HOME)/Library/MobileDevice/Provisioning Profiles/$(WatchiousContainerProvision).mobileprovision</_WatchiousContainerProfile>
+      <WatchiousIpaPath Condition="'$(WatchiousIpaPath)' == ''">$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).ipa</WatchiousIpaPath>
+    </PropertyGroup>
+    <Error Condition="'$(WatchiousContainerProvision)' == '' Or !Exists('$(_WatchiousContainerProfile)')"
+           Text="Watchious: an App Store package needs WatchiousContainerProvision, the App Store profile of the iPhone stub ($(ApplicationId))." />
+    <Exec Command="bash &quot;$(WatchiousToolsDirectory)create-watch-ipa.sh&quot;"
+          EnvironmentVariables="WATCHIOUS_APP=$(MSBuildProjectDirectory)/$(_AppBundlePath);WATCHIOUS_CONTAINER_ID=$(ApplicationId);WATCHIOUS_DISPLAY_NAME=$(ApplicationTitle);WATCHIOUS_VERSION=$(ApplicationDisplayVersion);WATCHIOUS_BUILD=$(ApplicationVersion);WATCHIOUS_SIGN_IDENTITY=$(CodesignKey);WATCHIOUS_PROFILE=$(_WatchiousContainerProfile);WATCHIOUS_WORK_DIR=$(_WatchiousWorkDirectory);WATCHIOUS_IPA=$(WatchiousIpaPath)" />
+  </Target>
+
+  <!-- dotnet build -t:Run -f net*-watchos: the simulator by default; a real watch with -r ios-arm64 and
+       WatchiousDevice (UDID or name). Extra launch arguments go in WatchiousLaunchArguments. -->
+  <Target Name="Run" DependsOnTargets="Build">
+    <PropertyGroup>
+      <_WatchiousRunMode Condition="'$(_SdkIsSimulator)' == 'true'">simulator</_WatchiousRunMode>
+      <_WatchiousRunMode Condition="'$(_SdkIsSimulator)' != 'true'">device</_WatchiousRunMode>
+    </PropertyGroup>
+    <Exec Command="bash &quot;$(WatchiousToolsDirectory)run-watch-app.sh&quot; $(_WatchiousRunMode) &quot;$(MSBuildProjectDirectory)/$(_AppBundlePath)&quot; $(WatchiousBundleIdentifier) &quot;$(WatchiousDevice)&quot;"
+          EnvironmentVariables="WATCHIOUS_LAUNCH_ARGUMENTS=$(WatchiousLaunchArguments)" />
+  </Target>
+
+</Project>

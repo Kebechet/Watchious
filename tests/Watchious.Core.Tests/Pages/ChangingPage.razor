@@ -1,0 +1,14 @@
+@inject PageState State
+
+<VStack>
+    <Button Text="@(State.Flag ? "on" : null)" />
+    @State.Text
+    <Button Text="Maybe" OnClick="@(State.Flag ? EventCallback.Factory.Create(this, Refresh) : default)" />
+    <Button Text="Refresh" OnClick="Refresh" />
+</VStack>
+
+@code {
+    private void Refresh()
+    {
+    }
+}

@@ -1,10 +1,10 @@
-<VerticalStackLayout>
+<VStack>
     <Greeting Name="Ann" />
     @foreach (var name in names)
     {
         <Greeting Name="@name" />
     }
-</VerticalStackLayout>
+</VStack>
 
 @code {
     private readonly string[] names = ["Bob", "Cid"];

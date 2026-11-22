@@ -2,60 +2,103 @@ import SwiftUI
 
 struct NodeView: View {
     let node: UiNode
-    @ObservedObject var store: WatchiousStore
+    let store: WatchiousStore
 
     var body: some View {
         switch node.type {
+        case "NavigationStack":
+            NavigationStackView(node: node, store: store)
         case "ScrollView":
             ScrollView {
                 children
                     .scenePadding(.horizontal)
             }
-        case "VerticalStackLayout":
-            VStack(alignment: .leading, spacing: spacing) {
+        case "VStack":
+            VStack(alignment: horizontalAlignment, spacing: spacing) {
                 children
             }
-        case "HorizontalStackLayout":
-            HStack(spacing: spacing) {
+        case "HStack":
+            HStack(alignment: verticalAlignment, spacing: spacing) {
                 children
             }
         case "Label":
-            Text(node.attribute("Text") ?? "")
+            Text(joinedText)
                 .font(font(for: node.attribute("Style")))
         case "Button":
             Button(node.attribute("Text") ?? "") {
                 dispatch("click")
             }
             .disabled(node.attribute("IsEnabled") == "false")
-        case "Switch":
+        case "List":
+            ListNodeView(node: node, store: store)
+        case "Image":
+            ImageNode(node: node)
+        case "ProgressView":
+            ProgressViewNode(node: node)
+        case "Picker":
+            PickerNode(node: node, store: store)
+        case "TextField":
+            TextFieldNode(node: node, store: store)
+        case "Toggle":
             if let text = node.attribute("Text"), !text.isEmpty {
-                Toggle(text, isOn: toggledBinding)
+                Toggle(text, isOn: isOnBinding)
             } else {
-                Toggle(isOn: toggledBinding) {
+                Toggle(isOn: isOnBinding) {
                     EmptyView()
                 }
                 .labelsHidden()
             }
-        case "#text":
-            Text(node.text ?? "")
+        case UiNode.textType:
+            // Blank text is the whitespace between controls in the Razor markup.
+            if !node.isBlankText {
+                Text(node.text ?? "")
+            }
         default:
             EmptyView()
         }
     }
 
     private var children: some View {
-        ForEach(Array(node.childNodes.enumerated()), id: \.offset) { _, child in
+        // The node id keeps a view's identity (state, animations) when siblings are inserted, removed or moved.
+        ForEach(node.children) { child in
             NodeView(node: child, store: store)
         }
     }
 
-    private var spacing: CGFloat {
-        CGFloat(Double(node.attribute("Spacing") ?? "") ?? 0)
+    // Nil leaves the spacing to SwiftUI, like a VStack without spacing.
+    private var spacing: CGFloat? {
+        node.attribute("Spacing").flatMap(Double.init).map { CGFloat($0) }
     }
 
-    private var toggledBinding: Binding<Bool> {
+    private var horizontalAlignment: HorizontalAlignment {
+        switch node.attribute("Alignment") {
+        case "Leading":
+            return .leading
+        case "Trailing":
+            return .trailing
+        default:
+            return .center
+        }
+    }
+
+    private var verticalAlignment: VerticalAlignment {
+        switch node.attribute("Alignment") {
+        case "Top":
+            return .top
+        case "Bottom":
+            return .bottom
+        default:
+            return .center
+        }
+    }
+
+    private var joinedText: String {
+        node.children.filter { $0.type == UiNode.textType }.map { $0.text ?? "" }.joined()
+    }
+
+    private var isOnBinding: Binding<Bool> {
         Binding(
-            get: { node.attribute("IsToggled") == "true" },
+            get: { node.attribute("IsOn") == "true" },
             set: { isOn in dispatch("toggled", value: isOn ? "true" : "false") }
         )
     }
@@ -71,6 +114,8 @@ struct NodeView: View {
         switch style {
         case "Title":
             return .title3
+        case "Headline":
+            return .headline
         case "Caption":
             return .caption
         default:

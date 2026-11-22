@@ -1,0 +1,37 @@
+<!-- Packs the Watchious MSBuild SDK (<Project Sdk="Watchious.Sdk">). Nothing is compiled: the package is the
+     MSBuild files, the build tools and the sources of the native watchOS host. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <PackageType>MSBuildSdk</PackageType>
+    <Description>The Watchious MSBuild SDK: one project for Wear OS and watchOS watch apps written in Razor.</Description>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <!-- NU5128: an SDK package has no lib/ assembly on purpose. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Sdk\**" Pack="true" PackagePath="Sdk\" />
+    <None Include="build\**" Pack="true" PackagePath="build\" />
+    <None Include="tools\**" Pack="true" PackagePath="tools\" />
+    <None Include="..\..\platforms\watchOS\Host\**" Pack="true" PackagePath="host\watchOS\" />
+  </ItemGroup>
+
+  <!-- The SDK references the Watchious packages of its own version. -->
+  <Target Name="_WatchiousPackVersion" BeforeTargets="_GetPackageFiles">
+    <PropertyGroup>
+      <_WatchiousVersionProps>$(IntermediateOutputPath)Watchious.Sdk.Version.props</_WatchiousVersionProps>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_WatchiousVersionProps)" Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Lines="&lt;Project&gt;;  &lt;PropertyGroup&gt;;    &lt;WatchiousVersion&gt;$(Version)&lt;/WatchiousVersion&gt;;  &lt;/PropertyGroup&gt;;&lt;/Project&gt;" />
+    <ItemGroup>
+      <None Include="$(_WatchiousVersionProps)" Pack="true" PackagePath="build\" />
+    </ItemGroup>
+  </Target>
+
+</Project>
