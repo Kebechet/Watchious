@@ -13,13 +13,16 @@ internal sealed partial class HealthKitBackend : IHealthBackend, IDisposable
     // The registered instance, which the native callbacks (static by nature) reach. The service is a singleton.
     private static HealthKitBackend? _current;
 
+    // HKObjectType.workoutType()'s identifier.
+    private const string WorkoutTypeIdentifier = "HKWorkoutTypeIdentifier";
+
     private readonly ConcurrentDictionary<long, TaskCompletionSource> _pending = new();
     private long _lastToken;
 
     public unsafe HealthKitBackend()
     {
         _current = this;
-        SetCallbacks(&OnHeartRate, &OnCompleted);
+        SetCallbacks(&OnHeartRate, &OnCompleted, &OnWorkoutEnded);
     }
 
     public bool IsSupported => IsHealthDataAvailable() != 0;
@@ -30,14 +33,18 @@ internal sealed partial class HealthKitBackend : IHealthBackend, IDisposable
 
     public Action<double, DateTimeOffset>? HeartRateReceived { get; set; }
 
-    // HealthKit never tells an app whether it may read: an app learns only that the user answered, so nothing is
-    // reported denied here.
+    public Action? WorkoutEnded { get; set; }
+
+    // HealthKit never tells an app whether it may read: an app learns only that the user answered. It does tell
+    // whether the app may save workouts, which starting one needs, so that is the permission reported denied.
+    // ExerciseSession always asks to save workouts, whatever its PermissionType, because a workout session needs it.
     public async Task<IList<string>> RequestPermissionsAsync(IList<HealthPermissionDto> permissions, CancellationToken cancellationToken)
     {
         var readHeartRate = permissions.Any(permission => permission.HealthDataType is HealthDataType.HeartRate or HealthDataType.ExerciseSession);
         var writeWorkouts = permissions.Any(permission => permission.HealthDataType == HealthDataType.ExerciseSession);
         await RunAsync(token => RequestAuthorization(readHeartRate ? 1 : 0, writeWorkouts ? 1 : 0, token)).WaitAsync(cancellationToken);
-        return [];
+        var isWorkoutSharingAuthorized = IsWorkoutSharingAuthorized() != 0;
+        return writeWorkouts && !isWorkoutSharingAuthorized ? [WorkoutTypeIdentifier] : [];
     }
 
     public Task StartWorkoutAsync(ActivityType activityType)
@@ -91,6 +98,19 @@ internal sealed partial class HealthKitBackend : IHealthBackend, IDisposable
     }
 
     [UnmanagedCallersOnly]
+    private static void OnWorkoutEnded()
+    {
+        try
+        {
+            _current?.WorkoutEnded?.Invoke();
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine($"Watchious.Health: {exception}");
+        }
+    }
+
+    [UnmanagedCallersOnly]
     private static unsafe void OnCompleted(long token, byte* error)
     {
         try
@@ -118,10 +138,14 @@ internal sealed partial class HealthKitBackend : IHealthBackend, IDisposable
     [LibraryImport("__Internal", EntryPoint = "watchious_health_set_callbacks")]
     private static unsafe partial void SetCallbacks(
         delegate* unmanaged<double, double, void> onHeartRate,
-        delegate* unmanaged<long, byte*, void> onCompleted);
+        delegate* unmanaged<long, byte*, void> onCompleted,
+        delegate* unmanaged<void> onWorkoutEnded);
 
     [LibraryImport("__Internal", EntryPoint = "watchious_health_is_available")]
     private static partial int IsHealthDataAvailable();
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_health_workout_sharing_authorized")]
+    private static partial int IsWorkoutSharingAuthorized();
 
     [LibraryImport("__Internal", EntryPoint = "watchious_health_request_authorization")]
     private static partial void RequestAuthorization(int readHeartRate, int writeWorkouts, long token);

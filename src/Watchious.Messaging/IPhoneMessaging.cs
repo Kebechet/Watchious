@@ -7,6 +7,8 @@ namespace Watchious.Messaging;
 // companion.
 public interface IPhoneMessaging
 {
+    // Wear OS: a phone is connected, which doesn't show whether the phone app is installed. watchOS: the iPhone app
+    // can be reached now (WCSession.isReachable).
     Task<bool> IsPhoneReachableAsync();
 
     Task SendMessageAsync(IReadOnlyDictionary<string, string> message);
@@ -23,7 +25,8 @@ public interface IPhoneMessaging
     // The phone's latest application context.
     IReadOnlyDictionary<string, string> ReceivedApplicationContext { get; }
 
-    // Raised on a background thread. Subscribers unsubscribe when they are disposed.
+    // Raised on any thread: the main thread on Wear OS, a background one on watchOS. Subscribers unsubscribe when
+    // they are disposed.
     event EventHandler<PhoneMessageReceivedEventArgs>? MessageReceived;
 
     event EventHandler? ApplicationContextChanged;

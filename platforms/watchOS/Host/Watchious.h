@@ -14,4 +14,7 @@ int32_t watchious_start(watchious_patches_callback apply_patches, watchious_text
 
 int32_t watchious_dispatch(uint64_t event_handler_id, const char *event_name, const char *value);
 
+// Once per batch, in order, when the UI shows it.
+void watchious_patches_applied(void);
+
 #endif

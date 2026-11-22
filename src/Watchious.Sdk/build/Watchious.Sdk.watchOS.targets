@@ -73,7 +73,7 @@
   <!-- Replaces the .NET for iOS link of an iPhone executable. -->
   <Target Name="_LinkNativeExecutable"
           DependsOnTargets="$(_LinkNativeExecutableDependsOn)"
-          Inputs="@(_LinkNativeExecutableInputs);@(_WatchiousHostSource)"
+          Inputs="@(_LinkNativeExecutableInputs);@(_WatchiousHostSource);$(_WatchiousEntitlements);$(WatchiousToolsDirectory)link-watch-app.sh;$(WatchiousToolsDirectory)retag-macho.py"
           Outputs="@(_LinkNativeExecutableOutputs)">
     <PropertyGroup>
       <_WatchiousInputsFile>$(_WatchiousWorkDirectory)link-inputs.txt</_WatchiousInputsFile>

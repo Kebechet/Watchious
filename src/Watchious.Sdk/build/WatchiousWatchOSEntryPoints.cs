@@ -33,5 +33,11 @@ internal static unsafe partial class WatchiousWatchOSEntryPoints
         return global::Watchious.Hosts.watchOS.WatchOSBridge.Dispatch(eventHandlerId, eventNameUtf8, valueUtf8);
     }
 
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(EntryPoint = "watchious_patches_applied")]
+    private static void PatchesApplied()
+    {
+        global::Watchious.Hosts.watchOS.WatchOSBridge.PatchesApplied();
+    }
+
     private static partial global::Watchious.Hosting.WatchiousApp CreateWatchiousApp();
 }

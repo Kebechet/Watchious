@@ -287,7 +287,7 @@ Versions stay at `0.x.x` until the API is stable.
 | App state | Blazor style: state in components with `@bind`, shared logic in services through dependency injection |
 | Watch APIs | All common watch APIs wrapped as C# services in dependency injection, unified across the platforms as far as possible, in the style of [`Kebechet.Maui.RevenueCat.InAppBilling`](https://github.com/Kebechet/Maui.RevenueCat.InAppBilling). A feature only one platform has stays in the API and throws on the other. |
 | Platform-specific code | C# in `Platforms/WearOS` and `Platforms/watchOS`, like MAUI. Wear OS: Android and AndroidX APIs through .NET for Android. watchOS: Apple's frameworks (HealthKit, Foundation, CoreMotion...) through Microsoft's .NET for iOS bindings, which run on the watch (shown on an Apple Watch SE 3). Watch-only Apple APIs that .NET for iOS lacks get small bindings in Watchious. |
-| Health and workouts | In scope later, as a separate, optional `Watchious.Health` package after messaging |
+| Health and workouts | A separate, optional `Watchious.Health` package |
 | Styling | Semantic tokens plus a few explicit values. Never CSS. |
 | Navigation | Blazor `@page` routes plus source-generated typed helpers: `Navigation.GoToAsync(Routes.Workout(exerciseId: 5))`. A stack of pages, shown with each platform's own navigation and back gestures. |
 | Phone ↔ watch messaging | A separate, optional `Watchious.Messaging` package for the watch, **wire-compatible with [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging)**, so a MAUI phone app uses that plugin unchanged: on Wear OS its `/message` JSON messages, `_requestId`/`_replyToId` replies, `/application_context` data item and `wearable_app` capability; on watchOS plain WatchConnectivity dictionaries with native replies. No Watchious phone package, because the plugin already covers the phone side of both platforms with the same concepts; gaps go upstream. The platforms require that on Wear OS the phone and watch apps share the applicationId and signing key, and that on watchOS the watch app is the iPhone app's companion (https://github.com/Kebechet/Watchious/issues/4). |
@@ -318,7 +318,7 @@ Versions stay at `0.x.x` until the API is stable.
    the watchOS simulator and on a real Apple Watch SE 3. The device build, signed and packaged as a
    watch-only app, passes App Store validation.
 1. ✅ **Wear OS proof of concept:** the renderer plus a Compose host with `Label`, `Button` and a list,
-   running a counter app on the Wear OS emulator and a Galaxy Watch7. The list is still to do.
+   running a counter app on the Wear OS emulator and a Galaxy Watch7. The list came later, with step 5.
 2. ✅ **SwiftUI host** with the same controls as Wear OS. From now on, each new control is added to both
    hosts together.
 3. ✅ **Project model:** `Watchious.Sdk`, `dotnet new watchious` and `dotnet build -f net11.0-watchos` on top

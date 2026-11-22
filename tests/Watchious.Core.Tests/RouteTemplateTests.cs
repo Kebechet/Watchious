@@ -82,7 +82,51 @@ public class RouteTemplateTests
         };
 
         // Assert
-        values.ShouldBe(["1.5", "true", "a%2Fb%20c", "2026-11-21T03%3A15%3A00"]);
+        values.ShouldBe(["1.5", "true", "a%2Fb%20c", "2026-11-21T03%3A15%3A00.0000000"]);
+    }
+
+    [Fact]
+    public async Task GoTo_LiteralRoute_WinsOverTheSameRouteWithAnOptionalParameter()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        await using var app = WatchiousApp.CreateBuilder()
+            .UseWatchiousApp<NavigationRootPage>()
+            .AddRoute<SearchPage>("/search/{Query?}")
+            .AddRoute<NewItemPage>("/search")
+            .Build();
+        await app.StartAsync(host);
+        var navigation = app.Services.GetRequiredService<INavigation>();
+
+        // Act
+        await navigation.GoToAsync("/search");
+        var literal = host.LastTree.Single("NavigationStack").VisibleChildren.Last().Single("Label").Content;
+        await navigation.GoToAsync("/search/tea");
+        var optional = host.LastTree.Single("NavigationStack").VisibleChildren.Last().Single("Label").Content;
+
+        // Assert
+        literal.ShouldBe("New item");
+        optional.ShouldBe("Search: tea");
+    }
+
+    [Fact]
+    public async Task GoTo_DateTimeValue_ArrivesUnchanged()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        await using var app = WatchiousApp.CreateBuilder()
+            .UseWatchiousApp<NavigationRootPage>()
+            .AddRoute<DatePage>("/at/{When:datetime}")
+            .Build();
+        await app.StartAsync(host);
+        var when = new DateTime(2026, 11, 21, 3, 15, 0, 250, DateTimeKind.Utc);
+
+        // Act
+        await app.Services.GetRequiredService<INavigation>().GoToAsync("/at/" + RouteValue.Format(when));
+
+        // Assert
+        host.LastTree.Single("NavigationStack").VisibleChildren.Last().Single("Label").Content
+            .ShouldBe($"At {when.Ticks} Utc");
     }
 
     private static async Task<(WatchiousApp App, RecordingHost Host)> StartAsync()

@@ -175,6 +175,42 @@ public class HealthTests
         backend.HeartRateReceived.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task Workout_EndedByThePlatform_EndsTheSession()
+    {
+        // Arrange
+        var backend = new FakeBackend();
+        var health = new HealthService(backend);
+        await health.Activity.Start(ActivityType.Running);
+
+        // Act
+        backend.EndFromThePlatform();
+
+        // Assert
+        var isRunning = await health.Activity.IsRunning();
+        isRunning.ShouldBeFalse();
+        var workout = await health.Activity.End();
+        workout.ShouldBeNull();
+        await health.Activity.Start(ActivityType.Walking);
+        backend.Calls.ShouldBe(["start Running", "start Walking"]);
+    }
+
+    [Fact]
+    public async Task Dispose_EndsARunningWorkout()
+    {
+        // Arrange
+        var backend = new FakeBackend();
+        var health = new HealthService(backend);
+        await health.Activity.Start(ActivityType.Yoga);
+
+        // Act
+        health.Dispose();
+
+        // Assert
+        backend.Calls.ShouldBe(["start Yoga", "end"]);
+        backend.WorkoutEnded.ShouldBeNull();
+    }
+
     private sealed class FakeBackend : IHealthBackend
     {
         public List<string> Calls { get; } = [];
@@ -190,6 +226,13 @@ public class HealthTests
         public string? DataOrigin => "com.kebechet.watch";
 
         public Action<double, DateTimeOffset>? HeartRateReceived { get; set; }
+
+        public Action? WorkoutEnded { get; set; }
+
+        public void EndFromThePlatform()
+        {
+            WorkoutEnded?.Invoke();
+        }
 
         public void SendHeartRate(double beatsPerMinute)
         {

@@ -102,7 +102,8 @@ struct ImageNode: View {
     let node: UiNode
 
     var body: some View {
-        if let source = node.attribute("Source"), let image = UIImage(named: source) {
+        // UIImage(named:) finds a PNG by its name alone; a JPEG needs its extension.
+        if let source = node.attribute("Source"), let image = UIImage(named: source) ?? UIImage(named: source + ".jpg") {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()

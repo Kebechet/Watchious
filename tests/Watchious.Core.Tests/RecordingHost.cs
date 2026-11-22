@@ -19,12 +19,13 @@ public sealed class RecordingHost : IWatchiousHost
         return LastTree.Descendants().Single(node => node.Type == "Button" && node.Content == text);
     }
 
-    public void ApplyPatches(ReadOnlySpan<byte> patches)
+    public Task ApplyPatches(ReadOnlySpan<byte> patches)
     {
         RawBatches.Add(patches.ToArray());
         var batch = Patch.ReadAll(patches);
         Batches.Add(batch);
         Tree.Apply(batch);
+        return Task.CompletedTask;
     }
 
     public void ReportError(Exception exception)
