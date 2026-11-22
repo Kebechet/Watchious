@@ -11,6 +11,7 @@ public sealed class WatchiousApp : IAsyncDisposable
     private readonly NavigationService _navigation;
 
     private WatchiousRenderer? _renderer;
+    private InspectorHost? _inspector;
 
     internal WatchiousApp(ServiceProvider services, NavigationService navigation)
     {
@@ -19,6 +20,10 @@ public sealed class WatchiousApp : IAsyncDisposable
     }
 
     public IServiceProvider Services => _services;
+
+    // The ws:// address of a Watchious inspector to mirror the app to. The platform hosts set it from the app's
+    // launch arguments (--watchious-inspector=...), on Wear OS only in debuggable builds. Set before StartAsync.
+    public Uri? InspectorUrl { get; set; }
 
     public static WatchiousAppBuilder CreateBuilder()
     {
@@ -30,6 +35,12 @@ public sealed class WatchiousApp : IAsyncDisposable
         if (_renderer is not null)
         {
             throw new InvalidOperationException("The app is already started.");
+        }
+
+        if (InspectorUrl is not null)
+        {
+            _inspector = new InspectorHost(host, InspectorUrl, DispatchEventAsync);
+            host = _inspector;
         }
 
         var loggerFactory = _services.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance;
@@ -45,6 +56,7 @@ public sealed class WatchiousApp : IAsyncDisposable
             throw new InvalidOperationException("Start the app before dispatching events.");
         }
 
+        _inspector?.ReportEvent(eventHandlerId, eventName, value);
         return _renderer.DispatchNativeEventAsync(eventHandlerId, eventName, value);
     }
 
@@ -54,6 +66,12 @@ public sealed class WatchiousApp : IAsyncDisposable
         {
             await _renderer.DisposeAsync();
             _renderer = null;
+        }
+
+        if (_inspector is not null)
+        {
+            await _inspector.DisposeAsync();
+            _inspector = null;
         }
 
         await _services.DisposeAsync();

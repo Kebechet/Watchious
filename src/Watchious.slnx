@@ -3,6 +3,8 @@
     <Project Path="Watchious.Core\Watchious.Core.csproj" />
     <Project Path="Watchious.Controls\Watchious.Controls.csproj" />
     <Project Path="Watchious.SourceGenerators\Watchious.SourceGenerators.csproj" />
+    <Project Path="Watchious.Essentials\Watchious.Essentials.csproj" />
+    <Project Path="Watchious.Preview\Watchious.Preview.csproj" />
     <Project Path="Watchious.Hosts.watchOS\Watchious.Hosts.watchOS.csproj" />
   </Folder>
   <Folder Name="/samples/">

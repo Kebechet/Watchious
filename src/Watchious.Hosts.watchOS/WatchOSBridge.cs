@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Watchious.Hosting;
+using Watchious.Hosts.watchOS.Essentials;
 
 namespace Watchious.Hosts.watchOS;
 
@@ -34,7 +35,19 @@ public static unsafe class WatchOSBridge
         var host = new NativeWatchiousHost(applyPatches, reportError);
         try
         {
-            var app = createApp();
+            WatchiousApp app;
+            using (WatchiousPlatform.ConfigureServices(WatchOSEssentials.AddTo))
+            {
+                app = createApp();
+            }
+
+            // Launch arguments come only from the developer's tools (simctl, devicectl, Xcode), never from users.
+            var inspectorUrl = WatchOSNative.TakeString(WatchOSNative.InspectorUrl());
+            if (Uri.TryCreate(inspectorUrl, UriKind.Absolute, out var url))
+            {
+                app.InspectorUrl = url;
+            }
+
             _app = app;
             _host = host;
             ReportFailure(app.StartAsync(host), host);

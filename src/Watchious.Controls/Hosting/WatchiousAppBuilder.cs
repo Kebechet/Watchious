@@ -15,6 +15,7 @@ public sealed class WatchiousAppBuilder
 
     internal WatchiousAppBuilder()
     {
+        WatchiousPlatform.AddServices(Services);
     }
 
     public IServiceCollection Services { get; } = new ServiceCollection();

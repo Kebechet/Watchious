@@ -137,6 +137,46 @@ Platform-only controls will be available as platform-specific components (for ex
 `<Apple.Gauge>` or `<Wear.CurvedText>`). Styling uses semantic tokens (`TextStyle.Title`,
 `Tint.Accent`) plus a few explicit values such as colour, padding and font size. There is no CSS.
 
+## Watch APIs
+
+`Watchious.Essentials` has the watch APIs as C# services, like MAUI Essentials but injected:
+
+```razor
+@inject IHaptics Haptics
+@inject IPreferences Preferences
+
+<Button Text="Done" OnClick="() => Haptics.Play(HapticFeedback.Success)" />
+```
+
+| Service | watchOS | Wear OS |
+|---|---|---|
+| `IHaptics` | `WKInterfaceDevice.play`, one haptic per meaning | the closest predefined vibration |
+| `IDeviceInfo` | `WKInterfaceDevice`, model identifier | `Build`, round screen |
+| `IBattery` | `WKInterfaceDevice` battery (unknown in the simulator) | the battery broadcast |
+| `IConnectivity` | `NWPathMonitor` | `ConnectivityManager` |
+| `IPreferences` | `UserDefaults` (suite `watchious`) | `SharedPreferences` (file `watchious`) |
+
+Each host registers its platform's implementations before the app's `CreateWatchiousApp` runs, so an app (or a
+test) can replace any of them with its own registration. WatchKit, which .NET for iOS has no bindings for,
+is reached through small C functions in the SwiftUI host (`platforms/watchOS/Host/Essentials.swift`).
+
+## Preview and inspector
+
+NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development pages:
+
+- **Preview:** `dotnet run -f net10.0` (or the `net10.0` framework picked in Visual Studio) runs the app on the
+  desktop and opens a page that renders it in a Wear OS or Apple Watch frame. The page applies the same patches
+  as the watch hosts and sends clicks, toggles and text back as events. The app runs in the desktop process, so
+  breakpoints in its pages and services work. The watch APIs have stand-ins (haptics are logged).
+- **Inspector:** `dotnet run -f net10.0 -- --inspector` starts a page that mirrors an app running on a watch,
+  simulator or emulator, next to its live UI tree and a log of patches, events and errors. Clicks on the mirror
+  happen in the app on the watch. The app connects when it is started with the inspector's address:
+  - Wear OS (debuggable builds only): `adb reverse tcp:5292 tcp:5292`, then
+    `adb shell am start -n <package>/<activity> --es watchious_inspector ws://localhost:5292/inspector/app`.
+  - watchOS: the launch argument `--watchious-inspector=ws://<computer>:5292/inspector/app`, for example
+    `dotnet build -t:Run -f net10.0-watchos -p:WatchiousLaunchArguments=...`. A watch on the network needs the
+    inspector started with `--urls=http://0.0.0.0:5292`.
+
 ## Project and packaging
 
 Watchious copies MAUI's project model and packaging as closely as possible. Nothing is published yet:
@@ -184,9 +224,10 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
 | `Watchious.Controls` | `Microsoft.Maui.Controls` | Razor controls, navigation, app builder |
 | `Watchious.Core` | `Microsoft.Maui.Core` | Renderer and UI-change protocol |
 | `Watchious.Hosts.WearOS`, `Watchious.Hosts.watchOS` | the platform parts of `Microsoft.Maui.Controls` | The native hosts; the SDK adds them |
-| `Watchious.Essentials` | `Microsoft.Maui.Essentials` | The common watch APIs, unified across both platforms |
+| `Watchious.Essentials` | `Microsoft.Maui.Essentials` | The common watch APIs as services; the hosts add the platform implementations |
 | `Watchious.Messaging` | none (closest: [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging) on the phone) | Phone ↔ watch messaging. Optional. |
 | `Watchious.Health` | [`Kebechet.Maui.Health`](https://github.com/Kebechet/Maui.Health) (not part of MAUI itself) | Heart rate and workout sessions (HealthKit / Health Services). Optional. |
+| `Watchious.Preview` | none | The desktop preview and the live inspector |
 | `Watchious.Sdk` | the `maui` workload | `<Project Sdk="Watchious.Sdk">`: the `net11.0-watchos` target, building, running, remote Mac builds and App Store packaging |
 | `Watchious.Templates` | `Microsoft.Maui.Templates` | `dotnet new watchious` |
 
@@ -218,7 +259,7 @@ Versions stay at `0.x.x` until the API is stable.
 | Phone ↔ watch messaging | A separate, optional `Watchious.Messaging` package: typed C# messages over WatchConnectivity (Apple) and the Data Layer (Wear OS), ideally compatible with Plugin.Maui.WearableMessaging on the phone (https://github.com/Kebechet/Watchious/issues/4) |
 | watchOS runtime | NativeAOT, built as .NET for iOS (`ios-arm64`) and relabelled for watchOS. Microsoft's runtime glue (`libxamarin`) is started the way its own `main` starts it, minus the iPhone app. ⚠️ That relies on internal start-up functions of .NET for iOS, which may change between versions. |
 | Build | Automatic through `dotnet build`, no manual Xcode step. watchOS builds run on a Mac, or from Windows on a remote Mac like MAUI's "Pair to Mac". Releases come from CI pipelines, like a MAUI app. |
-| Debugging | A desktop preview host that renders the same screens, after the first version |
+| Debugging | A desktop preview of the same screens (`dotnet run -f net10.0`) and a live inspector of apps running on watches |
 | Testing | Watch simulators and emulators first, real watches later |
 | Packaging | Mirror MAUI's packages and project template. `Watchious.Sdk` is an MSBuild SDK, like Uno's `Uno.Sdk`. Nothing published until decided. |
 | Versioning | `0.x.x` |
@@ -260,11 +301,13 @@ Versions stay at `0.x.x` until the API is stable.
    `INavigation`, generated `Routes` helpers, native back on both platforms). Still to do: SF Symbols and
    Material icons for `Image`.
 6. **Watch APIs** (`Watchious.Essentials`): the common watch features as unified C# services, with
-   platform C# as the escape hatch.
+   platform C# as the escape hatch. Done so far: haptics, device info, battery, connectivity and preferences.
+   Next: notifications, location, sensors, secure storage, always-on (ambient) mode and app lifecycle events.
 7. **Messaging** between phone and watch (`Watchious.Messaging`, optional,
    https://github.com/Kebechet/Watchious/issues/4).
-8. **Preview host:** the same screens in a desktop window, for debugging in Visual Studio.
-9. **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
+8. ✅ **Preview host:** the same screens on the desktop, for debugging in Visual Studio (`Watchious.Preview`,
+   see "Preview and inspector").
+9. ✅ **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
    it events (https://github.com/Kebechet/Watchious/issues/5).
 10. **Health and workouts** (`Watchious.Health`, optional).
 

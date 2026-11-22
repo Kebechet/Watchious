@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Watchious.Controls\Watchious.Controls.csproj" />
+    <ProjectReference Include="..\Watchious.Essentials\Watchious.Essentials.csproj" />
   </ItemGroup>
 
 </Project>
