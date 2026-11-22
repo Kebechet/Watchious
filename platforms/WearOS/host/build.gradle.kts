@@ -31,18 +31,13 @@ kotlin {
 }
 
 dependencies {
-    implementation("androidx.wear.compose:compose-material3:1.6.2")
-    implementation("androidx.wear.compose:compose-foundation:1.6.2")
+    implementation("androidx.wear.compose:compose-material3:1.7.1")
+    implementation("androidx.wear.compose:compose-foundation:1.7.1")
     implementation("androidx.lifecycle:lifecycle-runtime:2.9.4")
     implementation("androidx.savedstate:savedstate:1.3.3")
 }
 
-// The .NET app can't consume Maven dependencies of a plain AAR, so every Java library the host needs at
-// runtime is copied next to it and added to the .NET project as an unbound AndroidLibrary.
-tasks.register<Sync>("watchiousRuntimeDependencies") {
-    from(configurations.named("releaseRuntimeClasspath"))
-    into(layout.buildDirectory.dir("watchious-runtime"))
-}
+apply(from = rootProject.file("gradle/watchious-dotnet.gradle.kts"))
 
 // The .NET binding generator binds this jar, not the AAR: see Watchious.Hosts.WearOS.csproj.
 tasks.register<Jar>("watchiousBindingApi") {

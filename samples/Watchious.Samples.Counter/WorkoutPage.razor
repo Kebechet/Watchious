@@ -1,0 +1,113 @@
+@page "/workout"
+@implements IDisposable
+@inject IHealthService Health
+
+<List>
+    <Label Style="TextStyle.Headline">Workout</Label>
+    <Label>@heartRateText</Label>
+    @if (!Health.IsSupported)
+    {
+        <Label Style="TextStyle.Caption">No health sensors here.</Label>
+    }
+    else if (state is null)
+    {
+        <Button Text="Allow" OnClick="RequestPermissionsAsync" />
+        <Button Text="Start run" OnClick="StartAsync" />
+    }
+    else
+    {
+        <Button Text="@(state == WorkoutSessionState.Paused ? "Resume" : "Pause")" OnClick="PauseOrResumeAsync" />
+        <Button Text="End" OnClick="EndAsync" />
+    }
+    <Label Style="TextStyle.Caption">@status</Label>
+</List>
+
+@code {
+    private static readonly HealthPermissionDto[] Permissions =
+    [
+        new() { HealthDataType = HealthDataType.HeartRate, PermissionType = PermissionType.Read },
+        new() { HealthDataType = HealthDataType.ExerciseSession, PermissionType = PermissionType.Write },
+    ];
+
+    private WorkoutSessionState? state;
+    private string heartRateText = "-- bpm";
+    private string status = "";
+
+    protected override void OnInitialized()
+    {
+        Health.Activity.HeartRateReceived += OnHeartRate;
+    }
+
+    public void Dispose()
+    {
+        Health.Activity.HeartRateReceived -= OnHeartRate;
+    }
+
+    private async Task RequestPermissionsAsync()
+    {
+        var result = await Health.RequestPermissions(Permissions);
+        status = result.IsSuccess ? "Allowed" : $"Denied: {string.Join(", ", result.DeniedPermissions)}{result.Error}";
+    }
+
+    private async Task StartAsync()
+    {
+        await RunAsync(async () =>
+        {
+            await Health.Activity.Start(ActivityType.Running, "Watchious run");
+            state = WorkoutSessionState.Running;
+            status = "Running";
+        });
+    }
+
+    private async Task PauseOrResumeAsync()
+    {
+        await RunAsync(async () =>
+        {
+            if (state == WorkoutSessionState.Paused)
+            {
+                await Health.Activity.Resume();
+                state = WorkoutSessionState.Running;
+            }
+            else
+            {
+                await Health.Activity.Pause();
+                state = WorkoutSessionState.Paused;
+            }
+
+            status = state.ToString()!;
+        });
+    }
+
+    private async Task EndAsync()
+    {
+        await RunAsync(async () =>
+        {
+            var workout = await Health.Activity.End();
+            state = null;
+            status = workout?.AverageHeartRate is null
+                ? "Ended"
+                : $"Ended, average {workout.AverageHeartRate.Value:F0} bpm";
+        });
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception exception)
+        {
+            status = exception.Message;
+        }
+    }
+
+    private void OnHeartRate(object? sender, HeartRateDto heartRate)
+    {
+        _ = InvokeAsync(() =>
+        {
+            heartRateText = $"{heartRate.BeatsPerMinute:F0} bpm";
+            StateHasChanged();
+        });
+    }
+}
