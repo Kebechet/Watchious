@@ -17,6 +17,8 @@ final class WatchiousStore {
         } catch {
             report("Invalid Watchious patches: \(error)")
         }
+        // Until now .NET kept the event handler ids this batch replaced: the controls on the display still sent them.
+        watchious_patches_applied()
     }
 
     func goBackLikeTheBackButton() {

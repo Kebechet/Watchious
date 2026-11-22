@@ -21,7 +21,7 @@ namespace Watchious.Protocol;
 // Node ids are never reused. Node 0 is the root, which the host owns from the start. Only elements and text
 // reach the host: Blazor components are transparent, so a component's nodes sit directly in the element that
 // contains the component. A created node is detached until an InsertChild places it. Text arrives as it is in
-// the Razor markup, including the whitespace between controls: a host joins the text inside a Text control and
+// the Razor markup, including the whitespace between controls: a host joins the text inside a Label and
 // skips blank text in layouts, as a browser collapses whitespace between blocks.
 public enum PatchOperation : byte
 {

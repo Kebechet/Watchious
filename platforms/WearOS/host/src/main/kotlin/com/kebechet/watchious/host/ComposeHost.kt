@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.View
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -21,6 +22,8 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.flow.first
+
+private const val LOG_TAG = "Watchious"
 
 internal class ComposeHost(activity: Activity) {
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -63,10 +66,17 @@ internal class ComposeHost(activity: Activity) {
         }
     }
 
+    // Until a batch is confirmed, .NET keeps the event handler ids it replaced: the controls on the display still
+    // send them.
     private fun applyPendingPatches() {
         while (true) {
             val patches = pendingPatches.poll() ?: return
-            tree.apply(patches)
+            try {
+                tree.apply(patches)
+            } catch (exception: Exception) {
+                Log.e(LOG_TAG, "Invalid Watchious patches", exception)
+            }
+            eventListener?.onPatchesApplied()
         }
     }
 

@@ -126,9 +126,11 @@ internal sealed class PreviewSession(WebSocket socket, Func<WatchiousApp> create
     // their order.
     private sealed class SessionHost(ChannelWriter<OutgoingMessage> writer) : IWatchiousHost
     {
-        public void ApplyPatches(ReadOnlySpan<byte> patches)
+        // The page doesn't confirm the batches it applied.
+        public Task ApplyPatches(ReadOnlySpan<byte> patches)
         {
             writer.TryWrite(new OutgoingMessage(patches.ToArray(), WebSocketMessageType.Binary));
+            return Task.CompletedTask;
         }
 
         public void ReportError(Exception exception)

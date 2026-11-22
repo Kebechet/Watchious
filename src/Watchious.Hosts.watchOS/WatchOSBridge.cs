@@ -78,6 +78,11 @@ public static unsafe class WatchOSBridge
         return Success;
     }
 
+    public static void PatchesApplied()
+    {
+        _host?.OnPatchesApplied();
+    }
+
     private static void ReportFailure(Task task, NativeWatchiousHost host)
     {
         task.ContinueWith(

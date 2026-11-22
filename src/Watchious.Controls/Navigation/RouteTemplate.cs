@@ -19,9 +19,11 @@ internal sealed class RouteTemplate
 
     public bool HasParameters => _segments.Any(segment => segment.ParameterName is not null);
 
-    public (int Literals, int ConstrainedParameters, int Segments) Precedence => (
+    // Higher first. Fewer optional parameters is higher, hence the negative count.
+    public (int Literals, int ConstrainedParameters, int NegativeOptionalParameters, int Segments) Precedence => (
         _segments.Count(segment => segment.ParameterName is null),
         _segments.Count(segment => segment.Constraint is not null),
+        -_segments.Count(segment => segment.IsOptional),
         _segments.Length);
 
     public static RouteTemplate Parse(string template)
@@ -171,7 +173,7 @@ internal sealed class RouteTemplate
                     value = guidValue;
                     break;
                 case "datetime":
-                    isValid = DateTime.TryParse(text, culture, DateTimeStyles.None, out var dateValue);
+                    isValid = DateTime.TryParse(text, culture, DateTimeStyles.RoundtripKind, out var dateValue);
                     value = dateValue;
                     break;
                 default:

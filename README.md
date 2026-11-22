@@ -284,7 +284,7 @@ Versions stay at `0.x.x` until the API is stable.
    the watchOS simulator and on a real Apple Watch SE 3. The device build, signed and packaged as a
    watch-only app, passes App Store validation.
 1. ✅ **Wear OS proof of concept:** the renderer plus a Compose host with `Label`, `Button` and a list,
-   running a counter app on the Wear OS emulator and a Galaxy Watch7. The list is still to do.
+   running a counter app on the Wear OS emulator and a Galaxy Watch7. The list came later, with step 5.
 2. ✅ **SwiftUI host** with the same controls as Wear OS. From now on, each new control is added to both
    hosts together.
 3. ✅ **Project model:** `Watchious.Sdk`, `dotnet new watchious` and `dotnet build -f net11.0-watchos` on top

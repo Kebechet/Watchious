@@ -49,6 +49,7 @@ public static class RouteValue
 
     public static string Format(DateTime value)
     {
-        return Uri.EscapeDataString(value.ToString("s", CultureInfo.InvariantCulture));
+        // The round-trip format keeps the fractions of a second and the kind (UTC, local).
+        return Uri.EscapeDataString(value.ToString("o", CultureInfo.InvariantCulture));
     }
 }

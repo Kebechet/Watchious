@@ -29,10 +29,11 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
         _connection = RunAsync(inspectorUrl, _stopping.Token);
     }
 
-    public void ApplyPatches(ReadOnlySpan<byte> patches)
+    public Task ApplyPatches(ReadOnlySpan<byte> patches)
     {
-        _host.ApplyPatches(patches);
+        var applied = _host.ApplyPatches(patches);
         _outgoing.Writer.TryWrite(new OutgoingMessage(patches.ToArray(), WebSocketMessageType.Binary));
+        return applied;
     }
 
     public void ReportError(Exception exception)
