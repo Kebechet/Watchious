@@ -1,7 +1,10 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Shouldly;
+using Watchious.Core.Tests.Pages;
+using Watchious.Hosting;
 using Watchious.Preview;
 using Watchious.Samples.Counter;
 using Xunit;
@@ -55,6 +58,56 @@ public class PreviewTests
         page.ShouldContain("preview.js");
         script.ShouldContain("applyPatches");
         missingImage.IsSuccessStatusCode.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Session_ReadsAClickWhileAnEarlierHandlerStillRuns()
+    {
+        // Arrange
+        var options = new WatchiousPreviewOptions { Url = "http://127.0.0.1:0", OpenBrowser = false };
+        await using var server = WatchiousPreview.Start(
+            () => WatchiousApp.CreateBuilder().UseWatchiousApp<StartStopPage>().Build(),
+            options);
+        await server.StartAsync(TestContext.Current.CancellationToken);
+        using var socket = new ClientWebSocket();
+        var sessionUrl = new Uri(server.Urls.First().Replace("http://", "ws://", StringComparison.Ordinal) + "/session");
+        await socket.ConnectAsync(sessionUrl, TestContext.Current.CancellationToken);
+        var tree = new HostTree();
+        tree.Apply(Patch.ReadAll(await ReceiveAsync(socket)));
+        await ClickAsync(socket, tree, "Start");
+        tree.Apply(Patch.ReadAll(await ReceiveAsync(socket)));
+
+        // Act
+        await ClickAsync(socket, tree, "Stop");
+        tree.Apply(Patch.ReadAll(await ReceiveAsync(socket)));
+
+        // Assert
+        tree.Root.Descendants().Select(node => node.Content).ShouldContain("Stopped");
+    }
+
+    [Fact]
+    public void Images_AreServedOnlyFromTheirFolder()
+    {
+        // Arrange
+        var folder = Directory.CreateTempSubdirectory("watchious-preview-");
+        try
+        {
+            var images = folder.CreateSubdirectory("Images");
+            File.WriteAllBytes(Path.Combine(images.FullName, "logo.png"), [1]);
+            File.WriteAllBytes(Path.Combine(folder.FullName, "secret.png"), [2]);
+
+            // Act
+            var image = PreviewImages.Find(images.FullName, "logo");
+            var outsideImage = PreviewImages.Find(images.FullName, "../secret");
+
+            // Assert
+            image.ShouldBeOfType<PhysicalFileHttpResult>();
+            outsideImage.ShouldBeOfType<NotFound>();
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
     }
 
     private static async Task<byte[]> ReceiveAsync(ClientWebSocket socket)
