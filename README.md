@@ -1,6 +1,7 @@
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/kebechet)
 
 # Watchious
+[![watchOS canary](https://github.com/Kebechet/Watchious/actions/workflows/watchos-canary.yml/badge.svg?branch=main)](https://github.com/Kebechet/Watchious/actions/workflows/watchos-canary.yml)
 ![Last updated](https://img.shields.io/github/last-commit/Kebechet/Watchious/main?label=last%20updated)
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/samuel_sidor.svg?style=social&label=Follow%20samuel_sidor)](https://x.com/samuel_sidor)
 
@@ -250,7 +251,9 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
     `dotnet workload update --version 10.0.404`; also on a real watch) and `27.2.11039` (.NET 11.0.100, in the
     watch simulator). `-p:WatchiousAllowUntestedIOSSdk=true` builds anyway, with a warning. A canary CI job
     (`.github/workflows/watchos-canary.yml`) builds and starts the watch sample on each new .NET for iOS version
-    before it is added to the list (`WatchiousTestedIOSSdkVersions`).
+    before it is added to the list (`WatchiousTestedIOSSdkVersions`). Its badge at the top turns red when a newer
+    .NET release, the next preview included, breaks the start-up, even while the tested versions still work; the run
+    shows which version it was.
 - **Release:** from CI pipelines, like a MAUI app: `dotnet publish -f net11.0-android` gives the Play Store
   bundle, and `dotnet build -f net11.0-watchos -r ios-arm64 -p:BuildIpa=true` on a macOS runner gives the
   App Store `.ipa`, inside the watch-only container Apple requires (`WatchiousContainerProvision` is the
