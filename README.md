@@ -333,9 +333,10 @@ Versions stay at `0.x.x` until the API is stable.
    hosts together.
 3. ✅ **Project model:** `Watchious.Sdk`, `dotnet new watchious` and `dotnet build -f net11.0-watchos` on top
    of .NET for iOS, App Store packaging, and remote builds from Windows on a Mac. Installing on a real Apple
-   Watch through `-t:Run` is still to be tried, and so is `HttpClient` there: a real watch has no sockets, so it
-   works only if .NET for iOS sends it through URLSession
-   (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos).
+   Watch through `-t:Run` is still to be tried, and so is `HttpClient` there. It should work: a real watch has no
+   sockets (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos), but .NET for
+   iOS sends `HttpClient` through URLSession by default. Code that opens its own sockets, such as `ClientWebSocket` or
+   `SocketsHttpHandler`, can't work there.
 4. ✅ **Patch-based protocol:** after each render, the renderer sends the host only what changed, as one
    binary buffer of patches (create, set attribute or event, set text, insert, remove, move), instead of the
    whole UI tree as JSON (https://github.com/Kebechet/Watchious/issues/2). Both hosts apply them to an
