@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Watchious preview</title>
+    <link rel="stylesheet" href="preview.css">
+</head>
+<body>
+    <header>
+        <span class="brand">Watchious preview</span>
+        <nav>
+            <a id="wearos" href="?platform=wearos">Wear OS</a>
+            <a id="watchos" href="?platform=watchos">watchOS</a>
+        </nav>
+    </header>
+    <main>
+        <div id="watch" class="watch">
+            <div id="screen" class="screen"></div>
+        </div>
+        <p class="hint">Click and type as on the watch. Esc goes back. Reload to restart the app.</p>
+        <pre id="error" hidden></pre>
+    </main>
+    <script src="preview.js"></script>
+</body>
+</html>

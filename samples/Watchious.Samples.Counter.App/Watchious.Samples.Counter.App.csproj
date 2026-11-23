@@ -8,6 +8,8 @@
     <TargetFrameworks>net10.0-android</TargetFrameworks>
     <!-- A watchOS build needs a Mac: this one, or a remote one through WatchiousRemoteMac. -->
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('OSX')) Or '$(WatchiousRemoteMac)' != ''">$(TargetFrameworks);net10.0-watchos</TargetFrameworks>
+    <!-- The desktop preview, for debugging the pages: dotnet run -f net10.0. -->
+    <TargetFrameworks>$(TargetFrameworks);net10.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>Watchious.Samples.Counter.App</RootNamespace>
     <ApplicationId>com.kebechet.watchious.counter</ApplicationId>

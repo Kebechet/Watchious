@@ -13,6 +13,7 @@
         }
         <Button Text="Summary" OnClick="ShowSummaryAsync" />
         <Button Text="Controls" OnClick="ShowControlsAsync" />
+        <Button Text="Device" OnClick="ShowDeviceAsync" />
     </VStack>
 </ScrollView>
 
@@ -28,5 +29,10 @@
     private Task ShowControlsAsync()
     {
         return Navigation.GoToAsync(Routes.Controls());
+    }
+
+    private Task ShowDeviceAsync()
+    {
+        return Navigation.GoToAsync(Routes.Device());
     }
 }

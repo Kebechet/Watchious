@@ -1,0 +1,24 @@
+<VStack>
+    <Label>@status</Label>
+    <Button Text="Start" OnClick="StartAsync" />
+    <Button Text="Stop" OnClick="Stop" />
+</VStack>
+
+@code {
+    // Start's handler runs until Stop is clicked, so the host has to read that click while the first one still runs.
+    private readonly TaskCompletionSource stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private string status = "Idle";
+
+    private async Task StartAsync()
+    {
+        status = "Running";
+        StateHasChanged();
+        await stopped.Task;
+        status = "Stopped";
+    }
+
+    private void Stop()
+    {
+        stopped.TrySetResult();
+    }
+}

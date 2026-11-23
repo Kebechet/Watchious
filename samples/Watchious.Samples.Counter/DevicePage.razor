@@ -1,0 +1,37 @@
+@page "/device"
+@inject IDeviceInfo DeviceInfo
+@inject IBattery Battery
+@inject IConnectivity Connectivity
+@inject IHaptics Haptics
+@inject IPreferences Preferences
+
+<List>
+    <Label Style="TextStyle.Headline">@DeviceInfo.Platform</Label>
+    <Label>@DeviceInfo.Manufacturer @DeviceInfo.Model</Label>
+    <Label>OS @DeviceInfo.OSVersion@(DeviceInfo.IsRoundScreen ? ", round" : "")</Label>
+    <Label>Battery: @BatteryText</Label>
+    <Label>Network: @Connectivity.NetworkAccess</Label>
+    <Label>Opened @openCount times</Label>
+    <Button Text="Buzz" OnClick="Buzz" />
+</List>
+
+@code {
+    private const string OpenCountKey = "device_page_open_count";
+
+    private int openCount;
+
+    private string BatteryText => Battery.ChargeLevel is null
+        ? Battery.State.ToString()
+        : $"{Battery.ChargeLevel.Value:P0}, {Battery.State}";
+
+    protected override void OnInitialized()
+    {
+        openCount = Preferences.Get(OpenCountKey, 0) + 1;
+        Preferences.Set(OpenCountKey, openCount);
+    }
+
+    private void Buzz()
+    {
+        Haptics.Play(HapticFeedback.Success);
+    }
+}

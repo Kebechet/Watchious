@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Watchious inspector</title>
+    <link rel="stylesheet" href="preview.css">
+</head>
+<body data-mode="inspector">
+    <header>
+        <span class="brand">Watchious inspector <span id="status" class="status">waiting for the app</span></span>
+        <nav>
+            <a id="wearos" href="?platform=wearos">Wear OS</a>
+            <a id="watchos" href="?platform=watchos">watchOS</a>
+        </nav>
+    </header>
+    <main class="inspector">
+        <section class="mirror">
+            <div id="watch" class="watch">
+                <div id="screen" class="screen"></div>
+            </div>
+            <p class="hint">The screen of the app on the watch. Clicks here happen in the app.</p>
+            <pre id="error" hidden></pre>
+        </section>
+        <section class="panel">
+            <h2>UI tree</h2>
+            <pre id="tree" class="tree"></pre>
+        </section>
+        <section class="panel">
+            <h2>Patches, events and errors</h2>
+            <div id="log" class="log"></div>
+        </section>
+    </main>
+    <script src="inspector.js"></script>
+    <script src="preview.js"></script>
+</body>
+</html>

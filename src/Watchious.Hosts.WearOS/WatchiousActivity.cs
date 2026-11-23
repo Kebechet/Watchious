@@ -1,6 +1,8 @@
 using Android.App;
+using Android.Content.PM;
 using Android.OS;
 using Watchious.Hosting;
+using Watchious.Hosts.WearOS.Essentials;
 
 namespace Watchious.Hosts.WearOS;
 
@@ -15,10 +17,26 @@ public abstract class WatchiousActivity : Activity
     {
         base.OnCreate(savedInstanceState);
 
-        _app = CreateWatchiousApp();
+        using (WatchiousPlatform.ConfigureServices(WearOSEssentials.AddTo))
+        {
+            _app = CreateWatchiousApp();
+        }
+
+        _app.InspectorUrl = ReadInspectorUrl();
         _host = new ComposeWatchiousHost(this);
         SetContentView(_host.View);
         _ = StartAsync(_app, _host);
+    }
+
+    // adb shell am start -n <app>/<activity> --es watchious_inspector ws://localhost:5292/inspector/app, after
+    // adb reverse tcp:5292 tcp:5292. Only debuggable builds take it: the launcher activity is exported, so any app
+    // could otherwise point it at a server of its own and read the app's screens.
+    private Uri? ReadInspectorUrl()
+    {
+        var flags = ApplicationInfo?.Flags ?? 0;
+        var isDebuggable = (flags & ApplicationInfoFlags.Debuggable) != 0;
+        var url = Intent?.GetStringExtra("watchious_inspector");
+        return isDebuggable && Uri.TryCreate(url, UriKind.Absolute, out var inspectorUrl) ? inspectorUrl : null;
     }
 
     // Android 12L and older deliver the back button here; newer versions deliver it to the host's
