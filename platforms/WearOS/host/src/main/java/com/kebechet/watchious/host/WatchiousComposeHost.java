@@ -8,9 +8,9 @@ import androidx.annotation.Nullable;
 
 // The public API that .NET binds. It is written in Java because the Compose compiler adds a `$stable` field to
 // every Kotlin class, which the .NET binding generator warns about.
-// It works with a plain android.app.Activity, so the .NET app needs no AndroidX bindings. It uses platform types
-// only: a public class implementing an AndroidX interface would be dropped by the .NET binding generator, which
-// cannot see the unbound AndroidX types.
+// It works with a plain android.app.Activity, so the .NET app's activity needs no AndroidX base class. It uses
+// platform types only: a public class implementing an AndroidX interface would be dropped by the .NET binding
+// generator, which cannot see the unbound AndroidX types.
 public final class WatchiousComposeHost {
     private final ComposeHost host;
 

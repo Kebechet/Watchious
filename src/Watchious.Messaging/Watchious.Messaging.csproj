@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net10.0 serves watchOS (WatchConnectivity through the SwiftUI host), the preview and tests;
+         net10.0-android the Wearable Data Layer. -->
+    <TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
+    <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-android'">30</SupportedOSPlatformVersion>
+    <RootNamespace>Watchious.Messaging</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsPackable>true</IsPackable>
+    <Description>Watchious's phone messaging: messages and application context with the phone app, wire-compatible with Plugin.Maui.WearableMessaging on the phone.</Description>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <WatchiousWearOSMessagingBuildDir>$(MSBuildThisFileDirectory)..\..\platforms\WearOS\messaging\build\</WatchiousWearOSMessagingBuildDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="$(WatchiousDotNetPackagesVersion)" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="$(WatchiousDotNetPackagesVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-android'">
+    <Compile Remove="WearOS/**" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <Compile Remove="watchOS/**" />
+  </ItemGroup>
+
+  <!-- Like Watchious.Hosts.WearOS: the binding generator binds a jar with just the public API, the module's AAR ships
+       unbound, and its Maven dependencies (messaging.pom) come from Microsoft's packages. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <InputJar Include="$(WatchiousWearOSMessagingBuildDir)watchious-binding\watchious-messaging-api.jar" />
+    <AndroidLibrary Include="$(WatchiousWearOSMessagingBuildDir)outputs\aar\messaging-release.aar" Bind="false"
+                    Manifest="$(WatchiousWearOSMessagingBuildDir)watchious-pom\messaging.pom"
+                    JavaArtifact="com.kebechet.watchious:messaging:1.0.0" />
+    <PackageReference Include="Xamarin.GooglePlayServices.Wearable" Version="120.0.1.2" />
+  </ItemGroup>
+
+  <!-- The SwiftUI host compiles the WatchConnectivity file of an app that uses this package. -->
+  <ItemGroup>
+    <None Include="watchOS\*.swift" Pack="true" PackagePath="host\watchOS\" />
+    <None Include="build\Watchious.Messaging.targets" Pack="true" PackagePath="build\;buildTransitive\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Watchious.Core.Tests" />
+  </ItemGroup>
+
+</Project>

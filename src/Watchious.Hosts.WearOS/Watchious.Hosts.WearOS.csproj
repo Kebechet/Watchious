@@ -12,15 +12,46 @@
     <WatchiousWearOSHostBuildDir>$(MSBuildThisFileDirectory)..\..\platforms\WearOS\host\build\</WatchiousWearOSHostBuildDir>
   </PropertyGroup>
 
-  <!-- The AAR also holds Kotlin internals and Compose-generated classes that use AndroidX types. The binding
-       generator can resolve those only through Xamarin.AndroidX bindings, which Watchious does not use, so it
-       binds a jar with just the public API (built by Gradle's watchiousBindingApi task) and the AAR ships
+  <!-- The AAR also holds Kotlin internals and Compose-generated classes that .NET never calls, so the binding
+       generator binds a jar with just the public API (built by Gradle's watchiousBindingApi task) and the AAR ships
        unbound. -->
   <ItemGroup>
     <InputJar Include="$(WatchiousWearOSHostBuildDir)watchious-binding\watchious-host-api.jar" />
-    <AndroidLibrary Include="$(WatchiousWearOSHostBuildDir)outputs\aar\host-release.aar" Bind="false" />
-    <AndroidLibrary Include="$(WatchiousWearOSHostBuildDir)watchious-runtime\*.aar" Bind="false" />
-    <AndroidLibrary Include="$(WatchiousWearOSHostBuildDir)watchious-runtime\*.jar" Bind="false" />
+    <AndroidLibrary Include="$(WatchiousWearOSHostBuildDir)outputs\aar\host-release.aar" Bind="false"
+                    Manifest="$(WatchiousWearOSHostBuildDir)watchious-pom\host.pom"
+                    JavaArtifact="com.kebechet.watchious:host:1.0.0" />
+  </ItemGroup>
+
+  <!-- The host's Maven dependencies (host.pom) come from Microsoft's bindings of them, so NuGet keeps one copy of each
+       library in the app, shared with every other package built on Xamarin.AndroidX. The build's Java dependency
+       verification fails when one is missing. Wear Compose Material3 has no Microsoft package, so it comes from Google's
+       Maven repository, unbound; its version must match Gradle's and the Wear Compose packages'. -->
+  <ItemGroup>
+    <AndroidMavenLibrary Include="androidx.wear.compose:compose-material3" Version="1.7.1" Repository="Google" Bind="false" />
+    <PackageReference Include="Xamarin.AndroidX.Wear.Compose.Foundation" Version="1.7.1" />
+    <PackageReference Include="Xamarin.AndroidX.Lifecycle.Runtime" Version="2.11.0.1" />
+    <PackageReference Include="Xamarin.AndroidX.SavedState" Version="1.5.0.1" />
+    <PackageReference Include="Xamarin.Kotlin.StdLib" Version="2.4.21" />
+  </ItemGroup>
+
+  <!-- Material3's own dependencies: the verification wants a direct reference for each, not one through another
+       package. -->
+  <ItemGroup>
+    <PackageReference Include="Xamarin.AndroidX.Compose.Animation" Version="1.12.1" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.Animation.Graphics" Version="1.12.1" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.Foundation" Version="1.12.1" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.Material.Icons.Core" Version="1.7.8.7" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.Material.Ripple" Version="1.12.1" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.Runtime" Version="1.12.1" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.UI" Version="1.12.1" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.UI.Text" Version="1.12.1" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.UI.Util" Version="1.12.1" />
+    <PackageReference Include="Xamarin.AndroidX.Core" Version="1.19.1" />
+    <PackageReference Include="Xamarin.AndroidX.Graphics.Shapes" Version="1.1.0.3" />
+    <PackageReference Include="Xamarin.AndroidX.ProfileInstaller.ProfileInstaller" Version="1.4.1.8" />
+    <PackageReference Include="Xamarin.AndroidX.Wear.Compose.Material.Core" Version="1.7.1" />
+    <PackageReference Include="Xamarin.AndroidX.Wear.Core" Version="1.1.0.1" />
+    <PackageReference Include="Xamarin.KotlinX.Coroutines.Core" Version="1.11.0.1" />
   </ItemGroup>
 
   <ItemGroup>

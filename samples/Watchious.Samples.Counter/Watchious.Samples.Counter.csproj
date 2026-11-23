@@ -8,6 +8,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Watchious.Controls\Watchious.Controls.csproj" />
     <ProjectReference Include="..\..\src\Watchious.Essentials\Watchious.Essentials.csproj" />
+    <ProjectReference Include="..\..\src\Watchious.Messaging\Watchious.Messaging.csproj" />
+    <ProjectReference Include="..\..\src\Watchious.Health\Watchious.Health.csproj" />
     <!-- Watchious.Controls ships its routes source generator inside its package; here it is referenced directly. -->
     <ProjectReference Include="..\..\src\Watchious.SourceGenerators\Watchious.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>

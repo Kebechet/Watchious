@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "watchious-wearos"
 include(":host")
+include(":messaging")
+include(":health")

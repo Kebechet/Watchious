@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Watchious.Navigation;
@@ -12,6 +13,7 @@ public sealed class WatchiousApp : IAsyncDisposable
 
     private WatchiousRenderer? _renderer;
     private InspectorHost? _inspector;
+    private IHostedService[] _hostedServices = [];
 
     internal WatchiousApp(ServiceProvider services, NavigationService navigation)
     {
@@ -31,7 +33,7 @@ public sealed class WatchiousApp : IAsyncDisposable
         return new WatchiousAppBuilder();
     }
 
-    public Task StartAsync(IWatchiousHost host)
+    public async Task StartAsync(IWatchiousHost host)
     {
         if (_renderer is not null)
         {
@@ -47,7 +49,16 @@ public sealed class WatchiousApp : IAsyncDisposable
         var loggerFactory = _services.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance;
         _renderer = new WatchiousRenderer(_services, loggerFactory, host);
         _navigation.Start(_renderer.Dispatcher);
-        return _renderer.AddRootComponentAsync(typeof(WatchiousNavigationRoot));
+
+        // Services added with AddHostedService, as in an ASP.NET Core app, start with the app, before its first page,
+        // such as Watchious.Messaging's connection to the phone, which has to listen before any page asks for it.
+        _hostedServices = [.. _services.GetServices<IHostedService>()];
+        foreach (var hostedService in _hostedServices)
+        {
+            await hostedService.StartAsync(CancellationToken.None);
+        }
+
+        await _renderer.AddRootComponentAsync(typeof(WatchiousNavigationRoot));
     }
 
     public Task DispatchEventAsync(ulong eventHandlerId, string eventName, string? value)
@@ -76,6 +87,13 @@ public sealed class WatchiousApp : IAsyncDisposable
                 await _inspector.DisposeAsync();
                 _inspector = null;
             }
+
+            for (var index = _hostedServices.Length - 1; index >= 0; index--)
+            {
+                await _hostedServices[index].StopAsync(CancellationToken.None);
+            }
+
+            _hostedServices = [];
         }
         finally
         {

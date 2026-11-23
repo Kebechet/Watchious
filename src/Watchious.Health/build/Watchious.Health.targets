@@ -1,0 +1,8 @@
+<Project>
+
+  <!-- For Watchious.Sdk: compile this package's HealthKit file into the watchOS host. -->
+  <ItemGroup>
+    <WatchiousWatchOSHostSource Include="$(MSBuildThisFileDirectory)..\host\watchOS\*.swift" />
+  </ItemGroup>
+
+</Project>

@@ -23,6 +23,18 @@
     <ProjectReference Include="..\Watchious.Samples.Counter\Watchious.Samples.Counter.csproj" />
   </ItemGroup>
 
+  <!-- The Watchious.Messaging and Watchious.Health packages add their Swift files to the watchOS host themselves;
+       from source they are listed here. -->
+  <ItemGroup>
+    <WatchiousWatchOSHostSource Include="..\..\src\Watchious.Messaging\watchOS\*.swift;..\..\src\Watchious.Health\watchOS\*.swift" />
+  </ItemGroup>
+
+  <!-- HealthKit for the Workout page. Only the simulator: a real watch also needs a provisioning profile whose App ID
+       has HealthKit, which the development profile used so far doesn't. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != 'ios-arm64'">
+    <CodesignEntitlements>Platforms/watchOS/HealthKit.entitlements</CodesignEntitlements>
+  </PropertyGroup>
+
   <Import Project="..\..\src\Watchious.Sdk\Sdk\Sdk.targets" />
 
 </Project>

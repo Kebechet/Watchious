@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net10.0 serves watchOS (HealthKit through the SwiftUI host), the preview and tests; net10.0-android Wear OS
+         Health Services. -->
+    <TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
+    <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-android'">30</SupportedOSPlatformVersion>
+    <RootNamespace>Watchious.Health</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsPackable>true</IsPackable>
+    <Description>Watchious's health: permissions and live workouts with heart rate, HealthKit on watchOS and Health Services on Wear OS, with Kebechet.Maui.Health's types (Kebechet.Types.Health).</Description>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <WatchiousWearOSHealthBuildDir>$(MSBuildThisFileDirectory)..\..\platforms\WearOS\health\build\</WatchiousWearOSHealthBuildDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="$(WatchiousDotNetPackagesVersion)" />
+    <!-- Kebechet.Maui.Health's DTOs and enums without MAUI, so a phone app and its watch app share the same types. -->
+    <PackageReference Include="Kebechet.Types.Health" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-android'">
+    <Compile Remove="WearOS/**" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <Compile Remove="watchOS/**" />
+  </ItemGroup>
+
+  <!-- Like Watchious.Hosts.WearOS: the binding generator binds a jar with just the public API, and the module's AAR
+       and the libraries it needs beyond the host's ship unbound. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <InputJar Include="$(WatchiousWearOSHealthBuildDir)watchious-binding\watchious-health-api.jar" />
+    <AndroidLibrary Include="$(WatchiousWearOSHealthBuildDir)outputs\aar\health-release.aar" Bind="false"
+                    Manifest="$(WatchiousWearOSHealthBuildDir)watchious-pom\health.pom"
+                    JavaArtifact="com.kebechet.watchious:health:1.0.0" />
+  </ItemGroup>
+
+  <!-- Microsoft's binding of Health Services (Xamarin.AndroidX.Health.ServicesClient) is an alpha of 2024, so the
+       library and its protos come from Google's Maven repository, unbound; their own dependencies come from
+       Microsoft's packages. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <AndroidMavenLibrary Include="androidx.health:health-services-client" Version="1.1.0" Repository="Google" Bind="false" />
+    <AndroidMavenLibrary Include="androidx.health:health-services-client-proto" Version="1.1.0" Repository="Google" Bind="false" />
+    <AndroidMavenLibrary Include="androidx.health:health-services-client-external-protobuf" Version="1.1.0" Repository="Google" Bind="false" />
+    <PackageReference Include="Xamarin.AndroidX.Annotation" Version="1.11.0" />
+    <PackageReference Include="Xamarin.AndroidX.Concurrent.Futures.Ktx" Version="1.3.0.4" />
+    <PackageReference Include="Xamarin.AndroidX.Core.Core.Ktx" Version="1.19.1" />
+    <PackageReference Include="Xamarin.Google.Guava" Version="33.8.0" />
+    <!-- Guava contains ListenableFuture itself, so, as on Maven, it brings the empty 9999 version of
+         Xamarin.Google.Guava.ListenableFuture, which the verification doesn't accept for version 1.0. -->
+    <AndroidIgnoredJavaDependency Include="com.google.guava:listenablefuture:1.0" />
+    <PackageReference Include="Xamarin.JSpecify" Version="1.0.1" />
+    <PackageReference Include="Xamarin.Kotlin.StdLib" Version="2.4.21" />
+    <PackageReference Include="Xamarin.KotlinX.Coroutines.Core" Version="1.11.0.1" />
+  </ItemGroup>
+
+  <!-- The SwiftUI host compiles the HealthKit file of an app that uses this package. -->
+  <ItemGroup>
+    <None Include="watchOS\*.swift" Pack="true" PackagePath="host\watchOS\" />
+    <None Include="build\Watchious.Health.targets" Pack="true" PackagePath="build\;buildTransitive\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Watchious.Core.Tests" />
+  </ItemGroup>
+
+</Project>

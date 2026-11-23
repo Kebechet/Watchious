@@ -1,0 +1,60 @@
+@page "/phone"
+@implements IDisposable
+@inject IPhoneMessaging PhoneMessaging
+
+<List>
+    <Label Style="TextStyle.Headline">Phone</Label>
+    <Label>@(isReachable ? "Phone reachable" : "Phone not reachable")</Label>
+    <Button Text="Check" OnClick="CheckAsync" />
+    <Button Text="Send hello" OnClick="SendAsync" />
+    <Label Style="TextStyle.Caption">@status</Label>
+    @foreach (var message in received)
+    {
+        <Label>@message</Label>
+    }
+</List>
+
+@code {
+    private readonly List<string> received = [];
+    private bool isReachable;
+    private string status = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        PhoneMessaging.MessageReceived += OnMessageReceived;
+        isReachable = await PhoneMessaging.IsPhoneReachableAsync();
+    }
+
+    public void Dispose()
+    {
+        PhoneMessaging.MessageReceived -= OnMessageReceived;
+    }
+
+    private async Task CheckAsync()
+    {
+        isReachable = await PhoneMessaging.IsPhoneReachableAsync();
+    }
+
+    private async Task SendAsync()
+    {
+        try
+        {
+            await PhoneMessaging.SendMessageAsync(new Dictionary<string, string> { ["text"] = "Hello from the watch" });
+            status = "Sent";
+        }
+        catch (Exception exception)
+        {
+            status = exception.Message;
+        }
+    }
+
+    private void OnMessageReceived(object? sender, PhoneMessageReceivedEventArgs args)
+    {
+        var text = string.Join(", ", args.Message.Select(pair => $"{pair.Key}={pair.Value}"));
+        _ = InvokeAsync(() =>
+        {
+            received.Insert(0, text);
+            StateHasChanged();
+        });
+    }
+}
