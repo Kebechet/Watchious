@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -69,8 +70,11 @@ public static class WatchiousInspector
             return;
         }
 
+        // Stopping the server ends the sockets; on its own it would wait for each page to close them.
+        var lifetime = context.RequestServices.GetRequiredService<IHostApplicationLifetime>();
+        using var stopping = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, lifetime.ApplicationStopping);
         using var socket = await context.WebSockets.AcceptWebSocketAsync();
-        await run(socket, context.RequestAborted);
+        await run(socket, stopping.Token);
     }
 }
 
@@ -90,10 +94,10 @@ internal sealed class InspectorRelay
 
     public async Task RunAppAsync(WebSocket socket, CancellationToken cancellationToken)
     {
-        var app = new Peer(socket);
+        using var app = new Peer(socket);
         lock (_lock)
         {
-            _app?.Complete();
+            _app?.Stop();
             _app = app;
             _batches.Clear();
             foreach (var page in _pages)
@@ -102,13 +106,20 @@ internal sealed class InspectorRelay
             }
         }
 
+        using var receiving = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, app.Stopping);
         var sending = app.SendQueuedAsync(cancellationToken);
         try
         {
-            await foreach (var (bytes, type) in Peer.ReceiveAsync(socket, cancellationToken))
+            await foreach (var (bytes, type) in Peer.ReceiveAsync(socket, receiving.Token))
             {
                 lock (_lock)
                 {
+                    // Another app connected since: this one's node ids would mix with the new app's tree.
+                    if (_app != app)
+                    {
+                        break;
+                    }
+
                     if (type == WebSocketMessageType.Binary)
                     {
                         _batches.Add(bytes);
@@ -142,7 +153,7 @@ internal sealed class InspectorRelay
 
     public async Task RunPageAsync(WebSocket socket, CancellationToken cancellationToken)
     {
-        var page = new Peer(socket);
+        using var page = new Peer(socket);
         lock (_lock)
         {
             page.Enqueue(_app is null ? WaitingMessage : ConnectedMessage, WebSocketMessageType.Text);
@@ -182,10 +193,14 @@ internal sealed class InspectorRelay
         }
     }
 
-    private sealed class Peer(WebSocket socket)
+    private sealed class Peer(WebSocket socket) : IDisposable
     {
         private readonly Channel<(byte[] Bytes, WebSocketMessageType Type)> _queue =
             Channel.CreateUnbounded<(byte[] Bytes, WebSocketMessageType Type)>(new UnboundedChannelOptions { SingleReader = true });
+
+        private readonly CancellationTokenSource _stopping = new();
+
+        public CancellationToken Stopping => _stopping.Token;
 
         public void Enqueue(byte[] bytes, WebSocketMessageType type)
         {
@@ -195,6 +210,18 @@ internal sealed class InspectorRelay
         public void Complete()
         {
             _queue.Writer.TryComplete();
+        }
+
+        // A newer app replaced this one: nothing more is sent or received, and the connection ends.
+        public void Stop()
+        {
+            Complete();
+            _stopping.Cancel();
+        }
+
+        public void Dispose()
+        {
+            _stopping.Dispose();
         }
 
         public async Task SendQueuedAsync(CancellationToken cancellationToken)

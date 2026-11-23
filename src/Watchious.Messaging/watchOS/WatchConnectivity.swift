@@ -131,7 +131,11 @@ public func watchiousMessagingSend(_ json: UnsafePointer<CChar>, _ requestId: In
     }
     let message = watchiousDictionary(json)
     if requestId == 0 {
-        WCSession.default.sendMessage(message, replyHandler: nil, errorHandler: nil)
+        // Without a reply handler WatchConnectivity reports no delivery, only a failure, which comes after
+        // SendMessageAsync has returned, so it is logged.
+        WCSession.default.sendMessage(message, replyHandler: nil, errorHandler: { error in
+            NSLog("[Watchious] a message to the phone failed: %@", error.localizedDescription)
+        })
         return 0
     }
     let onReply = session.onReply

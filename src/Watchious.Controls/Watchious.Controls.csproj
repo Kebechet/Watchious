@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="$(WatchiousDotNetPackagesVersion)" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="$(WatchiousDotNetPackagesVersion)" />
   </ItemGroup>
 
   <ItemGroup>

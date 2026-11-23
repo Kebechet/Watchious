@@ -11,10 +11,13 @@ public interface IPhoneMessaging
     // can be reached now (WCSession.isReachable).
     Task<bool> IsPhoneReachableAsync();
 
+    // Wear OS: completes when the Data Layer has sent the message, and fails when it can't. watchOS: completes when
+    // WatchConnectivity has queued it, since for a message without an answer it reports only a failure, which is logged.
     Task SendMessageAsync(IReadOnlyDictionary<string, string> message);
 
-    // Waits for the phone's answer (MessageReceivedEventArgs.Reply... on the phone), 5 seconds by default as in the
-    // plugin.
+    // Waits for the phone's answer, 5 seconds by default as in the plugin. An iPhone app answers through the plugin's
+    // MessageReceivedEventArgs.ReplyHandler. The plugin has no ReplyHandler on Android, so an Android phone app answers
+    // with a message of its own whose "_replyToId" is this message's "_requestId".
     Task<IReadOnlyDictionary<string, string>> SendMessageWithReplyAsync(
         IReadOnlyDictionary<string, string> message,
         TimeSpan? timeout = null);

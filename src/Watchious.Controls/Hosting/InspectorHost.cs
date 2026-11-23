@@ -105,9 +105,12 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
             connectTimeout.CancelAfter(ConnectTimeout);
             await _socket.ConnectAsync(inspectorUrl, connectTimeout.Token);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            // No inspector listening, or an address that isn't ws:// or wss://: the app runs on without it.
+            // No inspector listening, an address that isn't ws:// or wss://, or a real Apple Watch, which allows apps no
+            // WebSockets (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos):
+            // the app runs on without it.
+            Console.Error.WriteLine($"Watchious: the inspector at {inspectorUrl} can't be reached ({exception.Message}); the app runs without it.");
             StopMirroring();
             return;
         }
@@ -158,7 +161,9 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
                 message.SetLength(0);
                 if (pageEvent is not null)
                 {
-                    await DispatchFromPageAsync(pageEvent);
+                    // Not awaited, as on the watch hosts: a handler that waits for a later click must not hold that click
+                    // up.
+                    _ = DispatchFromPageAsync(pageEvent);
                 }
             }
         }
@@ -184,6 +189,9 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
         }
     }
 
+    // An exception in the app's handler reaches the watch through the renderer. What fails here is the dispatch
+    // itself, such as a click on a handler that a newer batch replaced before the page showed it: that is the
+    // inspector's problem, so only the inspector hears of it and the watch keeps its screen.
     private async Task DispatchFromPageAsync(InspectorEvent pageEvent)
     {
         try
@@ -192,7 +200,7 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            ReportError(exception);
+            WriteJson(new Dictionary<string, string> { ["error"] = exception.ToString() });
         }
     }
 

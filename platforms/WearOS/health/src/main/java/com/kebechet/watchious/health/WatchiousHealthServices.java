@@ -81,7 +81,14 @@ public final class WatchiousHealthServices {
             .setIsAutoPauseAndResumeEnabled(false)
             .setIsGpsEnabled(false)
             .build();
-        complete(exerciseClient.startExerciseAsync(config), callback);
+        complete(exerciseClient.startExerciseAsync(config), error -> {
+            // C# forgets a workout that failed to start, so nothing else would remove them.
+            if (error != null) {
+                this.listener = null;
+                exerciseClient.clearUpdateCallbackAsync(updateCallback);
+            }
+            callback.onComplete(error);
+        });
     }
 
     public void pauseExercise(@NonNull Callback callback) {

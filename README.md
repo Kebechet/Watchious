@@ -171,8 +171,10 @@ builder.Services.AddWatchiousHealth();  // Watchious.Health: inject IHealthServi
 
 - **`Watchious.Messaging`** talks to a MAUI phone app that uses
   [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging)
-  unchanged: messages, messages with an answer, and the application context. On Wear OS it uses the Wearable Data
-  Layer (Play Services) in the plugin's format, and advertises the `wearable_app` capability the plugin looks for;
+  unchanged: messages, messages with an answer, and the application context. An Android phone app answers with a
+  message whose `_replyToId` is the message's `_requestId`, since the plugin has no `ReplyHandler` on Android. On
+  Wear OS the package uses the Wearable Data Layer (Play Services) in the plugin's format, and advertises the
+  `wearable_app` capability the plugin looks for;
   the phone and watch apps must share the applicationId and signing key. On watchOS it uses WatchConnectivity; the
   watch app must be the iPhone app's companion.
 - **`Watchious.Health`** does what a watch does with health data: permissions and live workouts with heart
@@ -200,7 +202,8 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
   simulator or emulator, next to its live UI tree and a log of patches, events and errors. Clicks on the mirror
   happen in the app on the watch. The app connects when it is started with the inspector's address:
   - Wear OS (debuggable builds only): `adb reverse tcp:5292 tcp:5292`, then
-    `adb shell am start -n <package>/<activity> --es watchious_inspector ws://localhost:5292/inspector/app`.
+    `adb shell am start -S -n <package>/<activity> --es watchious_inspector ws://localhost:5292/inspector/app`
+    (`-S` restarts the app if it is open, since it reads the address when it starts).
   - watchOS: the launch argument `--watchious-inspector=ws://<computer>:5292/inspector/app`, for example
     `dotnet build -t:Run -f net10.0-watchos -p:WatchiousLaunchArguments=...`. A simulator on another computer
     (the Mac of a remote build) needs the inspector started with `--urls=http://0.0.0.0:5292`.
@@ -253,7 +256,8 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
   App Store `.ipa`, inside the watch-only container Apple requires (`WatchiousContainerProvision` is the
   container's profile). Signing comes from the pipeline's secrets.
 - The repository itself still builds with .NET 10 (`net10.0-*`) until .NET 11 is installed on its
-  development machines.
+  development machines. The Wear OS libraries come from Gradle first: `./gradlew assembleRelease` in
+  `platforms/WearOS` (with Android Studio's JDK) also writes the POMs and binding jars the .NET projects read.
 - **Companion apps:** a watch app can ship inside a .NET iPhone app (for example a MAUI app) using the
   `AdditionalWatchOSApp` item that dotnet/macios is adding in
   https://github.com/dotnet/macios/pull/27284 (still open).

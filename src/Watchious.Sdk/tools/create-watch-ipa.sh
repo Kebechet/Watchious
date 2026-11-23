@@ -5,8 +5,6 @@
 #   WATCHIOUS_APP             the signed watch app
 #   WATCHIOUS_CONTAINER_ID    the stub's bundle identifier (the watch app's without ".watchkitapp")
 #   WATCHIOUS_DISPLAY_NAME    the stub's display name
-#   WATCHIOUS_VERSION         CFBundleShortVersionString
-#   WATCHIOUS_BUILD           CFBundleVersion
 #   WATCHIOUS_SIGN_IDENTITY   Apple Distribution identity
 #   WATCHIOUS_PROFILE         App Store profile of the stub
 #   WATCHIOUS_WORK_DIR        intermediate directory
@@ -17,6 +15,8 @@ APP="${WATCHIOUS_APP%/}"
 APP_NAME="$(basename "$APP" .app)"
 WORK="$WATCHIOUS_WORK_DIR/ipa"
 CONTAINER="$WORK/Payload/$APP_NAME.app"
+# Staged anew: an earlier build's files, such as a renamed app's old bundle, must not end up in the package.
+rm -rf "$WORK"
 STUB_DIR="$(xcrun --sdk iphoneos --show-sdk-platform-path)/Library/Application Support/MessagesApplicationStub"
 mkdir -p "$CONTAINER/Watch"
 
@@ -27,6 +27,9 @@ xcode_version="$(xcodebuild -version | sed -n 's/^Xcode //p')"
 xcode_build="$(xcodebuild -version | sed -n 's/^Build version //p')"
 IFS=. read -r xcode_major xcode_minor xcode_patch <<< "$xcode_version"
 minimum_ios="$(plutil -extract MinimumOSVersion raw "$APP/Info.plist")"
+# The container's version is the watch app's, as App Store validation requires.
+version="$(plutil -extract CFBundleShortVersionString raw "$APP/Info.plist")"
+build="$(plutil -extract CFBundleVersion raw "$APP/Info.plist")"
 
 # The names go into XML, where & and < must be escaped.
 xml_text() {
@@ -47,8 +50,8 @@ cat > "$CONTAINER/Info.plist" <<EOF
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>$app_name</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>$WATCHIOUS_VERSION</string>
-    <key>CFBundleVersion</key><string>$WATCHIOUS_BUILD</string>
+    <key>CFBundleShortVersionString</key><string>$version</string>
+    <key>CFBundleVersion</key><string>$build</string>
     <key>CFBundleSupportedPlatforms</key><array><string>iPhoneOS</string></array>
     <key>ITSWatchOnlyContainer</key><true/>
     <key>LSApplicationLaunchProhibited</key><true/>

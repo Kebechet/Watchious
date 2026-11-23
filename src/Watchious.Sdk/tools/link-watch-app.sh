@@ -37,11 +37,17 @@ add_input() {
     INPUTS+=("$1")
 }
 
+# A library or a linker option repeated is passed once; other flags stay as they come, since some come in pairs
+# (-framework A -framework B).
 add_flag() {
     local flag
-    for flag in "${FLAGS[@]+"${FLAGS[@]}"}"; do
-        [ "$flag" = "$1" ] && return
-    done
+    case "$1" in
+        -l*|-Wl,*)
+            for flag in "${FLAGS[@]+"${FLAGS[@]}"}"; do
+                [ "$flag" = "$1" ] && return
+            done
+            ;;
+    esac
     FLAGS+=("$1")
 }
 

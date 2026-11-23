@@ -24,9 +24,14 @@ else
     SUPPORTED_PLATFORM="WatchOS"
 fi
 
-# Start from the app's own Info.plist, then add what .NET for iOS generated without overwriting the app's keys.
+# Start from the app's own Info.plist, then add what .NET for iOS generated without overwriting the app's keys. An
+# incremental build can leave the bundle's Info.plist as this script wrote it (not newer than the stamp); then .NET for
+# iOS's own from an earlier build is used, so that a key removed from the app's Info.plist doesn't stay.
 GENERATED="$WORK/Generated-Info.plist"
-cp "$PLIST" "$GENERATED"
+STAMP="$WORK/Info.plist.stamp"
+if [ ! -f "$GENERATED" ] || [ ! -f "$STAMP" ] || [ "$PLIST" -nt "$STAMP" ]; then
+    cp "$PLIST" "$GENERATED"
+fi
 if [ -n "${WATCHIOUS_INFO_PLIST:-}" ] && [ -f "$WATCHIOUS_INFO_PLIST" ]; then
     cp "$WATCHIOUS_INFO_PLIST" "$PLIST"
     plutil -convert xml1 "$PLIST"
@@ -70,6 +75,7 @@ if [ -n "${WATCHIOUS_ASSETS:-}" ] && [ -d "$WATCHIOUS_ASSETS" ]; then
     /usr/libexec/PlistBuddy -c "Merge '$WORK/icon.plist'" "$PLIST" > /dev/null
 fi
 plutil -convert binary1 "$PLIST"
+touch "$STAMP"
 
 if [ -z "${WATCHIOUS_PROFILE:-}" ]; then
     if [ "$WATCHIOUS_SDK_NAME" != "watchsimulator" ]; then

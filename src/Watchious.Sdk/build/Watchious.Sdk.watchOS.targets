@@ -98,10 +98,13 @@
     </ItemGroup>
   </Target>
 
-  <!-- After .NET for iOS has filled the app bundle: watchOS manifest, icon and signature. -->
-  <Target Name="_WatchiousCompleteWatchApp" AfterTargets="_CreateAppBundle">
+  <!-- After .NET for iOS has filled the app bundle: watchOS manifest, icon and signature. AfterTargets runs this even
+       when _CreateAppBundle is skipped, as it is for a library, which has no bundle. -->
+  <Target Name="_WatchiousCompleteWatchApp" AfterTargets="_CreateAppBundle" Condition="'$(_CanOutputAppBundle)' == 'true'">
     <PropertyGroup>
       <_WatchiousProfile Condition="'$(CodesignProvision)' != '' And Exists('$(CodesignProvision)')">$(CodesignProvision)</_WatchiousProfile>
+      <!-- An installed profile: where Xcode 16 and later keep them, else where earlier versions did. -->
+      <_WatchiousProfile Condition="'$(CodesignProvision)' != '' And '$(_WatchiousProfile)' == '' And Exists('$(HOME)/Library/Developer/Xcode/UserData/Provisioning Profiles/$(CodesignProvision).mobileprovision')">$(HOME)/Library/Developer/Xcode/UserData/Provisioning Profiles/$(CodesignProvision).mobileprovision</_WatchiousProfile>
       <_WatchiousProfile Condition="'$(CodesignProvision)' != '' And '$(_WatchiousProfile)' == ''">$(HOME)/Library/MobileDevice/Provisioning Profiles/$(CodesignProvision).mobileprovision</_WatchiousProfile>
     </PropertyGroup>
     <Error Condition="'$(_WatchiousProfile)' != '' And !Exists('$(_WatchiousProfile)')"
@@ -112,18 +115,19 @@
           EnvironmentVariables="WATCHIOUS_APP=$(MSBuildProjectDirectory)/$(_AppBundlePath);WATCHIOUS_SDK_NAME=$(_WatchiousSdkName);WATCHIOUS_MIN_OS=$(WatchiousMinimumWatchOSVersion);WATCHIOUS_BUNDLE_ID=$(WatchiousBundleIdentifier);WATCHIOUS_INFO_PLIST=$(_WatchiousInfoPlist);WATCHIOUS_ASSETS=$(_WatchiousAssets);WATCHIOUS_WORK_DIR=$(_WatchiousWorkDirectory);WATCHIOUS_SIGN_IDENTITY=$(CodesignKey);WATCHIOUS_PROFILE=$(_WatchiousProfile);WATCHIOUS_ENTITLEMENTS=$(_WatchiousEntitlements)" />
   </Target>
 
-  <!-- App Store package: dotnet publish -f net*-watchos -r ios-arm64 -p:BuildIpa=true with CodesignKey,
+  <!-- App Store package: dotnet build -f net*-watchos -r ios-arm64 -p:BuildIpa=true with CodesignKey,
        CodesignProvision (the watch app's App Store profile) and WatchiousContainerProvision (the stub's). -->
   <Target Name="CreateIpa" Condition="'$(BuildIpa)' == 'true'" DependsOnTargets="_WatchiousCompleteWatchApp">
     <PropertyGroup>
       <_WatchiousContainerProfile Condition="Exists('$(WatchiousContainerProvision)')">$(WatchiousContainerProvision)</_WatchiousContainerProfile>
+      <_WatchiousContainerProfile Condition="'$(_WatchiousContainerProfile)' == '' And Exists('$(HOME)/Library/Developer/Xcode/UserData/Provisioning Profiles/$(WatchiousContainerProvision).mobileprovision')">$(HOME)/Library/Developer/Xcode/UserData/Provisioning Profiles/$(WatchiousContainerProvision).mobileprovision</_WatchiousContainerProfile>
       <_WatchiousContainerProfile Condition="'$(_WatchiousContainerProfile)' == ''">$(HOME)/Library/MobileDevice/Provisioning Profiles/$(WatchiousContainerProvision).mobileprovision</_WatchiousContainerProfile>
       <WatchiousIpaPath Condition="'$(WatchiousIpaPath)' == ''">$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).ipa</WatchiousIpaPath>
     </PropertyGroup>
     <Error Condition="'$(WatchiousContainerProvision)' == '' Or !Exists('$(_WatchiousContainerProfile)')"
            Text="Watchious: an App Store package needs WatchiousContainerProvision, the App Store profile of the iPhone stub ($(ApplicationId))." />
     <Exec Command="bash &quot;$(WatchiousToolsDirectory)create-watch-ipa.sh&quot;"
-          EnvironmentVariables="WATCHIOUS_APP=$(MSBuildProjectDirectory)/$(_AppBundlePath);WATCHIOUS_CONTAINER_ID=$(ApplicationId);WATCHIOUS_DISPLAY_NAME=$(ApplicationTitle);WATCHIOUS_VERSION=$(ApplicationDisplayVersion);WATCHIOUS_BUILD=$(ApplicationVersion);WATCHIOUS_SIGN_IDENTITY=$(CodesignKey);WATCHIOUS_PROFILE=$(_WatchiousContainerProfile);WATCHIOUS_WORK_DIR=$(_WatchiousWorkDirectory);WATCHIOUS_IPA=$(WatchiousIpaPath)" />
+          EnvironmentVariables="WATCHIOUS_APP=$(MSBuildProjectDirectory)/$(_AppBundlePath);WATCHIOUS_CONTAINER_ID=$(ApplicationId);WATCHIOUS_DISPLAY_NAME=$(ApplicationTitle);WATCHIOUS_SIGN_IDENTITY=$(CodesignKey);WATCHIOUS_PROFILE=$(_WatchiousContainerProfile);WATCHIOUS_WORK_DIR=$(_WatchiousWorkDirectory);WATCHIOUS_IPA=$(WatchiousIpaPath)" />
   </Target>
 
   <!-- dotnet build -t:Run -f net*-watchos: the simulator by default; a real watch with -r ios-arm64 and

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Watchious.Hosting;
@@ -78,8 +79,11 @@ public static class WatchiousPreview
             }
 
             var platform = context.Request.Query["platform"] == "watchos" ? PreviewPlatform.watchOS : PreviewPlatform.WearOS;
+            // Stopping the server ends the sessions; on its own it would wait for each page to close them.
+            var lifetime = context.RequestServices.GetRequiredService<IHostApplicationLifetime>();
+            using var stopping = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, lifetime.ApplicationStopping);
             using var socket = await context.WebSockets.AcceptWebSocketAsync();
-            await new PreviewSession(socket, createApp, platform).RunAsync(context.RequestAborted);
+            await new PreviewSession(socket, createApp, platform).RunAsync(stopping.Token);
         });
         return web;
     }
