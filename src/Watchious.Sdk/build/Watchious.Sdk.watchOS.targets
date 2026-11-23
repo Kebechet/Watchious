@@ -11,6 +11,9 @@
     <_WatchiousSdkName Condition="'$(_SdkIsSimulator)' != 'true'">watchos</_WatchiousSdkName>
     <_WatchiousWorkDirectory>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)watchious/</_WatchiousWorkDirectory>
     <WatchiousBundleIdentifier Condition="'$(WatchiousBundleIdentifier)' == ''">$(ApplicationId).watchkitapp</WatchiousBundleIdentifier>
+    <!-- The .NET for iOS versions a watch app has started with: StartRuntime.c calls internal functions of .NET for
+         iOS (see _WatchiousCheckIOSSdkVersion). Extend the list only after the watch sample runs on the new version. -->
+    <WatchiousTestedIOSSdkVersions Condition="'$(WatchiousTestedIOSSdkVersions)' == ''">27.2.10000;27.2.11039</WatchiousTestedIOSSdkVersions>
     <_WatchiousInfoPlist Condition="Exists('$(MSBuildProjectDirectory)/Platforms/watchOS/Info.plist')">$(MSBuildProjectDirectory)/Platforms/watchOS/Info.plist</_WatchiousInfoPlist>
     <_WatchiousAssets Condition="Exists('$(MSBuildProjectDirectory)/Platforms/watchOS/Assets.xcassets')">$(MSBuildProjectDirectory)/Platforms/watchOS/Assets.xcassets</_WatchiousAssets>
     <!-- The app's entitlements (HealthKit, app groups...), like MAUI's CodesignEntitlements and
@@ -46,6 +49,21 @@
       <Compile Include="$(_WatchiousAppFactoryFile)" />
       <FileWrites Include="$(_WatchiousAppFactoryFile)" />
     </ItemGroup>
+  </Target>
+
+  <!-- StartRuntime.c starts .NET for iOS's runtime glue through its internal functions, which any .NET for iOS release
+       can change. An untested version fails the build here instead of crashing at start-up on the watch; the
+       version is the one .NET for iOS itself reports in its Xcode version warning. -->
+  <Target Name="_WatchiousCheckIOSSdkVersion" BeforeTargets="CoreCompile" Condition="'$(OutputType)' == 'Exe'">
+    <PropertyGroup>
+      <_WatchiousIOSSdkVersion>$(_ShortPackageVersion)</_WatchiousIOSSdkVersion>
+      <_WatchiousIOSSdkVersion Condition="'$(_WatchiousIOSSdkVersion)' == ''">(unknown)</_WatchiousIOSSdkVersion>
+      <_WatchiousIOSSdkTested Condition="$([System.String]::Copy(';$(WatchiousTestedIOSSdkVersions.Replace(' ', ''));').Contains(';$(_WatchiousIOSSdkVersion);'))">true</_WatchiousIOSSdkTested>
+    </PropertyGroup>
+    <Error Condition="'$(_WatchiousIOSSdkTested)' != 'true' And '$(WatchiousAllowUntestedIOSSdk)' != 'true'" Code="WATCHIOUS003"
+           Text="Watchious: this Watchious.Sdk hasn't been tested with .NET for iOS $(_WatchiousIOSSdkVersion) (tested: $(WatchiousTestedIOSSdkVersions)). A watch app starts .NET for iOS through internal functions that a new version can change, so an untested version can crash at start-up on the watch. Use a tested version (see the Watchious README), or set WatchiousAllowUntestedIOSSdk=true to build anyway." />
+    <Warning Condition="'$(_WatchiousIOSSdkTested)' != 'true' And '$(WatchiousAllowUntestedIOSSdk)' == 'true'" Code="WATCHIOUS003"
+             Text="Watchious: building with .NET for iOS $(_WatchiousIOSSdkVersion), which this Watchious.Sdk hasn't been tested with (tested: $(WatchiousTestedIOSSdkVersions)), because WatchiousAllowUntestedIOSSdk is true. The app can crash at start-up on the watch." />
   </Target>
 
   <!-- iPhone debug settings (Settings.bundle, MonoTouchDebugConfiguration.txt) have no use in a watch app. -->

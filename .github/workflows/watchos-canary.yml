@@ -1,0 +1,113 @@
+name: watchOS canary
+
+# Watchious starts .NET for iOS through internal functions (platforms/watchOS/Host/StartRuntime.c) that any .NET for
+# iOS release can change. Weekly and on demand, this builds the watch sample with each current .NET for iOS, starts it
+# in the watchOS simulator and checks that it renders its page and handles a click. A break shows up here before the
+# version goes into WatchiousTestedIOSSdkVersions or reaches users. The check itself is
+# .github/scripts/watchos-canary.sh, which also runs on any Mac.
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  XCODE_VERSION: '27.2'
+
+jobs:
+  canary:
+    name: ${{ matrix.name }}
+    # Xcode 27.2 with watchOS 27.2 simulators:
+    # https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md
+    runs-on: xcode-27
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The version Watchious.Sdk is pinned to: if this fails, the canary or the runner image is broken.
+          - name: tested .NET for iOS (workload set 10.0.404)
+            sdk: '10.0.404'
+            workload-set: '10.0.404'
+            app-dotnet: net10.0
+            allow-untested: 'false'
+          - name: newest .NET 10
+            channel: '10.0'
+            app-dotnet: net10.0
+          - name: newest .NET 11
+            channel: '11.0'
+            app-dotnet: net11.0
+          # The next .NET's previews; until the first one ships, this reports that and passes.
+          - name: next .NET preview
+            channel: '12.0'
+            quality: preview
+            app-dotnet: net12.0
+            optional: 'true'
+    env:
+      SDK: ${{ matrix.sdk }}
+      CHANNEL: ${{ matrix.channel }}
+      QUALITY: ${{ matrix.quality }}
+      WORKLOAD_SET: ${{ matrix.workload-set }}
+      OPTIONAL: ${{ matrix.optional }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      - name: Install .NET
+        id: dotnet
+        run: |
+          set -euo pipefail
+          install_dir="$RUNNER_TEMP/dotnet"
+          curl -sSL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
+          if [ -n "$SDK" ]; then
+            args=(--version "$SDK")
+          else
+            args=(--channel "$CHANNEL")
+            if [ -n "$QUALITY" ]; then
+              args+=(--quality "$QUALITY")
+            fi
+          fi
+          if ! bash "$RUNNER_TEMP/dotnet-install.sh" "${args[@]}" --install-dir "$install_dir" --no-path; then
+            if [ "$OPTIONAL" = "true" ]; then
+              echo "::notice::No .NET $CHANNEL $QUALITY build exists yet, so there is nothing to test."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            exit 1
+          fi
+          echo "DOTNET_ROOT=$install_dir" >> "$GITHUB_ENV"
+          echo "$install_dir" >> "$GITHUB_PATH"
+
+      # android too: restoring the sample restores the libraries' net*-android targets.
+      - name: Install the ios and android workloads
+        if: steps.dotnet.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          if [ -n "$WORKLOAD_SET" ]; then
+            dotnet workload install ios android --version "$WORKLOAD_SET"
+          else
+            dotnet workload config --update-mode workload-set
+            dotnet workload install ios android
+          fi
+
+      - name: Build, start and click the watch sample
+        if: steps.dotnet.outputs.skip != 'true'
+        env:
+          CANARY_LOG_DIR: artifacts/canary
+          WATCHIOUS_ALLOW_UNTESTED: ${{ matrix.allow-untested || 'true' }}
+        run: bash .github/scripts/watchos-canary.sh "${{ matrix.app-dotnet }}"
+
+      - name: Upload the logs
+        if: always() && steps.dotnet.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: watchos-canary-${{ matrix.app-dotnet }}-${{ strategy.job-index }}
+          path: artifacts/canary
+          if-no-files-found: ignore

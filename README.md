@@ -205,8 +205,12 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
     `adb shell am start -S -n <package>/<activity> --es watchious_inspector ws://localhost:5292/inspector/app`
     (`-S` restarts the app if it is open, since it reads the address when it starts).
   - watchOS: the launch argument `--watchious-inspector=ws://<computer>:5292/inspector/app`, for example
-    `dotnet build -t:Run -f net10.0-watchos -p:WatchiousLaunchArguments=...`. A watch on the network needs the
-    inspector started with `--urls=http://0.0.0.0:5292`.
+    `dotnet build -t:Run -f net10.0-watchos -p:WatchiousLaunchArguments=...`. A simulator on another computer
+    (the Mac of a remote build) needs the inspector started with `--urls=http://0.0.0.0:5292`.
+  - ⚠️ A real Apple Watch is not expected to connect. watchOS gives apps HTTP(S) requests through URLSession,
+    but sockets never, and WebSockets only while an app streams audio or runs a call
+    (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos). The simulator
+    allows both. Not tried on a watch yet.
 
 ## Project and packaging
 
@@ -240,6 +244,13 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
     Apple's frameworks that way, while NuGet still treats the project as `net*-watchos`.
   - **From Windows:** set `WatchiousRemoteMac=user@host` and the watchOS target builds on that Mac over ssh,
     like MAUI's "Pair to Mac", and the app comes back. Windows needs no iOS workload for it.
+  - ⚠️ **Tested .NET for iOS versions only.** The watch app starts .NET for iOS through internal functions (see
+    "watchOS runtime" under Design decisions), so the SDK fails the build with `WATCHIOUS003` on a .NET for iOS
+    version it hasn't been tested with. Tested: `27.2.10000` (.NET 10, workload set `10.0.404`:
+    `dotnet workload update --version 10.0.404`; also on a real watch) and `27.2.11039` (.NET 11.0.100, in the
+    watch simulator). `-p:WatchiousAllowUntestedIOSSdk=true` builds anyway, with a warning. A canary CI job
+    (`.github/workflows/watchos-canary.yml`) builds and starts the watch sample on each new .NET for iOS version
+    before it is added to the list (`WatchiousTestedIOSSdkVersions`).
 - **Release:** from CI pipelines, like a MAUI app: `dotnet publish -f net11.0-android` gives the Play Store
   bundle, and `dotnet build -f net11.0-watchos -r ios-arm64 -p:BuildIpa=true` on a macOS runner gives the
   App Store `.ipa`, inside the watch-only container Apple requires (`WatchiousContainerProvision` is the
@@ -290,7 +301,7 @@ Versions stay at `0.x.x` until the API is stable.
 | Styling | Semantic tokens plus a few explicit values. Never CSS. |
 | Navigation | Blazor `@page` routes plus source-generated typed helpers: `Navigation.GoToAsync(Routes.Workout(exerciseId: 5))`. A stack of pages, shown with each platform's own navigation and back gestures. |
 | Phone ↔ watch messaging | A separate, optional `Watchious.Messaging` package for the watch, **wire-compatible with [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging)**, so a MAUI phone app uses that plugin unchanged: on Wear OS its `/message` JSON messages, `_requestId`/`_replyToId` replies, `/application_context` data item and `wearable_app` capability; on watchOS plain WatchConnectivity dictionaries with native replies. No Watchious phone package, because the plugin already covers the phone side of both platforms with the same concepts; gaps go upstream. The platforms require that on Wear OS the phone and watch apps share the applicationId and signing key, and that on watchOS the watch app is the iPhone app's companion (https://github.com/Kebechet/Watchious/issues/4). |
-| watchOS runtime | NativeAOT, built as .NET for iOS (`ios-arm64`) and relabelled for watchOS. Microsoft's runtime glue (`libxamarin`) is started the way its own `main` starts it, minus the iPhone app. ⚠️ That relies on internal start-up functions of .NET for iOS, which may change between versions. |
+| watchOS runtime | NativeAOT, built as .NET for iOS (`ios-arm64`) and relabelled for watchOS. Microsoft's runtime glue (`libxamarin`) is started the way its own `main` starts it, minus the iPhone app. ⚠️ That relies on internal start-up functions of .NET for iOS, which may change between versions, so the SDK builds only with the .NET for iOS versions it was tested with (`WatchiousAllowUntestedIOSSdk` overrides that) and a canary CI job tries each new one. |
 | Build | Automatic through `dotnet build`, no manual Xcode step. watchOS builds run on a Mac, or from Windows on a remote Mac like MAUI's "Pair to Mac". Releases come from CI pipelines, like a MAUI app. |
 | Debugging | A desktop preview of the same screens (`dotnet run -f net10.0`) and a live inspector of apps running on watches |
 | Testing | Watch simulators and emulators first, real watches later |
@@ -322,7 +333,10 @@ Versions stay at `0.x.x` until the API is stable.
    hosts together.
 3. ✅ **Project model:** `Watchious.Sdk`, `dotnet new watchious` and `dotnet build -f net11.0-watchos` on top
    of .NET for iOS, App Store packaging, and remote builds from Windows on a Mac. Installing on a real Apple
-   Watch through `-t:Run` is still to be tried.
+   Watch through `-t:Run` is still to be tried, and so is `HttpClient` there. It should work: a real watch has no
+   sockets (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos), but .NET for
+   iOS sends `HttpClient` through URLSession by default. Code that opens its own sockets, such as `ClientWebSocket` or
+   `SocketsHttpHandler`, can't work there.
 4. ✅ **Patch-based protocol:** after each render, the renderer sends the host only what changed, as one
    binary buffer of patches (create, set attribute or event, set text, insert, remove, move), instead of the
    whole UI tree as JSON (https://github.com/Kebechet/Watchious/issues/2). Both hosts apply them to an
@@ -343,10 +357,19 @@ Versions stay at `0.x.x` until the API is stable.
 8. ✅ **Preview host:** the same screens on the desktop, for debugging in Visual Studio (`Watchious.Preview`,
    see "Preview and inspector").
 9. ✅ **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
-   it events (https://github.com/Kebechet/Watchious/issues/5).
+   it events (https://github.com/Kebechet/Watchious/issues/5). A real Apple Watch is still to be tried, and
+   probably needs the app's side of it as HTTPS requests instead of a WebSocket (see "Preview and inspector").
 10. ✅ **Health and workouts** (`Watchious.Health`, optional). A run with live heart rate, pause, resume and a
     summary works on the Wear OS emulator with Health Services' synthetic data; on the watchOS simulator the
     HealthKit permission prompt appears, and the run itself is still to be tried there and on real watches.
+11. **Live mode:** the app's C# runs on the computer, under the debugger, and a host app without .NET draws it
+    in the watchOS simulator or the Wear OS emulator, connected like the inspector. Unlike the preview, the
+    screens are the real SwiftUI and Compose controls. From Windows, the simulator on the Mac connects to the
+    computer over the network. Not on a real Apple Watch, which allows no such connection. The idea comes from
+    SwiftDotNet's live mode.
+12. **Crown input for values:** the Digital Crown and the Wear OS rotary input change a value, such as a weight
+    or a number of reps, not only scroll a list or turn a `Picker`: SwiftUI's `digitalCrownRotation` and
+    Compose's `onRotaryScrollEvent`, one crown step per value step, clockwise up.
 
 ## Prior art
 
@@ -360,6 +383,10 @@ Versions stay at `0.x.x` until the API is stable.
   and shown as native Android and iOS views, sent as typed patches through a C interface and laid out by
   Yoga. Phones only. Its patch protocol is the reference for Watchious's
   (https://github.com/Kebechet/Watchious/issues/2).
+- [SwiftDotNet](https://github.com/shinyorg/SwiftDotNet): SwiftUI-style views written as C# classes (no
+  Razor), shown as native UI on many platforms, among them SwiftUI on Apple Watch and Compose on Wear OS. On
+  watchOS it also compiles the C# with NativeAOT for iOS and re-stamps it for watchOS. Its live mode runs the
+  C# on the Mac, under a debugger, while a shell app in the watch simulator draws it.
 - [Codename One](https://www.codenameone.com/blog/native-apple-watch-and-wear/): Java apps for Apple Watch
   and Wear OS from one code base. On watchOS it draws with Core Graphics inside a SwiftUI shell instead of
   using SwiftUI controls.

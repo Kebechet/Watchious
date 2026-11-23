@@ -13,6 +13,8 @@
     WatchiousRemoteDirectory      folder on the Mac, relative to the ssh home (default .watchious/<project name>-<hash
                                   of the source root>, so two checkouts don't share one). A file deleted here is
                                   deleted there only if an earlier build sent it; nothing else in the folder is touched.
+  WatchiousAllowUntestedIOSSdk and WatchiousTestedIOSSdkVersions go to the Mac, which checks the .NET for iOS
+  version (Watchious.Sdk.watchOS.targets).
   Signing properties (CodesignKey, CodesignProvision, CodesignEntitlements, WatchiousContainerProvision) are paths
   and names on the Mac; a relative CodesignEntitlements works on both sides.
 -->
@@ -60,6 +62,10 @@
                               Condition="'$(WatchiousDevice)' != ''" />
     <_WatchiousRemoteProperty Include="WatchiousLaunchArguments" Value="$(WatchiousLaunchArguments.Replace(&quot;'&quot;, &quot;'\''&quot;))"
                               Condition="'$(WatchiousLaunchArguments)' != ''" />
+    <_WatchiousRemoteProperty Include="WatchiousAllowUntestedIOSSdk" Value="$(WatchiousAllowUntestedIOSSdk.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(WatchiousAllowUntestedIOSSdk)' != ''" />
+    <_WatchiousRemoteProperty Include="WatchiousTestedIOSSdkVersions" Value="$(WatchiousTestedIOSSdkVersions.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(WatchiousTestedIOSSdkVersions)' != ''" />
   </ItemGroup>
 
   <Target Name="Build" DependsOnTargets="_WatchiousBuildOnRemoteMac" />
