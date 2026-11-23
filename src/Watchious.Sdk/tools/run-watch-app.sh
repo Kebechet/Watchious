@@ -20,7 +20,7 @@ if [ "$MODE" = "device" ]; then
 fi
 
 DEVICE_NAME="${TARGET:-Watchious Watch}"
-RUNTIME_ID="$(xcrun simctl list runtimes available | grep -o 'com.apple.CoreSimulator.SimRuntime.watchOS-[0-9-]*' | sort -V | tail -1)"
+RUNTIME_ID="$(xcrun simctl list runtimes available | grep -o 'com.apple.CoreSimulator.SimRuntime.watchOS-[0-9-]*' | sort -V | tail -1 || true)"
 if [ -z "$RUNTIME_ID" ]; then
     echo "No watchOS simulator runtime is installed (Xcode > Settings > Components)." >&2
     exit 2
@@ -29,7 +29,11 @@ RUNTIME_VERSION="${RUNTIME_ID##*watchOS-}"
 SIMULATOR_NAME="$DEVICE_NAME (watchOS ${RUNTIME_VERSION//-/.})"
 DEVICE_ID="$(xcrun simctl list devices available | grep -F "$SIMULATOR_NAME (" | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
 if [ -z "$DEVICE_ID" ]; then
-    DEVICE_TYPE="$(xcrun simctl list devicetypes | grep -o 'com.apple.CoreSimulator.SimDeviceType.Apple-Watch-Series-[0-9]*-46mm' | sort -V | tail -1)"
+    DEVICE_TYPE="$(xcrun simctl list devicetypes | grep -o 'com.apple.CoreSimulator.SimDeviceType.Apple-Watch-Series-[0-9]*-46mm' | sort -V | tail -1 || true)"
+    if [ -z "$DEVICE_TYPE" ]; then
+        echo "Xcode has no Apple Watch Series 46mm simulator to create \"$SIMULATOR_NAME\" from." >&2
+        exit 2
+    fi
     DEVICE_ID="$(xcrun simctl create "$SIMULATOR_NAME" "$DEVICE_TYPE" "$RUNTIME_ID")"
 fi
 xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true

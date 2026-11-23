@@ -39,9 +39,6 @@ import androidx.wear.compose.material3.Picker
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.rememberPickerState
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.map
 
 @Composable
 internal fun WatchList(node: UiNode, dispatch: EventDispatch) {
@@ -98,15 +95,19 @@ internal fun WatchPicker(node: UiNode, dispatch: EventDispatch) {
         }
     }
     // Reported once the wheel settles: while it turns, the selected option passes every option on the way, and
-    // C# answering each of them would move the wheel under the user's finger.
+    // C# answering each of them would move the wheel under the user's finger. Only after a turn: the clamped first
+    // value, or the one the wheel takes when Items shrink, isn't the user's choice, and SwiftUI reports neither.
     LaunchedEffect(state) {
+        var hasTurned = false
         snapshotFlow { state.isScrollInProgress to state.selectedOptionIndex }
-            .filter { (isScrolling, _) -> !isScrolling }
-            .map { (_, index) -> index }
-            .distinctUntilChanged()
-            .collect { index ->
-                if (index != node.attribute("SelectedIndex")?.toIntOrNull()) {
-                    node.dispatch("selected", index.toString(), dispatch)
+            .collect { (isScrolling, index) ->
+                if (isScrolling) {
+                    hasTurned = true
+                } else if (hasTurned) {
+                    hasTurned = false
+                    if (index != node.attribute("SelectedIndex")?.toIntOrNull()) {
+                        node.dispatch("selected", index.toString(), dispatch)
+                    }
                 }
             }
     }
