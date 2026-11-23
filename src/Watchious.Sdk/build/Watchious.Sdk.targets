@@ -1,0 +1,62 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- The method that creates the app, called by each platform's entry point. -->
+    <WatchiousAppFactory Condition="'$(WatchiousAppFactory)' == ''">$(RootNamespace).WatchiousProgram.CreateWatchiousApp</WatchiousAppFactory>
+  </PropertyGroup>
+
+  <!-- Single project, like MAUI: code under Platforms/WearOS and Platforms/watchOS takes part only in its own
+       platform's build. -->
+  <ItemGroup>
+    <Compile Remove="Platforms/WearOS/**" Condition="'$(WatchiousTargetPlatform)' != 'android'" />
+    <Compile Remove="Platforms/watchOS/**" Condition="'$(WatchiousTargetPlatform)' != 'watchos'" />
+    <None Remove="Platforms/**" />
+    <!-- The Razor SDK makes every *.json Content, and .NET for iOS copies Content into the app, which would
+         include the icon set's Contents.json. -->
+    <Content Remove="Platforms/**" />
+  </ItemGroup>
+
+  <!-- App images, like MAUI's: Resources/Images/*.png and *.jpg, shown with <Image Source="name" />. Wear OS gets
+       them as Android drawables, watchOS as files in the app bundle (Watchious.Sdk.watchOS.targets). -->
+  <ItemGroup Condition="'$(EnableDefaultWatchiousImages)' != 'false'">
+    <WatchiousImage Include="Resources/Images/*.png;Resources/Images/*.jpg" />
+    <None Remove="Resources/Images/**" />
+    <Content Remove="Resources/Images/**" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(WatchiousTargetPlatform)' == 'android'">
+    <!-- .NET for Android names a resource after its path below MonoAndroidResourcePrefix. -->
+    <AndroidResource Include="@(WatchiousImage)" Link="$(MonoAndroidResourcePrefix)\drawable\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Android's rule for resource names, checked on both platforms so an image that works on one works on both. -->
+  <Target Name="_WatchiousCheckImageNames" BeforeTargets="BeforeBuild" Condition="'@(WatchiousImage)' != ''">
+    <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('%(WatchiousImage.Filename)', '^[a-z][a-z0-9_]*$'))"
+           Text="Watchious: the image name '%(WatchiousImage.Filename)' must be lowercase letters, digits and _, starting with a letter, as Android requires of resource names." />
+  </Target>
+
+  <!-- Inside the Watchious repository the SDK references the source projects; a published SDK will reference the
+       packages of its own version instead. -->
+  <ItemGroup Condition="'$(WatchiousUseProjectReferences)' == 'true' And '$(TargetFramework)' != ''">
+    <ProjectReference Include="$(WatchiousRepositoryRoot)src/Watchious.Controls/Watchious.Controls.csproj" />
+    <!-- The Watchious.Controls package carries this source generator itself. -->
+    <ProjectReference Include="$(WatchiousRepositoryRoot)src/Watchious.SourceGenerators/Watchious.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(WatchiousRepositoryRoot)src/Watchious.Hosts.WearOS/Watchious.Hosts.WearOS.csproj"
+                      Condition="'$(WatchiousTargetPlatform)' == 'android'" />
+    <ProjectReference Include="$(WatchiousRepositoryRoot)src/Watchious.Hosts.watchOS/Watchious.Hosts.watchOS.csproj"
+                      Condition="'$(WatchiousTargetPlatform)' == 'watchos'" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(WatchiousUseProjectReferences)' != 'true' And '$(TargetFramework)' != ''">
+    <PackageReference Include="Watchious.Controls" Version="$(WatchiousVersion)" />
+    <PackageReference Include="Watchious.Hosts.WearOS" Version="$(WatchiousVersion)"
+                      Condition="'$(WatchiousTargetPlatform)' == 'android'" />
+    <PackageReference Include="Watchious.Hosts.watchOS" Version="$(WatchiousVersion)"
+                      Condition="'$(WatchiousTargetPlatform)' == 'watchos'" />
+  </ItemGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)Watchious.Sdk.watchOS.targets"
+          Condition="'$(WatchiousTargetPlatform)' == 'watchos' And '$(WatchiousBuildsOnRemoteMac)' != 'true'" />
+  <Import Project="$(MSBuildThisFileDirectory)Watchious.Sdk.watchOS.Remote.targets" Condition="'$(WatchiousBuildsOnRemoteMac)' == 'true'" />
+
+</Project>

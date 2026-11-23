@@ -1,24 +1,39 @@
-using System.Text.Json;
-
 namespace Watchious.Core.Tests;
 
-public sealed record UiNode(
-    string Type,
-    IReadOnlyDictionary<string, JsonElement> Attributes,
-    IReadOnlyDictionary<string, ulong> Events,
-    IReadOnlyList<UiNode> Children,
-    string? Text)
+public sealed class UiNode(uint id, string type)
 {
-    public static UiNode ParseRoot(string json)
-    {
-        using var document = JsonDocument.Parse(json);
-        var children = document.RootElement.GetProperty("children").EnumerateArray().Select(Parse).ToList();
-        return new UiNode("#root", new Dictionary<string, JsonElement>(), new Dictionary<string, ulong>(), children, null);
-    }
+    public const string TextType = "#text";
 
-    public string Attribute(string name)
+    public uint Id { get; } = id;
+
+    public string Type { get; } = type;
+
+    public Dictionary<string, string?> Attributes { get; } = [];
+
+    public Dictionary<string, ulong> Events { get; } = [];
+
+    public List<UiNode> Children { get; } = [];
+
+    public string? Text { get; set; }
+
+    public UiNode? Parent { get; set; }
+
+    public bool IsBlankText => Type == TextType && string.IsNullOrWhiteSpace(Text);
+
+    // The hosts skip blank text in layouts, as a browser collapses whitespace between blocks.
+    public IEnumerable<UiNode> VisibleChildren => Children.Where(child => !child.IsBlankText);
+
+    // What the hosts show: a Label joins its text, other controls show their Text attribute.
+    public string? Content => Type switch
     {
-        return Attributes[name].ToString();
+        TextType => Text,
+        "Label" => string.Concat(Children.Where(child => child.Type == TextType).Select(child => child.Text)),
+        _ => Attributes.GetValueOrDefault("Text"),
+    };
+
+    public string? Attribute(string name)
+    {
+        return Attributes[name];
     }
 
     public UiNode Single(string type)
@@ -36,21 +51,5 @@ public sealed record UiNode(
                 yield return descendant;
             }
         }
-    }
-
-    private static UiNode Parse(JsonElement element)
-    {
-        var type = element.GetProperty("type").GetString()!;
-        if (type == "#text")
-        {
-            return new UiNode(type, new Dictionary<string, JsonElement>(), new Dictionary<string, ulong>(), [], element.GetProperty("text").GetString());
-        }
-
-        var attributes = element.GetProperty("attributes").EnumerateObject()
-            .ToDictionary(property => property.Name, property => property.Value.Clone());
-        var events = element.GetProperty("events").EnumerateObject()
-            .ToDictionary(property => property.Name, property => property.Value.GetUInt64());
-        var children = element.GetProperty("children").EnumerateArray().Select(Parse).ToList();
-        return new UiNode(type, attributes, events, children, null);
     }
 }

@@ -21,12 +21,12 @@ public class WatchiousRendererTests
         await app.StartAsync(host);
 
         // Assert
-        var stack = host.LastTree.Children.ShouldHaveSingleItem();
-        stack.Type.ShouldBe("VerticalStackLayout");
+        var stack = host.LastTree.Single("VStack");
         stack.Attribute("Spacing").ShouldBe("8");
-        stack.Children.Select(child => child.Type).ShouldBe(["Label", "Button"]);
-        stack.Children[0].Attribute("Text").ShouldBe("Hello");
-        stack.Children[0].Attribute("Style").ShouldBe("Title");
+        stack.VisibleChildren.Select(child => child.Type).ShouldBe(["Label", "Button"]);
+        var title = stack.VisibleChildren.First();
+        title.Content.ShouldBe("Hello");
+        title.Attribute("Style").ShouldBe("Title");
     }
 
     [Fact]
@@ -65,11 +65,27 @@ public class WatchiousRendererTests
         }
 
         // Assert
-        host.LastTree.Single("VerticalStackLayout").Attribute("Spacing").ShouldBe("8.5");
+        host.LastTree.Single("VStack").Attribute("Spacing").ShouldBe("8.5");
     }
 
     [Fact]
-    public async Task Start_SendsTheSwitchLabel()
+    public async Task Start_StackWithoutSpacing_LeavesItToThePlatform()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        await using var app = WatchiousApp.CreateBuilder().UseWatchiousApp<NestedPage>().Build();
+
+        // Act
+        await app.StartAsync(host);
+
+        // Assert
+        var stack = host.LastTree.Single("VStack");
+        stack.Attributes.ShouldNotContainKey("Spacing");
+        stack.Attribute("Alignment").ShouldBe("Center");
+    }
+
+    [Fact]
+    public async Task Start_SendsTheToggleLabel()
     {
         // Arrange
         var host = new RecordingHost();
@@ -79,7 +95,7 @@ public class WatchiousRendererTests
         await app.StartAsync(host);
 
         // Assert
-        host.LastTree.Single("Switch").Attribute("Text").ShouldBe("Warm-up");
+        host.LastTree.Single("Toggle").Attribute("Text").ShouldBe("Warm-up");
     }
 
     [Fact]
@@ -93,9 +109,23 @@ public class WatchiousRendererTests
         await app.StartAsync(host);
 
         // Assert
-        var stack = host.LastTree.Single("VerticalStackLayout");
-        stack.Children.Select(child => child.Type).ShouldBe(["Label", "Label", "Label"]);
-        stack.Children.Select(child => child.Attribute("Text")).ShouldBe(["Ann", "Bob", "Cid"]);
+        var stack = host.LastTree.Single("VStack");
+        stack.VisibleChildren.Select(child => child.Type).ShouldBe(["Label", "Label", "Label"]);
+        stack.VisibleChildren.Select(child => child.Content).ShouldBe(["Ann", "Bob", "Cid"]);
+    }
+
+    [Fact]
+    public async Task Start_LabelKeepsTheSpaceBetweenTwoValues()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        await using var app = WatchiousApp.CreateBuilder().UseWatchiousApp<TwoValuesPage>().Build();
+
+        // Act
+        await app.StartAsync(host);
+
+        // Assert
+        host.LastTree.Single("Label").Content.ShouldBe("Ada Lovelace");
     }
 
     [Fact]
@@ -111,7 +141,7 @@ public class WatchiousRendererTests
         await app.StartAsync(host);
 
         // Assert
-        host.LastTree.Single("Label").Attribute("Text").ShouldBe("Hello from DI");
+        host.LastTree.Single("Label").Content.ShouldBe("Hello from DI");
     }
 
     [Fact]
@@ -121,33 +151,33 @@ public class WatchiousRendererTests
         var host = new RecordingHost();
         await using var app = CounterApp.CreateWatchiousApp();
         await app.StartAsync(host);
-        var clickHandlerId = host.LastTree.Single("Button").Events["click"];
+        var clickHandlerId = host.Button("+1").Events["click"];
 
         // Act
         await app.DispatchEventAsync(clickHandlerId, "click", null);
 
         // Assert
-        host.Trees.Count.ShouldBe(2);
-        host.LastTree.Descendants().ShouldContain(node => node.Type == "Label" && node.Attribute("Text") == "Count: 1");
+        host.Batches.Count.ShouldBe(2);
+        host.LastTree.Descendants().ShouldContain(node => node.Type == "Label" && node.Content == "Count: 1");
         host.Errors.ShouldBeEmpty();
     }
 
     [Fact]
-    public async Task DispatchEvent_SwitchToggled_UpdatesTheBoundParentState()
+    public async Task DispatchEvent_ToggleToggled_UpdatesTheBoundParentState()
     {
         // Arrange
         var host = new RecordingHost();
         await using var app = CounterApp.CreateWatchiousApp();
         await app.StartAsync(host);
-        var toggledHandlerId = host.LastTree.Single("Switch").Events["toggled"];
+        var toggledHandlerId = host.LastTree.Single("Toggle").Events["toggled"];
 
         // Act
         await app.DispatchEventAsync(toggledHandlerId, "toggled", "true");
 
         // Assert
         var tree = host.LastTree;
-        tree.Single("Switch").Attribute("IsToggled").ShouldBe("true");
-        tree.Descendants().ShouldContain(node => node.Type == "Label" && node.Attribute("Text") == "Warm-up set");
+        tree.Single("Toggle").Attribute("IsOn").ShouldBe("true");
+        tree.Descendants().ShouldContain(node => node.Type == "Label" && node.Content == "Warm-up set");
         host.Errors.ShouldBeEmpty();
     }
 

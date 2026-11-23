@@ -1,17 +1,32 @@
+@page "/"
+@inject INavigation Navigation
+
 <ScrollView>
-    <VerticalStackLayout Spacing="8">
-        <Label Text="Watchious" Style="TextStyle.Title" />
-        <Label Text="@($"Count: {count}")" />
+    <VStack Spacing="8">
+        <Label Style="TextStyle.Title">Watchious</Label>
+        <Label>Count: @count</Label>
         <Button Text="+1" OnClick="() => count++" />
-        <Switch Text="Warm-up" @bind-IsToggled="isWarmup" />
+        <Toggle Text="Warm-up" @bind-IsOn="isWarmup" />
         @if (isWarmup)
         {
-            <Label Text="Warm-up set" Style="TextStyle.Caption" />
+            <Label Style="TextStyle.Caption">Warm-up set</Label>
         }
-    </VerticalStackLayout>
+        <Button Text="Summary" OnClick="ShowSummaryAsync" />
+        <Button Text="Controls" OnClick="ShowControlsAsync" />
+    </VStack>
 </ScrollView>
 
 @code {
     private int count;
     private bool isWarmup;
+
+    private Task ShowSummaryAsync()
+    {
+        return Navigation.GoToAsync(Routes.Summary(count: count));
+    }
+
+    private Task ShowControlsAsync()
+    {
+        return Navigation.GoToAsync(Routes.Controls());
+    }
 }

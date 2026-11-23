@@ -1,0 +1,26 @@
+<!-- The Counter sample as one project for both watches. Outside this repository the project starts with
+     <Project Sdk="Watchious.Sdk"> and the two Import lines go away. -->
+<Project>
+
+  <Import Project="..\..\src\Watchious.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <!-- A watchOS build needs a Mac: this one, or a remote one through WatchiousRemoteMac. -->
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('OSX')) Or '$(WatchiousRemoteMac)' != ''">$(TargetFrameworks);net10.0-watchos</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Watchious.Samples.Counter.App</RootNamespace>
+    <ApplicationId>com.kebechet.watchious.counter</ApplicationId>
+    <ApplicationTitle>Watchious</ApplicationTitle>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <WatchiousAppFactory>Watchious.Samples.Counter.CounterApp.CreateWatchiousApp</WatchiousAppFactory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Watchious.Samples.Counter\Watchious.Samples.Counter.csproj" />
+  </ItemGroup>
+
+  <Import Project="..\..\src\Watchious.Sdk\Sdk\Sdk.targets" />
+
+</Project>

@@ -1,25 +1,21 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Watchious.Navigation;
 
 namespace Watchious.Hosting;
 
 public sealed class WatchiousApp : IAsyncDisposable
 {
     private readonly ServiceProvider _services;
-
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-    private readonly Type _rootComponentType;
+    private readonly NavigationService _navigation;
 
     private WatchiousRenderer? _renderer;
 
-    internal WatchiousApp(
-        ServiceProvider services,
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] Type rootComponentType)
+    internal WatchiousApp(ServiceProvider services, NavigationService navigation)
     {
         _services = services;
-        _rootComponentType = rootComponentType;
+        _navigation = navigation;
     }
 
     public IServiceProvider Services => _services;
@@ -38,7 +34,8 @@ public sealed class WatchiousApp : IAsyncDisposable
 
         var loggerFactory = _services.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance;
         _renderer = new WatchiousRenderer(_services, loggerFactory, host);
-        return _renderer.AddRootComponentAsync(_rootComponentType);
+        _navigation.Start(_renderer.Dispatcher);
+        return _renderer.AddRootComponentAsync(typeof(WatchiousNavigationRoot));
     }
 
     public Task DispatchEventAsync(ulong eventHandlerId, string eventName, string? value)

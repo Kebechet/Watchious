@@ -1,0 +1,18 @@
+<VStack>
+    <List>
+        <Label>Row</Label>
+    </List>
+    <ProgressView Value="1.5" Text="Upload" />
+    <ProgressView />
+    <Picker Text="Reps" Items="reps" @bind-SelectedIndex="selected" />
+    <Label>Selected: @reps[selected]</Label>
+    <TextField Placeholder="Name" @bind-Text="name" />
+    <Image Source="logo" Width="32" Description="Logo" />
+    <Label>Name: @name</Label>
+</VStack>
+
+@code {
+    private readonly string[] reps = ["a", "b", "c\nd"];
+    private int selected = 1;
+    private string? name;
+}

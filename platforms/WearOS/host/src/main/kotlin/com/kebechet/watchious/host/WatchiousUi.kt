@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,40 +32,43 @@ import androidx.wear.compose.material3.Text
 internal typealias EventDispatch = (eventHandlerId: Long, eventName: String, value: String?) -> Unit
 
 @Composable
-internal fun WatchiousScreen(nodes: List<UiNode>, dispatch: EventDispatch) {
+internal fun WatchiousScreen(root: UiNode, dispatch: EventDispatch) {
     MaterialTheme {
         AppScaffold {
-            RenderNodes(nodes, dispatch)
+            RenderNodes(root.children, dispatch)
         }
     }
 }
 
 @Composable
-private fun RenderNodes(nodes: List<UiNode>, dispatch: EventDispatch, isInRow: Boolean = false) {
-    nodes.forEach { node -> RenderNode(node, dispatch, isInRow) }
+internal fun RenderNodes(nodes: List<UiNode>, dispatch: EventDispatch, isInRow: Boolean = false) {
+    // The node id keeps a control's Compose state (and animations) with its node when siblings are inserted,
+    // removed or moved.
+    nodes.forEach { node -> key(node.id) { RenderNode(node, dispatch, isInRow) } }
 }
 
 @Composable
-private fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean) {
-    // Like MAUI's default HorizontalOptions.Fill: a control spans the width of a vertical layout, but takes only
-    // the width it needs in a HorizontalStackLayout, where filling would push its siblings out.
+internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean) {
+    // Like MAUI's default HorizontalOptions.Fill: a control spans the width of a vertical stack, but takes only
+    // the width it needs in an HStack, where filling would push its siblings out.
     val fillWidth = if (isInRow) Modifier else Modifier.fillMaxWidth()
     when (node.type) {
+        "NavigationStack" -> NavigationStack(node, dispatch)
         "ScrollView" -> WatchScrollView(node, dispatch)
-        "VerticalStackLayout" -> Column(
+        "VStack" -> Column(
             verticalArrangement = Arrangement.spacedBy(node.spacing().dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = node.horizontalAlignment(),
         ) {
             RenderNodes(node.children, dispatch)
         }
-        "HorizontalStackLayout" -> Row(
+        "HStack" -> Row(
             horizontalArrangement = Arrangement.spacedBy(node.spacing().dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = node.verticalAlignment(),
         ) {
             RenderNodes(node.children, dispatch, isInRow = true)
         }
         "Label" -> Text(
-            text = node.attribute("Text").orEmpty(),
+            text = node.joinedText(),
             style = labelStyle(node.attribute("Style")),
             textAlign = TextAlign.Center,
         )
@@ -80,16 +84,22 @@ private fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean) 
                 )
             },
         )
-        "Switch" -> {
+        "List" -> WatchList(node, dispatch)
+        "Image" -> WatchImage(node)
+        "ProgressView" -> WatchProgressView(node, fillWidth)
+        "Picker" -> WatchPicker(node, dispatch)
+        "TextField" -> WatchTextField(node, dispatch, fillWidth)
+        "Toggle" -> {
             val text = node.attribute("Text")
             SwitchButton(
-                checked = node.attribute("IsToggled") == "true",
-                onCheckedChange = { isChecked -> node.dispatch("toggled", isChecked.toString(), dispatch) },
+                checked = node.attribute("IsOn") == "true",
+                onCheckedChange = { isOn -> node.dispatch("toggled", isOn.toString(), dispatch) },
                 modifier = if (text.isNullOrEmpty()) Modifier.wrapContentWidth() else fillWidth,
                 label = { if (!text.isNullOrEmpty()) Text(text) },
             )
         }
-        UiNode.TEXT_TYPE -> Text(node.text.orEmpty())
+        // Blank text is the whitespace between controls in the Razor markup.
+        UiNode.TEXT_TYPE -> node.text?.takeIf { it.isNotBlank() }?.let { Text(it) }
         else -> RenderNodes(node.children, dispatch, isInRow)
     }
 }
@@ -117,13 +127,32 @@ private fun WatchScrollView(node: UiNode, dispatch: EventDispatch) {
 @Composable
 private fun labelStyle(style: String?): TextStyle = when (style) {
     "Title" -> MaterialTheme.typography.titleMedium
+    "Headline" -> MaterialTheme.typography.titleSmall
     "Caption" -> MaterialTheme.typography.bodySmall
     else -> MaterialTheme.typography.bodyMedium
 }
 
-private fun UiNode.spacing(): Float = attribute("Spacing")?.toFloatOrNull() ?: 0f
+// Without Spacing a stack uses the platform's default, as SwiftUI does.
+private const val DEFAULT_SPACING = 4f
 
-private fun UiNode.dispatch(eventName: String, value: String?, dispatch: EventDispatch) {
+private fun UiNode.spacing(): Float = attribute("Spacing")?.toFloatOrNull() ?: DEFAULT_SPACING
+
+private fun UiNode.horizontalAlignment(): Alignment.Horizontal = when (attribute("Alignment")) {
+    "Leading" -> Alignment.Start
+    "Trailing" -> Alignment.End
+    else -> Alignment.CenterHorizontally
+}
+
+private fun UiNode.verticalAlignment(): Alignment.Vertical = when (attribute("Alignment")) {
+    "Top" -> Alignment.Top
+    "Bottom" -> Alignment.Bottom
+    else -> Alignment.CenterVertically
+}
+
+private fun UiNode.joinedText(): String =
+    children.filter { it.type == UiNode.TEXT_TYPE }.joinToString("") { it.text.orEmpty() }
+
+internal fun UiNode.dispatch(eventName: String, value: String?, dispatch: EventDispatch) {
     val eventHandlerId = events[eventName] ?: return
     dispatch(eventHandlerId, eventName, value)
 }

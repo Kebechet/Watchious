@@ -1,19 +1,28 @@
 import Foundation
-import SwiftUI
+import Observation
 
 @MainActor
-final class WatchiousStore: ObservableObject {
+@Observable
+final class WatchiousStore {
     static let shared = WatchiousStore()
 
-    @Published private(set) var nodes: [UiNode] = []
-    @Published private(set) var lastError: String?
+    let tree = UiTree()
+    private(set) var lastError: String?
+    // DebugAutomation's stand-in for the back button, which the simulator CLI can't tap.
+    private(set) var automatedBackCount = 0
 
-    func apply(_ json: Data) {
+    func apply(_ patches: Data) {
         do {
-            nodes = try JSONDecoder().decode(UiTree.self, from: json).children
+            try tree.apply(patches)
         } catch {
-            lastError = "Invalid UI tree: \(error)"
+            report("Invalid Watchious patches: \(error)")
         }
+        // Until now .NET kept the event handler ids this batch replaced: the controls on the display still sent them.
+        watchious_patches_applied()
+    }
+
+    func goBackLikeTheBackButton() {
+        automatedBackCount += 1
     }
 
     func report(_ error: String) {
@@ -34,27 +43,20 @@ final class WatchiousStore: ObservableObject {
     }
 
     func firstNode(ofType type: String) -> UiNode? {
-        for node in nodes {
-            if node.type == type {
-                return node
-            }
-            if let match = node.first(ofType: type) {
-                return match
-            }
-        }
-        return nil
+        tree.root.first(ofType: type)
     }
 }
 
-private func copyText(_ utf8: UnsafePointer<UInt8>?, _ length: Int32) -> Data? {
-    guard let utf8 else {
+private func copyText(_ bytes: UnsafePointer<UInt8>?, _ length: Int32) -> Data? {
+    guard let bytes else {
         return nil
     }
-    return Data(bytes: utf8, count: Int(length))
+    return Data(bytes: bytes, count: Int(length))
 }
 
-let watchiousRenderCallback: watchious_text_callback = { utf8, length in
-    guard let data = copyText(utf8, length) else {
+// Called on the thread .NET rendered on. The main queue keeps the batches in order.
+let watchiousPatchesCallback: watchious_patches_callback = { bytes, length in
+    guard let data = copyText(bytes, length) else {
         return
     }
     DispatchQueue.main.async {

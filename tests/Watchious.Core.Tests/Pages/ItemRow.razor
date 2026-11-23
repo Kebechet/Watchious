@@ -1,0 +1,10 @@
+<Label>@Name</Label>
+@if (Name!.EndsWith('!'))
+{
+    <Label Style="TextStyle.Caption">(starred)</Label>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string? Name { get; set; }
+}

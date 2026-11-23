@@ -1,0 +1,8 @@
+@page "/search/{Query?}"
+
+<Label>Search: @Query</Label>
+
+@code {
+    [Parameter]
+    public string? Query { get; set; }
+}

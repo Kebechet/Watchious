@@ -1,0 +1,58 @@
+<Project>
+
+  <PropertyGroup>
+    <WatchiousTargetPlatform Condition="'$(TargetFramework)' != ''">$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)').ToLowerInvariant())</WatchiousTargetPlatform>
+    <!-- Off a Mac, a watchOS build runs on a remote Mac (Watchious.Sdk.watchOS.Remote.targets). -->
+    <WatchiousBuildsOnRemoteMac Condition="'$(WatchiousTargetPlatform)' == 'watchos' And !$([MSBuild]::IsOSPlatform('OSX'))">true</WatchiousBuildsOnRemoteMac>
+  </PropertyGroup>
+
+  <!-- On the remote-build side the target is a plain watchOS platform: nothing is compiled here, so this machine
+       needs no .NET for iOS, whose version may also differ from the Mac's. -->
+  <PropertyGroup Condition="'$(WatchiousBuildsOnRemoteMac)' == 'true'">
+    <TargetPlatformSupported>true</TargetPlatformSupported>
+    <TargetPlatformVersion>$(WatchiousMinimumWatchOSVersion)</TargetPlatformVersion>
+    <SupportedOSPlatformVersion Condition="'$(SupportedOSPlatformVersion)' == ''">$(WatchiousMinimumWatchOSVersion)</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(WatchiousBuildsOnRemoteMac)' == 'true'">
+    <SdkSupportedTargetPlatformVersion Include="$(WatchiousMinimumWatchOSVersion)" />
+  </ItemGroup>
+
+  <!--
+    watchOS: .NET has no watchOS target, so a net*-watchos project is built by .NET for iOS, which brings
+    Microsoft's C# bindings for Apple's frameworks (HealthKit, Foundation...). Its native output is then relinked
+    into a watchOS app by Watchious.Sdk.watchOS.targets. The .NET SDK derives the platform from TargetFramework
+    only when TargetPlatformIdentifier is empty, so setting it here hands the build to .NET for iOS, while NuGet
+    still resolves packages for net*-watchos and so never picks iPhone-only package assets.
+  -->
+  <PropertyGroup Condition="'$(WatchiousTargetPlatform)' == 'watchos' And '$(WatchiousBuildsOnRemoteMac)' != 'true'">
+    <TargetPlatformIdentifier>ios</TargetPlatformIdentifier>
+    <SupportedOSPlatformVersion Condition="'$(SupportedOSPlatformVersion)' == ''">$(WatchiousMinimumWatchOSVersion)</SupportedOSPlatformVersion>
+    <!-- .NET for iOS uses NativeAOT only when publishing (and refuses to publish for the simulator). The watch runs
+         nothing else, so every build is treated as a NativeAOT publish. -->
+    <PublishAot>true</PublishAot>
+    <_IsPublishing>true</_IsPublishing>
+    <!-- A publish defaults to a device; a build targets the simulator, like MAUI. -r ios-arm64 builds for a watch. -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And '$(RuntimeIdentifiers)' == ''">iossimulator-arm64</RuntimeIdentifier>
+    <!-- On the simulator, .NET for iOS links its runtime dynamically by default. The watch app links it statically. -->
+    <_LibXamarinLinkMode>static</_LibXamarinLinkMode>
+    <_LibMonoLinkMode>static</_LibMonoLinkMode>
+    <!-- Watchious signs the watch app itself, after relinking it. -->
+    <EnableCodeSigning>false</EnableCodeSigning>
+    <!-- The iOS 27 SDK requires a UIKit scene manifest from iPhone apps. A watch app has no UIKit. -->
+    <ValidateSceneManifest>false</ValidateSceneManifest>
+    <!-- .NET for iOS would compile *.plist and *.xcassets for the iPhone. Watchious writes the watch app's
+         Info.plist and compiles its icon for watchOS itself. -->
+    <EnableDefaultiOSItems>false</EnableDefaultiOSItems>
+    <!-- The SwiftUI host calls the app's [UnmanagedCallersOnly] entry points. -->
+    <IlcExportUnmanagedEntrypoints>true</IlcExportUnmanagedEntrypoints>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(WatchiousTargetPlatform)' == 'android'">
+    <SupportedOSPlatformVersion Condition="'$(SupportedOSPlatformVersion)' == ''">30</SupportedOSPlatformVersion>
+    <!-- Samsung's Galaxy Watches run 32-bit Android even on 64-bit chips, and .NET builds 64-bit only by default. -->
+    <RuntimeIdentifiers Condition="'$(RuntimeIdentifiers)' == '' And '$(RuntimeIdentifier)' == ''">android-arm;android-arm64;android-x64</RuntimeIdentifiers>
+    <AndroidManifest Condition="'$(AndroidManifest)' == '' And Exists('$(MSBuildProjectDirectory)/Platforms/WearOS/AndroidManifest.xml')">Platforms/WearOS/AndroidManifest.xml</AndroidManifest>
+  </PropertyGroup>
+
+</Project>

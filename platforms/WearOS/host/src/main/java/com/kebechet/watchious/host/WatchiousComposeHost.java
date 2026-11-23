@@ -23,8 +23,16 @@ public final class WatchiousComposeHost {
         return host.getView();
     }
 
-    public void render(@NonNull String uiTreeJson) {
-        host.render(uiTreeJson);
+    // One batch of Watchious patches (protocol v2). Callable from any thread; batches apply in the order they
+    // arrive.
+    public void render(@NonNull byte[] patches) {
+        host.render(patches);
+    }
+
+    // Goes back a page if there is one. For Activity.onBackPressed on Android 12L and older; newer versions
+    // deliver the back button to the host directly.
+    public boolean handleBack() {
+        return host.handleBack();
     }
 
     public void setEventListener(@Nullable WatchiousEventListener listener) {

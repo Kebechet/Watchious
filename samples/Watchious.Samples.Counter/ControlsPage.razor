@@ -1,0 +1,27 @@
+@page "/controls"
+
+<List>
+    <HStack>
+        <Image Source="watchious_logo" Width="32" Height="32" Description="Watchious logo" />
+        <Label Style="TextStyle.Headline">Controls</Label>
+    </HStack>
+    <ProgressView Value="@progress" Text="Progress" />
+    <Button Text="More progress" OnClick="AddProgress" />
+    <ProgressView Text="Loading" />
+    <Picker Text="Reps" Items="reps" @bind-SelectedIndex="selectedReps" />
+    <Label>Reps: @reps[selectedReps]</Label>
+    <TextField Placeholder="Name" @bind-Text="name" />
+    <Label>Name: @name</Label>
+</List>
+
+@code {
+    private readonly string[] reps = [.. Enumerable.Range(1, 20).Select(rep => rep.ToString())];
+    private int selectedReps = 9;
+    private string? name;
+    private double progress = 0.25;
+
+    private void AddProgress()
+    {
+        progress = Math.Min(1, progress + 0.25);
+    }
+}

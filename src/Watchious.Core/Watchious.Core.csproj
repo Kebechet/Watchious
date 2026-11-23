@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Watchious</RootNamespace>
     <IsAotCompatible>true</IsAotCompatible>
+    <IsPackable>true</IsPackable>
+    <Description>Watchious's Blazor renderer for native watch UI and its UI-change protocol.</Description>
   </PropertyGroup>
 
   <ItemGroup>

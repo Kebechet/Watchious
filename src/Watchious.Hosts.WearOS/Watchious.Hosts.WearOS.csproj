@@ -4,6 +4,8 @@
     <TargetFramework>net10.0-android</TargetFramework>
     <SupportedOSPlatformVersion>30</SupportedOSPlatformVersion>
     <RootNamespace>Watchious.Hosts.WearOS</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <Description>Watchious's Wear OS host: renders Watchious apps with Compose for Wear OS.</Description>
   </PropertyGroup>
 
   <PropertyGroup>

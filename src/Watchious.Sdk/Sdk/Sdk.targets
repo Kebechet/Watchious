@@ -1,0 +1,12 @@
+<Project>
+
+  <!-- Runs after the project file, so TargetFramework is known, and before the .NET SDK works out the target
+       platform from it. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\build\Watchious.Sdk.BeforeCommon.targets" />
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk.Razor" />
+
+  <!-- Imported last, so its targets replace .NET for iOS targets of the same name. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\build\Watchious.Sdk.targets" />
+
+</Project>

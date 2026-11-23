@@ -4,5 +4,6 @@ public enum TextStyle
 {
     Body,
     Title,
+    Headline,
     Caption,
 }

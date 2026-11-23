@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Android.App;
 using Android.Util;
 using Android.Views;
@@ -10,18 +11,22 @@ public sealed class ComposeWatchiousHost : Java.Lang.Object, IWatchiousHost, IWa
 {
     private const string LogTag = "Watchious";
 
-    private readonly Activity _activity;
     private readonly WatchiousComposeHost _composeHost;
+    private readonly ConcurrentQueue<TaskCompletionSource> _pendingBatches = new();
     private WatchiousApp? _app;
 
     public ComposeWatchiousHost(Activity activity)
     {
-        _activity = activity;
         _composeHost = new WatchiousComposeHost(activity);
         _composeHost.SetEventListener(this);
     }
 
     public View View => _composeHost.View;
+
+    public bool HandleBack()
+    {
+        return _composeHost.HandleBack();
+    }
 
     public Task StartAsync(WatchiousApp app)
     {
@@ -29,9 +34,21 @@ public sealed class ComposeWatchiousHost : Java.Lang.Object, IWatchiousHost, IWa
         return app.StartAsync(this);
     }
 
-    public void Render(string uiTreeJson)
+    // The Kotlin host takes batches from any thread and applies them on the main thread in arrival order.
+    public Task ApplyPatches(ReadOnlySpan<byte> patches)
     {
-        _activity.RunOnUiThread(() => _composeHost.Render(uiTreeJson));
+        var applied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingBatches.Enqueue(applied);
+        _composeHost.Render(patches.ToArray());
+        return applied.Task;
+    }
+
+    public void OnPatchesApplied()
+    {
+        if (_pendingBatches.TryDequeue(out var applied))
+        {
+            applied.TrySetResult();
+        }
     }
 
     public void ReportError(Exception exception)

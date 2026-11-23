@@ -18,7 +18,7 @@ public static unsafe class WatchOSBridge
 
     public static int Start(
         Func<WatchiousApp> createApp,
-        delegate* unmanaged<byte*, int, void> render,
+        delegate* unmanaged<byte*, int, void> applyPatches,
         delegate* unmanaged<byte*, int, void> reportError)
     {
         if (_app is not null)
@@ -26,12 +26,12 @@ public static unsafe class WatchOSBridge
             return AlreadyStarted;
         }
 
-        if (render is null || reportError is null)
+        if (applyPatches is null || reportError is null)
         {
             return InvalidArgument;
         }
 
-        var host = new NativeWatchiousHost(render, reportError);
+        var host = new NativeWatchiousHost(applyPatches, reportError);
         try
         {
             var app = createApp();
@@ -63,6 +63,11 @@ public static unsafe class WatchOSBridge
         var value = Marshal.PtrToStringUTF8((nint)valueUtf8);
         ReportFailure(_app.DispatchEventAsync(eventHandlerId, eventName, value), _host);
         return Success;
+    }
+
+    public static void PatchesApplied()
+    {
+        _host?.OnPatchesApplied();
     }
 
     private static void ReportFailure(Task task, NativeWatchiousHost host)

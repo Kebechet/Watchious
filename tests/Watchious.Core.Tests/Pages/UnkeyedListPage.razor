@@ -1,0 +1,16 @@
+@inject PageState State
+
+<VStack>
+    <Label>Header</Label>
+    @foreach (var item in State.Items)
+    {
+        <ItemRow Name="@item" />
+    }
+    <Button Text="Refresh" OnClick="Refresh" />
+</VStack>
+
+@code {
+    private void Refresh()
+    {
+    }
+}

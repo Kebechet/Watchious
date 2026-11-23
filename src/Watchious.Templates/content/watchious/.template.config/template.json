@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Kebechet",
+  "classifications": [ "Watch", "Wear OS", "watchOS", "Blazor" ],
+  "identity": "Watchious.App",
+  "name": "Watchious app",
+  "description": "A watch app for Wear OS and watchOS in one project, written in Razor.",
+  "shortName": "watchious",
+  "sourceName": "WatchiousApp1",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "symbols": {
+    "applicationId": {
+      "type": "parameter",
+      "datatype": "string",
+      "description": "The app's package name on Wear OS and bundle identifier on watchOS.",
+      "replaces": "com.companyname.watchiousapp1",
+      "defaultValue": "com.companyname.watchiousapp1"
+    },
+    "nameLower": {
+      "type": "generated",
+      "generator": "casing",
+      "parameters": {
+        "source": "name",
+        "toLower": true
+      }
+    },
+    "applicationIdName": {
+      "type": "generated",
+      "generator": "regex",
+      "dataType": "string",
+      "parameters": {
+        "source": "nameLower",
+        "steps": [
+          { "regex": "[^a-z0-9.]", "replacement": "" },
+          { "regex": "\\.{2,}", "replacement": "." },
+          { "regex": "^\\.|\\.$", "replacement": "" },
+          { "regex": "(^|\\.)([0-9])", "replacement": "$1app$2" },
+          { "regex": "^$", "replacement": "app" }
+        ]
+      },
+      "replaces": "watchiousapp1"
+    }
+  }
+}

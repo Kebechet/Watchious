@@ -12,4 +12,22 @@
     <WatchiousDotNetPackagesVersion>10.0.15</WatchiousDotNetPackagesVersion>
   </PropertyGroup>
 
+  <!-- Only the projects that ship as packages opt in. Nothing is published yet: packages go to artifacts/. -->
+  <PropertyGroup Label="Packages">
+    <Version>0.1.0-preview.1</Version>
+    <Authors>Kebechet</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Kebechet/Watchious</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Kebechet/Watchious</RepositoryUrl>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/packages/</PackageOutputPath>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- Apps built with Watchious.Sdk inside this repository use its sources instead of published packages. -->
+  <PropertyGroup Label="Watchious.Sdk from source">
+    <WatchiousRepositoryRoot>$(MSBuildThisFileDirectory)</WatchiousRepositoryRoot>
+    <WatchiousUseProjectReferences>true</WatchiousUseProjectReferences>
+    <WatchiousWatchOSHostDirectory>$(MSBuildThisFileDirectory)platforms/watchOS/Host/</WatchiousWatchOSHostDirectory>
+  </PropertyGroup>
+
 </Project>

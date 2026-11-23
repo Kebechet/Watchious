@@ -12,9 +12,19 @@ internal static class ProtocolValue
         return value ? "true" : "false";
     }
 
-    public static string Of(double value)
+    public static string? Of(double? value)
+    {
+        return value?.ToString(CultureInfo.InvariantCulture);
+    }
+
+    public static string Of(int value)
     {
         return value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    public static bool TryParseInt(string? value, out int result)
+    {
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
     }
 
     public static bool ToBool(string? value)

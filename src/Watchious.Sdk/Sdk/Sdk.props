@@ -1,0 +1,16 @@
+<!--
+  Entry point of the Watchious MSBuild SDK: <Project Sdk="Watchious.Sdk">.
+  It is an MSBuild SDK rather than a PackageReference because the watchOS target framework has to be set up
+  before NuGet restore runs, which a PackageReference's props can't do on the first restore.
+-->
+<Project>
+
+  <PropertyGroup>
+    <UsingWatchiousSdk>true</UsingWatchiousSdk>
+  </PropertyGroup>
+
+  <!-- The Razor SDK, so a Watchious project can hold its .razor pages itself. -->
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk.Razor" />
+  <Import Project="$(MSBuildThisFileDirectory)..\build\Watchious.Sdk.props" />
+
+</Project>
