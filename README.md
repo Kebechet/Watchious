@@ -200,7 +200,8 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
   simulator or emulator, next to its live UI tree and a log of patches, events and errors. Clicks on the mirror
   happen in the app on the watch. The app connects when it is started with the inspector's address:
   - Wear OS (debuggable builds only): `adb reverse tcp:5292 tcp:5292`, then
-    `adb shell am start -n <package>/<activity> --es watchious_inspector ws://localhost:5292/inspector/app`.
+    `adb shell am start -S -n <package>/<activity> --es watchious_inspector ws://localhost:5292/inspector/app`
+    (`-S` restarts the app if it is open, since it reads the address when it starts).
   - watchOS: the launch argument `--watchious-inspector=ws://<computer>:5292/inspector/app`, for example
     `dotnet build -t:Run -f net10.0-watchos -p:WatchiousLaunchArguments=...`. A watch on the network needs the
     inspector started with `--urls=http://0.0.0.0:5292`.

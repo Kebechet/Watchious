@@ -28,6 +28,11 @@ socket.onmessage = (message) => {
         return;
     }
     applyPatches(message.data);
+    // The app keeps the event handlers this batch replaced until the page confirms it (PreviewSession.cs). The
+    // inspector's app is confirmed by its own watch.
+    if (!isInspector) {
+        socket.send(JSON.stringify({ applied: true }));
+    }
 };
 socket.onclose = () => showError(isInspector
     ? "The inspector stopped."

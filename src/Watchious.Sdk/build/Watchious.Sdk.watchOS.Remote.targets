@@ -4,11 +4,15 @@
     WatchiousRemoteMac            user@host of the Mac (ssh with key authentication)
     WatchiousRemoteSshOptions     extra ssh options, e.g. -i C:\Users\me\.ssh\mac -o IdentitiesOnly=yes
     WatchiousRemoteDotnet         dotnet on the Mac (default ~/.dotnet/dotnet; it needs the ios workload)
-    WatchiousRemoteBeforeBuild    shell command run on the Mac first, e.g. unlocking the signing keychain
-    WatchiousRemoteSourceRoot     local folder sent to the Mac (default: the nearest folder above the project
-                                  with a Directory.Build.props, nuget.config or global.json; else the project)
+    WatchiousRemoteBeforeBuild    shell command run on the Mac first, e.g. a script there that unlocks the signing
+                                  keychain; it is written to obj, so it must not hold a password itself
+    WatchiousRemoteSourceRoot     local folder sent to the Mac (default: the nearest folder above the project with a
+                                  Directory.Build.props; without one, with a nuget.config, then with a global.json;
+                                  else the project). Set it to the repository root when a nuget.config or global.json
+                                  the build needs is above that folder.
     WatchiousRemoteDirectory      folder on the Mac, relative to the ssh home (default .watchious/<project name>-<hash
-                                  of the source root>, so two checkouts don't share one)
+                                  of the source root>, so two checkouts don't share one). A file deleted here is
+                                  deleted there only if an earlier build sent it; nothing else in the folder is touched.
   Signing properties (CodesignKey, CodesignProvision, CodesignEntitlements, WatchiousContainerProvision) are paths
   and names on the Mac; a relative CodesignEntitlements works on both sides.
 -->
@@ -27,6 +31,9 @@
     <_WatchiousRemoteBinDirectory>bin/$(Configuration)/$(TargetFramework)</_WatchiousRemoteBinDirectory>
     <_WatchiousSsh>ssh $(WatchiousRemoteSshOptions) $(WatchiousRemoteMac)</_WatchiousSsh>
     <_WatchiousRemoteScript>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)watchious-remote-build.sh</_WatchiousRemoteScript>
+    <!-- Single-quoted for the Mac's shell, with a ' inside written as '\''. -->
+    <_WatchiousRemoteDirectoryArgument>'$(WatchiousRemoteDirectory.Replace("'", "'\''"))'</_WatchiousRemoteDirectoryArgument>
+    <_WatchiousRemoteProjectDirectoryArgument>'$(_WatchiousRemoteProjectDirectory.Replace("'", "'\''"))'</_WatchiousRemoteProjectDirectoryArgument>
   </PropertyGroup>
 
   <!-- Each value is single-quoted for the Mac's shell, with a ' inside written as '\''. ApplicationVersion and
@@ -61,6 +68,12 @@
     <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="_WatchiousBuildOnRemoteMac" Properties="TargetFramework=$(TargetFramework);_WatchiousRemoteTargets=Run" />
   </Target>
 
+  <!-- Rebuild is Clean, then Build: the Mac's bin and obj go too, so that the build there starts from scratch. An
+       unreachable Mac only warns, since the clean here still works. -->
+  <Target Name="_WatchiousCleanOnRemoteMac" AfterTargets="Clean" Condition="'$(WatchiousRemoteMac)' != ''">
+    <Exec Command="$(_WatchiousSsh) &quot;cd $(_WatchiousRemoteProjectDirectoryArgument) 2&gt;/dev/null &amp;&amp; rm -rf bin obj || true&quot;" ContinueOnError="true" />
+  </Target>
+
   <Target Name="_WatchiousBuildOnRemoteMac">
     <Error Condition="'$(WatchiousRemoteMac)' == ''"
            Text="Watchious: a watchOS build needs a Mac. Build on a Mac, or set WatchiousRemoteMac to user@host of a Mac you can reach with ssh, like MAUI's Pair to Mac." />
@@ -71,9 +84,11 @@
            those escaped. -->
       <_WatchiousRemotePropertyArguments>$(_WatchiousRemotePropertyArguments.Replace('%', '%2525').Replace(';', '%253B').Replace(',', '%252C'))</_WatchiousRemotePropertyArguments>
       <_WatchiousRemoteBuild>DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 $(WatchiousRemoteDotnet) build '$(MSBuildProjectFile)' -f $(TargetFramework) $(_WatchiousRemoteTargetsArgument) $(_WatchiousRemotePropertyArguments) -nologo -v:m</_WatchiousRemoteBuild>
-      <!-- Single-quoted for the Mac's shell, like the property values. -->
-      <_WatchiousRemoteDirectoryArgument>'$(WatchiousRemoteDirectory.Replace("'", "'\''"))'</_WatchiousRemoteDirectoryArgument>
-      <_WatchiousRemoteProjectDirectoryArgument>'$(_WatchiousRemoteProjectDirectory.Replace("'", "'\''"))'</_WatchiousRemoteProjectDirectoryArgument>
+      <!-- Unpacks the sources on the Mac. A file that an earlier build sent (.watchious-synced lists them) and that is
+           gone here is deleted there; nothing else in the folder is, and bin and obj stay for incremental builds. -->
+      <_WatchiousRemoteUnpack>tar -tf .watchious-sources.tar | sed '/\/$/d' | LC_ALL=C sort &gt; .watchious-synced.new; if [ -f .watchious-synced ]; then LC_ALL=C comm -23 .watchious-synced .watchious-synced.new | tr '\n' '\000' | xargs -0 rm -f --; fi; tar -xf .watchious-sources.tar; mv .watchious-synced.new .watchious-synced</_WatchiousRemoteUnpack>
+      <!-- Input from /dev/null: the script comes on ssh's input, and a command that reads it would take the next lines. -->
+      <_WatchiousRemoteBeforeBuildLine Condition="'$(WatchiousRemoteBeforeBuild)' != ''">{ $(WatchiousRemoteBeforeBuild); } &lt; /dev/null</_WatchiousRemoteBeforeBuildLine>
       <_WatchiousSourcesArchive>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)watchious-sources.tar</_WatchiousSourcesArchive>
       <_WatchiousAppArchive>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)watchious-app.tar</_WatchiousAppArchive>
     </PropertyGroup>
@@ -83,20 +98,20 @@
          gets paths with /, because Git's GNU tar reads the \t of E:\temp as a tab. -->
     <MakeDir Directories="$(MSBuildProjectDirectory)/$(IntermediateOutputPath)" />
     <Exec Command="tar -C &quot;$(WatchiousRemoteSourceRoot.Replace('\', '/'))&quot; --exclude=bin --exclude=obj --exclude=.git --exclude=.vs --exclude=.gradle --exclude=artifacts -cf - . &gt; &quot;$(_WatchiousSourcesArchive)&quot;" />
-    <!-- A source file deleted here is deleted on the Mac too; bin and obj stay there for incremental builds. -->
-    <Exec Command="$(_WatchiousSsh) &quot;mkdir -p $(_WatchiousRemoteDirectoryArgument) &amp;&amp; find $(_WatchiousRemoteDirectoryArgument) -type f ! -path '*/bin/*' ! -path '*/obj/*' -delete &amp;&amp; tar -xf - -C $(_WatchiousRemoteDirectoryArgument)&quot; &lt; &quot;$(_WatchiousSourcesArchive)&quot;" />
-    <!-- The build command reaches the Mac as a script on ssh's input, so no value passes through the local shell,
+    <Exec Command="$(_WatchiousSsh) &quot;mkdir -p $(_WatchiousRemoteDirectoryArgument) &amp;&amp; cat &gt; $(_WatchiousRemoteDirectoryArgument)/.watchious-sources.tar&quot; &lt; &quot;$(_WatchiousSourcesArchive)&quot;" />
+    <!-- Unpacking and building reach the Mac as a script on ssh's input, so no value passes through the local shell,
          which on Windows is cmd.exe and would read <, > and | in it. Escape keeps ; and wildcards in the values
          from splitting the line. tr drops the Windows line endings WriteLinesToFile writes there. -->
     <WriteLinesToFile File="$(_WatchiousRemoteScript)"
                       Overwrite="true"
-                      Lines="set -e;cd $([MSBuild]::Escape('$(_WatchiousRemoteProjectDirectoryArgument)'));$([MSBuild]::Escape('$(WatchiousRemoteBeforeBuild)'));$([MSBuild]::Escape('$(_WatchiousRemoteBuild)'))" />
+                      Lines="set -e;cd $([MSBuild]::Escape('$(_WatchiousRemoteDirectoryArgument)'));$([MSBuild]::Escape('$(_WatchiousRemoteUnpack)'));cd;cd $([MSBuild]::Escape('$(_WatchiousRemoteProjectDirectoryArgument)'));$([MSBuild]::Escape('$(_WatchiousRemoteBeforeBuildLine)'));$([MSBuild]::Escape('$(_WatchiousRemoteBuild)')) &lt; /dev/null" />
     <Exec Command="$(_WatchiousSsh) &quot;tr -d '\r' | bash -s&quot; &lt; &quot;$(_WatchiousRemoteScript)&quot;" />
-    <!-- Only the app (and the App Store package, if any) comes back, and a build without an app fails. find, because
-         the Mac's login shell (zsh) aborts on a wildcard that matches nothing; -print0, for names with spaces. -->
-    <Exec Command="$(_WatchiousSsh) &quot;cd $(_WatchiousRemoteProjectDirectoryArgument) &amp;&amp; find $(_WatchiousRemoteBinDirectory) -maxdepth 2 -name '*.app' | grep -q . &amp;&amp; find $(_WatchiousRemoteBinDirectory) -maxdepth 2 \( -name '*.app' -o -name '*.ipa' \) -print0 | tar --null -cf - -T -&quot; &gt; &quot;$(_WatchiousAppArchive)&quot;" />
-    <Exec Command="tar -xf - -C &quot;$(MSBuildProjectDirectory.Replace('\', '/'))&quot; &lt; &quot;$(_WatchiousAppArchive)&quot;" />
-    <Message Importance="high" Text="Watchious: the watch app is in $(_WatchiousRemoteBinDirectory)/" />
+    <!-- Only the app (and the App Store package, if any) comes back, and an app's build without one fails; a library
+         has nothing to bring back. find, because the Mac's login shell (zsh) aborts on a wildcard that matches
+         nothing; -print0, for names with spaces. -->
+    <Exec Condition="'$(OutputType)' == 'Exe'" Command="$(_WatchiousSsh) &quot;cd $(_WatchiousRemoteProjectDirectoryArgument) &amp;&amp; find $(_WatchiousRemoteBinDirectory) -maxdepth 2 -name '*.app' | grep -q . &amp;&amp; find $(_WatchiousRemoteBinDirectory) -maxdepth 2 \( -name '*.app' -o -name '*.ipa' \) -print0 | tar --null -cf - -T -&quot; &gt; &quot;$(_WatchiousAppArchive)&quot;" />
+    <Exec Condition="'$(OutputType)' == 'Exe'" Command="tar -xf - -C &quot;$(MSBuildProjectDirectory.Replace('\', '/'))&quot; &lt; &quot;$(_WatchiousAppArchive)&quot;" />
+    <Message Condition="'$(OutputType)' == 'Exe'" Importance="high" Text="Watchious: the watch app is in $(_WatchiousRemoteBinDirectory)/" />
   </Target>
 
 </Project>
