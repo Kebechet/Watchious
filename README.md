@@ -363,6 +363,10 @@ Versions stay at `0.x.x` until the API is stable.
   and shown as native Android and iOS views, sent as typed patches through a C interface and laid out by
   Yoga. Phones only. Its patch protocol is the reference for Watchious's
   (https://github.com/Kebechet/Watchious/issues/2).
+- [SwiftDotNet](https://github.com/shinyorg/SwiftDotNet): SwiftUI-style views written as C# classes (no
+  Razor), shown as native UI on many platforms, among them SwiftUI on Apple Watch and Compose on Wear OS. On
+  watchOS it also compiles the C# with NativeAOT for iOS and re-stamps it for watchOS. Its live mode runs the
+  C# on the Mac, under a debugger, while a shell app in the watch simulator draws it.
 - [Codename One](https://www.codenameone.com/blog/native-apple-watch-and-wear/): Java apps for Apple Watch
   and Wear OS from one code base. On watchOS it draws with Core Graphics inside a SwiftUI shell instead of
   using SwiftUI controls.
