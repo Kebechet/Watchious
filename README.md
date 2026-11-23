@@ -202,8 +202,12 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
   - Wear OS (debuggable builds only): `adb reverse tcp:5292 tcp:5292`, then
     `adb shell am start -n <package>/<activity> --es watchious_inspector ws://localhost:5292/inspector/app`.
   - watchOS: the launch argument `--watchious-inspector=ws://<computer>:5292/inspector/app`, for example
-    `dotnet build -t:Run -f net10.0-watchos -p:WatchiousLaunchArguments=...`. A watch on the network needs the
-    inspector started with `--urls=http://0.0.0.0:5292`.
+    `dotnet build -t:Run -f net10.0-watchos -p:WatchiousLaunchArguments=...`. A simulator on another computer
+    (the Mac of a remote build) needs the inspector started with `--urls=http://0.0.0.0:5292`.
+  - ⚠️ A real Apple Watch is not expected to connect. watchOS gives apps HTTP(S) requests through URLSession,
+    but sockets never, and WebSockets only while an app streams audio or runs a call
+    (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos). The simulator
+    allows both. Not tried on a watch yet.
 
 ## Project and packaging
 
@@ -325,7 +329,9 @@ Versions stay at `0.x.x` until the API is stable.
    hosts together.
 3. ✅ **Project model:** `Watchious.Sdk`, `dotnet new watchious` and `dotnet build -f net11.0-watchos` on top
    of .NET for iOS, App Store packaging, and remote builds from Windows on a Mac. Installing on a real Apple
-   Watch through `-t:Run` is still to be tried.
+   Watch through `-t:Run` is still to be tried, and so is `HttpClient` there: a real watch has no sockets, so it
+   works only if .NET for iOS sends it through URLSession
+   (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos).
 4. ✅ **Patch-based protocol:** after each render, the renderer sends the host only what changed, as one
    binary buffer of patches (create, set attribute or event, set text, insert, remove, move), instead of the
    whole UI tree as JSON (https://github.com/Kebechet/Watchious/issues/2). Both hosts apply them to an
@@ -346,10 +352,19 @@ Versions stay at `0.x.x` until the API is stable.
 8. ✅ **Preview host:** the same screens on the desktop, for debugging in Visual Studio (`Watchious.Preview`,
    see "Preview and inspector").
 9. ✅ **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
-   it events (https://github.com/Kebechet/Watchious/issues/5).
+   it events (https://github.com/Kebechet/Watchious/issues/5). A real Apple Watch is still to be tried, and
+   probably needs the app's side of it as HTTPS requests instead of a WebSocket (see "Preview and inspector").
 10. ✅ **Health and workouts** (`Watchious.Health`, optional). A run with live heart rate, pause, resume and a
     summary works on the Wear OS emulator with Health Services' synthetic data; on the watchOS simulator the
     HealthKit permission prompt appears, and the run itself is still to be tried there and on real watches.
+11. **Live mode:** the app's C# runs on the computer, under the debugger, and a host app without .NET draws it
+    in the watchOS simulator or the Wear OS emulator, connected like the inspector. Unlike the preview, the
+    screens are the real SwiftUI and Compose controls. From Windows, the simulator on the Mac connects to the
+    computer over the network. Not on a real Apple Watch, which allows no such connection. The idea comes from
+    SwiftDotNet's live mode.
+12. **Crown input for values:** the Digital Crown and the Wear OS rotary input change a value, such as a weight
+    or a number of reps, not only scroll a list or turn a `Picker`: SwiftUI's `digitalCrownRotation` and
+    Compose's `onRotaryScrollEvent`, one crown step per value step, clockwise up.
 
 ## Prior art
 
