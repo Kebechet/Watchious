@@ -38,3 +38,8 @@ tasks.register("watchiousPom") {
         )
     }
 }
+
+// One `gradlew assembleRelease` makes everything the .NET projects read: the AAR, its POM and the binding jar.
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    dependsOn("watchiousPom", "watchiousBindingApi")
+}

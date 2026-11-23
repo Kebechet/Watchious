@@ -33,9 +33,12 @@
     private string heartRateText = "-- bpm";
     private string status = "";
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Health.Activity.HeartRateReceived += OnHeartRate;
+        // A workout started before the user left this page runs on.
+        var active = await Health.Activity.GetActive();
+        state = active?.State;
     }
 
     public void Dispose()

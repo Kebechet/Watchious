@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Watchious.Messaging;
 
@@ -8,6 +9,9 @@ public static class MessagingServiceCollectionExtensions
     public static IServiceCollection AddPhoneMessaging(this IServiceCollection services)
     {
         services.AddSingleton<IPhoneMessaging>(_ => CreatePhoneMessaging());
+        // Started with the app, not when a page first asks for it: WatchConnectivity and the Data Layer deliver only to
+        // a session that listens, and the phone sees the watch app as reachable only then.
+        services.AddHostedService<PhoneMessagingStartup>();
         return services;
     }
 
@@ -19,6 +23,21 @@ public static class MessagingServiceCollectionExtensions
         // The watchOS build runs .NET for iOS's runtime, which reports iOS; the preview and tests run on a desktop.
         return OperatingSystem.IsIOS() ? new WatchConnectivityPhoneMessaging() : new UnavailablePhoneMessaging();
 #endif
+    }
+}
+
+// Creating the service starts it: WatchConnectivity's session, or the Data Layer's listeners.
+internal sealed class PhoneMessagingStartup(IServiceProvider services) : IHostedService
+{
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        services.GetRequiredService<IPhoneMessaging>();
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
     }
 }
 
@@ -48,18 +67,23 @@ internal sealed class UnavailablePhoneMessaging : IPhoneMessaging
 
     public Task SendMessageAsync(IReadOnlyDictionary<string, string> message)
     {
-        throw new InvalidOperationException("No phone can be connected here; phone messaging works on a watch.");
+        return Task.FromException(NoPhone());
     }
 
     public Task<IReadOnlyDictionary<string, string>> SendMessageWithReplyAsync(
         IReadOnlyDictionary<string, string> message,
         TimeSpan? timeout = null)
     {
-        throw new InvalidOperationException("No phone can be connected here; phone messaging works on a watch.");
+        return Task.FromException<IReadOnlyDictionary<string, string>>(NoPhone());
     }
 
     public Task UpdateApplicationContextAsync(IReadOnlyDictionary<string, string> context)
     {
-        throw new InvalidOperationException("No phone can be connected here; phone messaging works on a watch.");
+        return Task.FromException(NoPhone());
+    }
+
+    private static InvalidOperationException NoPhone()
+    {
+        return new InvalidOperationException("No phone can be connected here; phone messaging works on a watch.");
     }
 }

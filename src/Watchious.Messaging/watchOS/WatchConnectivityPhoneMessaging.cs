@@ -39,7 +39,7 @@ internal sealed partial class WatchConnectivityPhoneMessaging : IPhoneMessaging,
     {
         if (Send(Encoding.UTF8.GetString(MessageJson.Encode(message)), requestId: 0) != 0)
         {
-            throw new InvalidOperationException("The phone isn't reachable: WatchConnectivity sends messages only while the phone app can receive them.");
+            return Task.FromException(new InvalidOperationException("The phone isn't reachable: WatchConnectivity sends messages only while the phone app can receive them."));
         }
 
         return Task.CompletedTask;

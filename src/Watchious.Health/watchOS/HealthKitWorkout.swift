@@ -63,7 +63,19 @@ private final class WatchiousWorkout: NSObject, HKWorkoutSessionDelegate, HKLive
             let start = Date()
             session.startActivity(with: start)
             builder.beginCollection(withStart: start) { _, error in
-                self.complete(token, error)
+                guard let error else {
+                    self.complete(token, nil)
+                    return
+                }
+                // C# forgets a workout that failed to start, so nothing would end this session.
+                DispatchQueue.main.async {
+                    if self.session === session {
+                        session.end()
+                        self.session = nil
+                        self.builder = nil
+                    }
+                    self.complete(token, error)
+                }
             }
         } catch {
             complete(token, error)
