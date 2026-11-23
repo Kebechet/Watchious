@@ -2,12 +2,16 @@
 @implements IDisposable
 @inject IPhoneMessaging PhoneMessaging
 
+@* The watch side of every Watchious.Messaging call; samples/Watchious.Samples.Phone is the phone side. *@
 <List>
     <Label Style="TextStyle.Headline">Phone</Label>
     <Label>@(isReachable ? "Phone reachable" : "Phone not reachable")</Label>
     <Button Text="Check" OnClick="CheckAsync" />
     <Button Text="Send hello" OnClick="SendAsync" />
+    <Button Text="Ask the phone" OnClick="AskAsync" />
+    <Button Text="Update context" OnClick="UpdateContextAsync" />
     <Label Style="TextStyle.Caption">@status</Label>
+    <Label Style="TextStyle.Caption">Phone context: @phoneContext</Label>
     @foreach (var message in received)
     {
         <Label>@message</Label>
@@ -18,16 +22,21 @@
     private readonly List<string> received = [];
     private bool isReachable;
     private string status = "";
+    private string phoneContext = "";
+    private int contextUpdates;
 
     protected override async Task OnInitializedAsync()
     {
         PhoneMessaging.MessageReceived += OnMessageReceived;
+        PhoneMessaging.ApplicationContextChanged += OnApplicationContextChanged;
+        phoneContext = Describe(PhoneMessaging.ReceivedApplicationContext);
         isReachable = await PhoneMessaging.IsPhoneReachableAsync();
     }
 
     public void Dispose()
     {
         PhoneMessaging.MessageReceived -= OnMessageReceived;
+        PhoneMessaging.ApplicationContextChanged -= OnApplicationContextChanged;
     }
 
     private async Task CheckAsync()
@@ -35,12 +44,45 @@
         isReachable = await PhoneMessaging.IsPhoneReachableAsync();
     }
 
-    private async Task SendAsync()
+    private Task SendAsync()
     {
-        try
+        return RunAsync(async () =>
         {
             await PhoneMessaging.SendMessageAsync(new Dictionary<string, string> { ["text"] = "Hello from the watch" });
             status = "Sent";
+        });
+    }
+
+    private Task AskAsync()
+    {
+        return RunAsync(async () =>
+        {
+            var answer = await PhoneMessaging.SendMessageWithReplyAsync(
+                new Dictionary<string, string> { ["question"] = "How are you?" },
+                TimeSpan.FromSeconds(10));
+            status = $"Phone answered: {Describe(answer)}";
+        });
+    }
+
+    private Task UpdateContextAsync()
+    {
+        return RunAsync(async () =>
+        {
+            contextUpdates++;
+            await PhoneMessaging.UpdateApplicationContextAsync(new Dictionary<string, string>
+            {
+                ["from"] = "watch",
+                ["update"] = contextUpdates.ToString(),
+            });
+            status = $"Context update {contextUpdates} sent";
+        });
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
         }
         catch (Exception exception)
         {
@@ -50,11 +92,31 @@
 
     private void OnMessageReceived(object? sender, PhoneMessageReceivedEventArgs args)
     {
-        var text = string.Join(", ", args.Message.Select(pair => $"{pair.Key}={pair.Value}"));
+        if (args.ExpectsReply)
+        {
+            _ = args.ReplyAsync(new Dictionary<string, string> { ["answer"] = "Fine, says the watch" });
+        }
+
+        var text = Describe(args.Message);
         _ = InvokeAsync(() =>
         {
             received.Insert(0, text);
             StateHasChanged();
         });
+    }
+
+    private void OnApplicationContextChanged(object? sender, EventArgs args)
+    {
+        var text = Describe(PhoneMessaging.ReceivedApplicationContext);
+        _ = InvokeAsync(() =>
+        {
+            phoneContext = text;
+            StateHasChanged();
+        });
+    }
+
+    private static string Describe(IReadOnlyDictionary<string, string> message)
+    {
+        return string.Join(", ", message.Select(pair => $"{pair.Key}={pair.Value}"));
     }
 }

@@ -11,6 +11,7 @@
 #   WATCHIOUS_SIGN_IDENTITY signing identity (name or SHA-1); empty signs ad hoc, which only the simulator accepts
 #   WATCHIOUS_PROFILE       provisioning profile (.mobileprovision path) for a real watch
 #   WATCHIOUS_ENTITLEMENTS  the app's entitlements plist, if any (on the simulator they are in the executable)
+#   WATCHIOUS_COMPANION_ID  the bundle identifier of the iPhone app whose companion this watch app is, if any
 set -euo pipefail
 
 APP="${WATCHIOUS_APP%/}"
@@ -56,7 +57,14 @@ plutil -replace CFBundleIdentifier -string "$WATCHIOUS_BUNDLE_ID" "$PLIST"
 plutil -replace MinimumOSVersion -string "$WATCHIOUS_MIN_OS" "$PLIST"
 plutil -replace UIDeviceFamily -json '[4]' "$PLIST"
 plutil -replace WKApplication -bool YES "$PLIST"
-plutil -replace WKWatchOnly -bool YES "$PLIST"
+if [ -n "${WATCHIOUS_COMPANION_ID:-}" ]; then
+    # WatchConnectivity connects a watch app only with the iPhone app it names; it still runs without it.
+    plutil -remove WKWatchOnly "$PLIST" 2>/dev/null || true
+    plutil -replace WKCompanionAppBundleIdentifier -string "$WATCHIOUS_COMPANION_ID" "$PLIST"
+    plutil -replace WKRunsIndependentlyOfCompanionApp -bool YES "$PLIST"
+else
+    plutil -replace WKWatchOnly -bool YES "$PLIST"
+fi
 plutil -replace CFBundleSupportedPlatforms -json "[\"$SUPPORTED_PLATFORM\"]" "$PLIST"
 plutil -replace DTPlatformName -string "$WATCHIOUS_SDK_NAME" "$PLIST"
 plutil -replace DTPlatformVersion -string "$sdk_version" "$PLIST"

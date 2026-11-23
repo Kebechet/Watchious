@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,10 +33,12 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
+import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.LinearProgressIndicator
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Picker
+import androidx.wear.compose.material3.PickerDefaults
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.rememberPickerState
@@ -43,15 +46,22 @@ import androidx.wear.compose.material3.rememberPickerState
 @Composable
 internal fun WatchList(node: UiNode, dispatch: EventDispatch) {
     val state = rememberTransformingLazyColumnState()
+    val crown = rememberScreenCrown()
     val rows = node.children.filterNot { it.isBlankText() }
     ScreenScaffold(scrollState = state) { contentPadding: PaddingValues ->
-        TransformingLazyColumn(
-            state = state,
-            contentPadding = contentPadding,
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            items(rows, key = { it.id }) { row -> RenderNode(row, dispatch, isInRow = false) }
+        CompositionLocalProvider(LocalScreenCrown provides crown) {
+            // The list's own crown handling, like ScrollView's, so that it can let a Picker have the crown.
+            TransformingLazyColumn(
+                state = state,
+                contentPadding = contentPadding,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .screenCrown(crown, RotaryScrollableDefaults.behavior(state)),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                rotaryScrollableBehavior = null,
+            ) {
+                items(rows, key = { it.id }) { row -> RenderNode(row, dispatch, isInRow = false) }
+            }
         }
     }
 }
@@ -117,10 +127,15 @@ internal fun WatchPicker(node: UiNode, dispatch: EventDispatch) {
         if (!text.isNullOrEmpty()) {
             Text(text, style = MaterialTheme.typography.bodySmall)
         }
+        // The crown turns the wheel once it is touched (pickerCrown); Picker's own crown handling waits for a focus that a
+        // screen with a scrolling list never gives it.
         Picker(
             state = state,
             contentDescription = { listOfNotNull(text, items.getOrNull(state.selectedOptionIndex)).joinToString(" ") },
-            modifier = Modifier.size(width = 120.dp, height = 100.dp),
+            modifier = Modifier
+                .size(width = 120.dp, height = 100.dp)
+                .pickerCrown(PickerDefaults.rotarySnapBehavior(state)),
+            rotaryScrollableBehavior = null,
         ) { optionIndex ->
             Text(items[optionIndex], style = MaterialTheme.typography.titleMedium)
         }

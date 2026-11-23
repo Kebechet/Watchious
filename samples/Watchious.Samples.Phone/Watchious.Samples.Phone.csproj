@@ -1,0 +1,27 @@
+<!-- The phone side for testing Watchious.Messaging on real devices: a .NET MAUI app with Plugin.Maui.WearableMessaging,
+     which is what Watchious.Messaging talks to. It shares the Counter sample's ApplicationId: on Android the Wearable
+     Data Layer pairs two apps by applicationId and signing key, and on iOS the watch app names this app as its
+     companion (build the watch app with -p:WatchiousCompanionAppBundleIdentifier=com.kebechet.watchious.counter).
+     It is in neither solution, because it needs the MAUI workload. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-android;net10.0-ios</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <RootNamespace>Watchious.Samples.Phone</RootNamespace>
+    <ApplicationId>com.kebechet.watchious.counter</ApplicationId>
+    <ApplicationTitle>Watchious Phone</ApplicationTitle>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+    <PackageReference Include="Plugin.Maui.WearableMessaging" Version="0.6.5" />
+  </ItemGroup>
+
+</Project>

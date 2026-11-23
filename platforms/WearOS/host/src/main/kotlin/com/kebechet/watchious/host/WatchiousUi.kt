@@ -11,17 +11,14 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
-import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.MaterialTheme
@@ -107,21 +104,22 @@ internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
 @Composable
 private fun WatchScrollView(node: UiNode, dispatch: EventDispatch) {
     val scrollState = rememberScrollState()
-    val focusRequester = remember { FocusRequester() }
+    val crown = rememberScreenCrown()
     ScreenScaffold(scrollState = scrollState) { contentPadding: PaddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .rotaryScrollable(RotaryScrollableDefaults.behavior(scrollState), focusRequester)
-                .verticalScroll(scrollState)
-                .padding(contentPadding)
-                .padding(horizontal = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            RenderNodes(node.children, dispatch)
+        CompositionLocalProvider(LocalScreenCrown provides crown) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .screenCrown(crown, RotaryScrollableDefaults.behavior(scrollState))
+                    .verticalScroll(scrollState)
+                    .padding(contentPadding)
+                    .padding(horizontal = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                RenderNodes(node.children, dispatch)
+            }
         }
     }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
 }
 
 @Composable

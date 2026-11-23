@@ -126,7 +126,7 @@ the back button on Wear OS. Pages below the top one keep their state.
 | ✅ `Toggle` (with a `Text` label) | `Toggle` | `SwitchButton` |
 | ✅ `Image` (app images; SF Symbols and Material icons later) | `Image` | `Image` |
 | ✅ `ProgressView` | `ProgressView` | `CircularProgressIndicator` / `LinearProgressIndicator` |
-| ✅ `Picker` | `Picker` | `Picker` |
+| ✅ `Picker` | `Picker` | `Picker`, which the crown turns once it is touched |
 | ✅ `TextField` | `TextField` | `BasicTextField` with the system keyboard |
 
 > ⚠️ **SwiftUI's `Text` is `Label` in Watchious.** Razor reserves the `<text>` tag, in any casing, inside `@if`
@@ -177,7 +177,9 @@ builder.Services.AddWatchiousHealth();  // Watchious.Health: inject IHealthServi
   Wear OS the package uses the Wearable Data Layer (Play Services) in the plugin's format, and advertises the
   `wearable_app` capability the plugin looks for;
   the phone and watch apps must share the applicationId and signing key. On watchOS it uses WatchConnectivity; the
-  watch app must be the iPhone app's companion.
+  watch app must be the iPhone app's companion, installed from inside it (see "Companion apps").
+  `samples/Watchious.Samples.Phone` is a MAUI phone app with the plugin for testing it; with
+  `--watchious-phone=check,hello,ask,context` it presses its own buttons and logs to the console.
 - **`Watchious.Health`** does what a watch does with health data: permissions and live workouts with heart
   rate, with [Kebechet.Maui.Health](https://github.com/Kebechet/Maui.Health)'s service names (`IHealthService`,
   `Activity.Start/Pause/Resume/End`). Its data types are Maui.Health's own (`WorkoutDto`, `HeartRateDto`,
@@ -208,10 +210,11 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
   - watchOS: the launch argument `--watchious-inspector=ws://<computer>:5292/inspector/app`, for example
     `dotnet build -t:Run -f net10.0-watchos -p:WatchiousLaunchArguments=...`. A simulator on another computer
     (the Mac of a remote build) needs the inspector started with `--urls=http://0.0.0.0:5292`.
-  - ⚠️ A real Apple Watch is not expected to connect. watchOS gives apps HTTP(S) requests through URLSession,
-    but sockets never, and WebSockets only while an app streams audio or runs a call
+  - ⚠️ A real Apple Watch can't connect (tried on an Apple Watch SE 3: "Unable to connect to the remote server",
+    logged by the app, which runs on). watchOS gives apps HTTP(S) requests through URLSession, but sockets never,
+    and WebSockets only while an app streams audio or runs a call
     (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos). The simulator
-    allows both. Not tried on a watch yet.
+    allows both, and a real Wear OS watch works through `adb reverse`.
 
 ## Project and packaging
 
@@ -263,7 +266,10 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
   `platforms/WearOS` (with Android Studio's JDK) also writes the POMs and binding jars the .NET projects read.
 - **Companion apps:** a watch app can ship inside a .NET iPhone app (for example a MAUI app) using the
   `AdditionalWatchOSApp` item that dotnet/macios is adding in
-  https://github.com/dotnet/macios/pull/27284 (still open).
+  https://github.com/dotnet/macios/pull/27284 (still open). `WatchiousCompanionAppBundleIdentifier=<the iPhone
+  app's bundle identifier>` already builds the watch app as that app's companion instead of a watch-only app.
+  ⚠️ Installed on its own, next to the iPhone app, it still can't use WatchConnectivity (tried on a real watch):
+  iOS connects the two only when the watch app came inside the iPhone app.
 
 | Package (working names) | MAUI equivalent | Contents |
 |---|---|---|
@@ -335,17 +341,17 @@ Versions stay at `0.x.x` until the API is stable.
 2. ✅ **SwiftUI host** with the same controls as Wear OS. From now on, each new control is added to both
    hosts together.
 3. ✅ **Project model:** `Watchious.Sdk`, `dotnet new watchious` and `dotnet build -f net11.0-watchos` on top
-   of .NET for iOS, App Store packaging, and remote builds from Windows on a Mac. Installing on a real Apple
-   Watch through `-t:Run` is still to be tried, and so is `HttpClient` there. It should work: a real watch has no
-   sockets (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos), but .NET for
-   iOS sends `HttpClient` through URLSession by default. Code that opens its own sockets, such as `ClientWebSocket` or
-   `SocketsHttpHandler`, can't work there.
+   of .NET for iOS, App Store packaging, and remote builds from Windows on a Mac. `dotnet build -t:Run` from
+   Windows builds, installs and starts the app on a real Apple Watch SE 3, and `HttpClient` works there: a real
+   watch has no sockets (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos),
+   but .NET for iOS sends `HttpClient` through URLSession by default. Code that opens its own sockets, such as
+   `ClientWebSocket` or `SocketsHttpHandler`, can't work there.
 4. ✅ **Patch-based protocol:** after each render, the renderer sends the host only what changed, as one
    binary buffer of patches (create, set attribute or event, set text, insert, remove, move), instead of the
    whole UI tree as JSON (https://github.com/Kebechet/Watchious/issues/2). Both hosts apply them to an
    observable node tree, so SwiftUI and Compose redraw only the changed controls. A counter tap now sends
-   29 bytes instead of 569, and adding a row to a 50-row list 243 bytes instead of 13,965. Measurements on a
-   Galaxy Watch7 are still to do.
+   29 bytes instead of 569, and adding a row to a 50-row list 243 bytes instead of 13,965. On a Galaxy Watch7,
+   50 counter taps grew the app's memory by 8.6 MB instead of 10.9 MB.
 5. ✅ **Controls and navigation:** the controls under SwiftUI's names, the rest of the planned controls including
    `List`, and navigation with typed routes. ✅ All controls in the table above, and navigation (`@page` routes,
    `INavigation`, generated `Routes` helpers, native back on both platforms). Still to do: SF Symbols and
@@ -354,17 +360,18 @@ Versions stay at `0.x.x` until the API is stable.
    platform C# as the escape hatch. Done so far: haptics, device info, battery, connectivity and preferences.
    Next: notifications, location, sensors, secure storage, always-on (ambient) mode and app lifecycle events.
 7. ✅ **Messaging** between phone and watch (`Watchious.Messaging`, optional,
-   https://github.com/Kebechet/Watchious/issues/4). Runs on the Wear OS emulator and the watchOS simulator
-   without a phone (reachability, the Data Layer and WatchConnectivity sessions); a paired phone running the
-   plugin is still to be tried.
+   https://github.com/Kebechet/Watchious/issues/4). ✅ A Galaxy Watch7 and a Pixel 6 running the plugin exchange
+   messages, answers and the application context both ways. An iPhone still needs the watch app installed from
+   inside the iPhone app (see "Companion apps").
 8. ✅ **Preview host:** the same screens on the desktop, for debugging in Visual Studio (`Watchious.Preview`,
    see "Preview and inspector").
 9. ✅ **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
-   it events (https://github.com/Kebechet/Watchious/issues/5). A real Apple Watch is still to be tried, and
-   probably needs the app's side of it as HTTPS requests instead of a WebSocket (see "Preview and inspector").
-10. ✅ **Health and workouts** (`Watchious.Health`, optional). A run with live heart rate, pause, resume and a
-    summary works on the Wear OS emulator with Health Services' synthetic data; on the watchOS simulator the
-    HealthKit permission prompt appears, and the run itself is still to be tried there and on real watches.
+   it events (https://github.com/Kebechet/Watchious/issues/5). Works with a real Galaxy Watch7. A real Apple Watch
+   can't connect, so it needs the app's side of it as HTTPS requests instead of a WebSocket (see "Preview and
+   inspector").
+10. ✅ **Health and workouts** (`Watchious.Health`, optional). A run with live heart rate from the wrist, pause,
+    resume and a summary works on a Galaxy Watch7 and an Apple Watch SE 3, and on the Wear OS emulator with Health
+    Services' synthetic data.
 11. **Live mode:** the app's C# runs on the computer, under the debugger, and a host app without .NET draws it
     in the watchOS simulator or the Wear OS emulator, connected like the inspector. Unlike the preview, the
     screens are the real SwiftUI and Compose controls. From Windows, the simulator on the Mac connects to the

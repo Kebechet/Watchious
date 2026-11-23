@@ -62,6 +62,8 @@
                               Condition="'$(WatchiousDevice)' != ''" />
     <_WatchiousRemoteProperty Include="WatchiousLaunchArguments" Value="$(WatchiousLaunchArguments.Replace(&quot;'&quot;, &quot;'\''&quot;))"
                               Condition="'$(WatchiousLaunchArguments)' != ''" />
+    <_WatchiousRemoteProperty Include="WatchiousCompanionAppBundleIdentifier" Value="$(WatchiousCompanionAppBundleIdentifier.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(WatchiousCompanionAppBundleIdentifier)' != ''" />
     <_WatchiousRemoteProperty Include="WatchiousAllowUntestedIOSSdk" Value="$(WatchiousAllowUntestedIOSSdk.Replace(&quot;'&quot;, &quot;'\''&quot;))"
                               Condition="'$(WatchiousAllowUntestedIOSSdk)' != ''" />
     <_WatchiousRemoteProperty Include="WatchiousTestedIOSSdkVersions" Value="$(WatchiousTestedIOSSdkVersions.Replace(&quot;'&quot;, &quot;'\''&quot;))"

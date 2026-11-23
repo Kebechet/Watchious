@@ -32,9 +32,8 @@
     <WatchiousWatchOSHostSource Include="..\..\src\Watchious.Messaging\watchOS\*.swift;..\..\src\Watchious.Health\watchOS\*.swift" />
   </ItemGroup>
 
-  <!-- HealthKit for the Workout page. Only the simulator: a real watch also needs a provisioning profile whose App ID
-       has HealthKit, which the development profile used so far doesn't. -->
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' != 'ios-arm64'">
+  <!-- HealthKit for the Workout page. A real watch also needs a provisioning profile whose App ID has HealthKit. -->
+  <PropertyGroup>
     <CodesignEntitlements>Platforms/watchOS/HealthKit.entitlements</CodesignEntitlements>
   </PropertyGroup>
 

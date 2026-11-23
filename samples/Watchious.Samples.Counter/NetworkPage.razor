@@ -1,0 +1,30 @@
+@page "/network"
+@using System.Diagnostics
+
+<List>
+    <Label Style="TextStyle.Headline">Network</Label>
+    <Button Text="Fetch" OnClick="FetchAsync" />
+    <Label Style="TextStyle.Caption">@status</Label>
+</List>
+
+@code {
+    // A real Apple Watch lets apps reach the network only through URLSession, which a plain HttpClient uses there
+    // (.NET for iOS's default handler); a handler of its own, such as SocketsHttpHandler, would fail on the watch.
+    private string status = "";
+
+    private async Task FetchAsync()
+    {
+        status = "Fetching...";
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            using var response = await client.GetAsync("https://www.apple.com/library/test/success.html");
+            status = $"{(int)response.StatusCode} {response.StatusCode} in {stopwatch.ElapsedMilliseconds} ms";
+        }
+        catch (Exception exception)
+        {
+            status = $"{exception.GetType().Name}: {exception.Message}";
+        }
+    }
+}

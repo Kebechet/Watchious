@@ -57,7 +57,8 @@ enum DebugAutomation {
 
     // Before .NET starts, so that a run that hangs at start-up can't leave an earlier run's results behind.
     static func clearResultsIfRequested() {
-        let prefixes = ["--watchious-autotap", "--watchious-autotoggle", "--watchious-click=", "--watchious-expect="]
+        let prefixes = ["--watchious-autotap", "--watchious-autotoggle", "--watchious-click=", "--watchious-expect=",
+                        "--watchious-labels"]
         let isRequested = ProcessInfo.processInfo.arguments.contains { argument in
             prefixes.contains { argument.hasPrefix($0) }
         }
@@ -92,7 +93,9 @@ enum DebugAutomation {
             let text = String(argument.dropFirst(expectPrefix.count))
             return text.removingPercentEncoding ?? text
         }
-        guard tap || toggle || !clicks.isEmpty || !expectations.isEmpty else {
+        // Every label's text at the end, for results that can't be expected exactly (a heart rate, a duration).
+        let reportsLabels = arguments.contains("--watchious-labels")
+        guard tap || toggle || !clicks.isEmpty || !expectations.isEmpty || reportsLabels else {
             return
         }
 
@@ -115,6 +118,11 @@ enum DebugAutomation {
                 store.goBackLikeTheBackButton()
                 continue
             }
+            // Time for the app to get an answer (the network, a phone, a sensor).
+            if text == "<wait>" {
+                try? await Task.sleep(for: .seconds(3))
+                continue
+            }
             let button = store.tree.root.first { $0.type == "Button" && $0.attribute("Text") == text }
             if let button, let id = button.eventHandlerId("click") {
                 report("click \(text) \(id)")
@@ -130,6 +138,18 @@ enum DebugAutomation {
         for text in expectations {
             let label = store.tree.root.first { $0.type == "Label" && $0.joinedText == text }
             report("expect \(text): \(label == nil ? "missing" : "found")")
+        }
+        if reportsLabels {
+            reportLabels(of: store.tree.root)
+        }
+    }
+
+    private static func reportLabels(of node: UiNode) {
+        for child in node.children {
+            if child.type == "Label" {
+                report("label \(child.joinedText)")
+            }
+            reportLabels(of: child)
         }
     }
 }
