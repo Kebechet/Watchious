@@ -100,10 +100,17 @@ internal sealed class WearOSTextToSpeech(Context context) : ITextToSpeech, IDisp
         cancelToken.ThrowIfCancellationRequested();
         var engine = await GetEngineAsync();
         var locale = options?.Locale;
-        engine.SetLanguage(locale is null
+        var language = locale is null
             ? Java.Util.Locale.Default
-            : Java.Util.Locale.ForLanguageTag(locale.Country is null ? locale.Language : $"{locale.Language}-{locale.Country}"));
-        engine.SetPitch(options?.Pitch ?? 1);
+            : Java.Util.Locale.ForLanguageTag(locale.Country is null ? locale.Language : $"{locale.Language}-{locale.Country}");
+        // A language the engine lacks would otherwise be read in the previous one.
+        var availability = engine.SetLanguage(language);
+        if (availability is LanguageAvailableResult.MissingData or LanguageAvailableResult.NotSupported)
+        {
+            throw new FeatureNotSupportedException($"The watch's text-to-speech engine can't speak {language.ToLanguageTag()}.");
+        }
+        // Android takes only a positive pitch; 0 is the lowest of the API's range.
+        engine.SetPitch(Math.Max(options?.Pitch ?? 1, 0.1f));
         var parameters = new Bundle();
         if (options?.Volume is not null)
         {
@@ -113,14 +120,16 @@ internal sealed class WearOSTextToSpeech(Context context) : ITextToSpeech, IDisp
         var id = Interlocked.Increment(ref _lastUtterance).ToString(CultureInfo.InvariantCulture);
         var spoken = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _utterances[id] = spoken;
-        // Stopping ends whatever the watch is saying, as TextToSpeech stops all of its queue.
-        await using var stopping = cancelToken.Register(StopSpeaking);
         if (engine.Speak(text, QueueMode.Add, parameters, id) != OperationResult.Success)
         {
             _utterances.TryRemove(id, out _);
             throw new InvalidOperationException("The text-to-speech engine didn't take the text.");
         }
 
+        // Registered once the text is queued, so that a cancel which came first stops it too. Cancelling ends the wait
+        // itself, as an engine whose process died never reports back; stopping ends whatever the watch is saying, as
+        // TextToSpeech stops all of its queue.
+        await using var cancelling = cancelToken.Register(() => Cancel(id, cancelToken));
         await spoken.Task;
     }
 
@@ -135,11 +144,17 @@ internal sealed class WearOSTextToSpeech(Context context) : ITextToSpeech, IDisp
         }
     }
 
+    // A start that failed (no engine yet) is tried again on the next call, as an engine can be installed meanwhile.
     private Task<TextToSpeech> GetEngineAsync()
     {
         lock (_lock)
         {
-            return _engine ??= StartEngineAsync();
+            if (_engine is null || _engine.IsFaulted)
+            {
+                _engine = StartEngineAsync();
+            }
+
+            return _engine;
         }
     }
 
@@ -158,12 +173,17 @@ internal sealed class WearOSTextToSpeech(Context context) : ITextToSpeech, IDisp
         return engine;
     }
 
-    private void StopSpeaking()
+    private void Cancel(string id, CancellationToken cancelToken)
     {
         var engine = _engine;
         if (engine is not null && engine.IsCompletedSuccessfully)
         {
             engine.Result.Stop();
+        }
+
+        if (_utterances.TryRemove(id, out var spoken))
+        {
+            spoken.TrySetCanceled(cancelToken);
         }
     }
 

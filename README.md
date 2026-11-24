@@ -139,6 +139,10 @@ the back button on Wear OS. Pages below the top one keep their state.
 > the Razor team keeps by design (https://github.com/dotnet/razor/issues/12620). So the text control keeps MAUI's
 > name. Its content is the text, as in SwiftUI: `<Label>Count: @count</Label>`.
 
+A control with a value (`Toggle`, `Picker`, `DigitalCrownRotation`) shows the value the page passes it. With
+`@bind-IsOn`, `@bind-SelectedIndex` or `@bind-Value` the page takes the user's change; a page that handles the change
+itself and doesn't take it, because what it starts failed, keeps the control as it was.
+
 A test (`HostCoverageTests`) fails when a control, attribute, event or enum value of the C# controls appears nowhere
 in the SwiftUI host, the Compose host or the browser preview. It reads each host's sources as text, so it catches a
 name a host lacks altogether, not one that is read on another control only. An element a host doesn't know, such as a misspelled
@@ -305,7 +309,8 @@ and unsubscribes in `Dispose`.
 dimming when the wrist goes down; there `KeepScreenOn` keeps the app running and on screen in an extended runtime
 session, of the kind the app declares in `Platforms/watchOS/Info.plist` (`WKBackgroundModes`: `self-care`, which lasts
 10 minutes, or `mindfulness` or `physical-therapy`, an hour). Without one, setting it throws
-`FeatureNotSupportedException`. App Store review checks that the app is that kind of app; a workout keeps its app
+`FeatureNotSupportedException`. When the session ends, `KeepScreenOn` reads false again. App Store review checks that the
+app is that kind of app; a workout keeps its app
 running anyway (`Watchious.Health`).
 
 Each host registers its platform's implementations before the app's `CreateWatchiousApp` runs, so an app (or a

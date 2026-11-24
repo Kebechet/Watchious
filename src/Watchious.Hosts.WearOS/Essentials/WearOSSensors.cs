@@ -360,6 +360,12 @@ internal sealed class WearOSPedometer : IPedometer, IDisposable
             throw new FeatureNotSupportedException("This watch has no step counter.");
         }
 
+        // Before the baseline is cleared, which would restart a running count.
+        if (IsMonitoring)
+        {
+            throw new InvalidOperationException("The pedometer is already monitoring; call Stop first.");
+        }
+
         var isAllowed = await _permissions.RequestAnyAsync(Android.Manifest.Permission.ActivityRecognition);
         if (!isAllowed)
         {

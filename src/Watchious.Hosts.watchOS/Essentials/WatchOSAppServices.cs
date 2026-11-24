@@ -39,16 +39,15 @@ internal sealed class WatchOSFileSystem : IFileSystem
     public string AppDataDirectory => _appDataDirectory.Value;
 }
 
-// An extended runtime session (platforms/watchOS/Host/AppServices.swift) keeps the app on screen.
+// An extended runtime session (platforms/watchOS/Host/AppServices.swift) keeps the app on screen. It ends by itself when
+// its time is up (10 minutes for self-care) or watchOS ends it, so KeepScreenOn reads the session.
 internal sealed class WatchOSDeviceDisplay : IDeviceDisplay
 {
     private const int NoSessionMode = 2;
 
-    private bool _keepScreenOn;
-
     public bool KeepScreenOn
     {
-        get => _keepScreenOn;
+        get => WatchOSNative.DisplayIsKeptOn() == 1;
         set
         {
             if (WatchOSNative.DisplayKeepOn(value ? 1 : 0) == NoSessionMode)
@@ -56,8 +55,6 @@ internal sealed class WatchOSDeviceDisplay : IDeviceDisplay
                 throw new FeatureNotSupportedException(
                     "KeepScreenOn needs an extended runtime session on watchOS: Platforms/watchOS/Info.plist declares its kind in WKBackgroundModes (self-care, mindfulness or physical-therapy).");
             }
-
-            _keepScreenOn = value;
         }
     }
 }
@@ -79,19 +76,20 @@ internal sealed class WatchOSTextToSpeech : ITextToSpeech
         return Task.FromResult(locales);
     }
 
+    // A locale of GetLocalesAsync names its voice; another one picks the language's voice. Cancelling stops whatever the
+    // watch is saying, as AVSpeechSynthesizer stops all of its queue.
     public async Task SpeakAsync(string text, SpeechOptions? options = null, CancellationToken cancelToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         cancelToken.ThrowIfCancellationRequested();
         var locale = options?.Locale;
         var language = locale is null ? null : locale.Country is null ? locale.Language : $"{locale.Language}-{locale.Country}";
-        // Stopping ends whatever the watch is saying, as AVSpeechSynthesizer stops all of its queue.
-        await using var stopping = cancelToken.Register(WatchOSNative.SpeechStop);
-        var result = await WatchOSCallbacks.RunAsync(token =>
-            WatchOSNative.SpeechSpeak(text, language, options?.Pitch ?? -1, options?.Volume ?? -1, token));
+        var result = await WatchOSCallbacks.RunAsync(
+            token => WatchOSNative.SpeechSpeak(text, locale?.Id, language, options?.Pitch ?? -1, options?.Volume ?? -1, token),
+            WatchOSNative.SpeechStop,
+            cancelToken);
         if (result != Spoken)
         {
-            cancelToken.ThrowIfCancellationRequested();
             throw new OperationCanceledException("The speech was stopped.");
         }
     }
