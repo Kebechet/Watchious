@@ -19,6 +19,11 @@ private final class WatchiousMessagingSession: NSObject, WCSessionDelegate, @unc
     private var replyHandlers: [Int64: ([String: Any]) -> Void] = [:]
     private var lastReplyToken: Int64 = 0
 
+    // A question the app doesn't answer is let go after this, unanswered, so that its handler doesn't stay for the
+    // life of the app; the phone has stopped waiting by then (the plugin waits 5 s unless told otherwise), as with an
+    // unanswered question on Wear OS.
+    private static let replyLifetime: TimeInterval = 120
+
     var isReachable: Bool {
         WCSession.isSupported() && WCSession.default.activationState == .activated && WCSession.default.isReachable
     }
@@ -55,6 +60,14 @@ private final class WatchiousMessagingSession: NSObject, WCSessionDelegate, @unc
         let token = lastReplyToken
         replyHandlers[token] = replyHandler
         lock.unlock()
+        DispatchQueue.global().asyncAfter(deadline: .now() + Self.replyLifetime) { [weak self] in
+            guard let self else {
+                return
+            }
+            self.lock.lock()
+            self.replyHandlers.removeValue(forKey: token)
+            self.lock.unlock()
+        }
         deliver(message, token: token)
     }
 

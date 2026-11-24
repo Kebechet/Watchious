@@ -41,6 +41,26 @@ public sealed class RoutesGenerator : IIncrementalGenerator
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
+    // Blazor fails at start-up for such routes ("The following routes are ambiguous").
+    private static readonly DiagnosticDescriptor SameRoute = new(
+        "WATCHIOUS004",
+        "Same route",
+        "The route \"{0}\" of {1} matches the same addresses as \"{2}\" of {3}, so navigation can't tell them apart",
+        "Watchious.Navigation",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor OverlappingRoutes = new(
+        "WATCHIOUS005",
+        "Overlapping routes",
+        "The route \"{0}\" of {1} and \"{2}\" of {3} can match the same address, and neither takes precedence: give one of them a literal of its own",
+        "Watchious.Navigation",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    // Number constraints whose values overlap: 12 is an int, a long and a double.
+    private static readonly HashSet<string> NumberTypes = new() { "int", "long", "double", "float", "decimal" };
+
     private static readonly Regex PageDirective = new(@"^\s*@page\s+""(?<route>[^""]*)""", RegexOptions.Multiline);
     private static readonly Regex NamespaceDirective = new(@"^\s*@namespace\s+(?<namespace>[\w.]+)", RegexOptions.Multiline);
 
@@ -133,10 +153,26 @@ public sealed class RoutesGenerator : IIncrementalGenerator
             pages.Add(new Page(fullName, className, file.Routes.Split('\n'), location));
         }
 
-        foreach (var page in classPages.Where(page => page.Routes.Length > 0))
+        // From .NET 11 the Razor generator's declaration of each page, with its [Route], is in the compilation, so a .razor
+        // page shows up as a class too, and a partial class once per declaration: each page counts once, with the routes
+        // of its @page directives and of any [Route] in its code-behind.
+        var pagesOfClasses = classPages
+            .Where(page => page.Routes.Length > 0)
+            .GroupBy(page => page.FullName, StringComparer.Ordinal);
+        foreach (var declarations in pagesOfClasses)
         {
-            var location = Location.Create(page.Location.Path, default, page.Location.Span);
-            pages.Add(new Page(page.FullName, page.ClassName, page.Routes.Split('\n'), location));
+            var routes = declarations.SelectMany(declaration => declaration.Routes.Split('\n'));
+            var razorPage = pages.FindIndex(page => page.FullName == declarations.Key);
+            if (razorPage >= 0)
+            {
+                var page = pages[razorPage];
+                pages[razorPage] = new Page(page.FullName, page.ClassName, page.Routes.Concat(routes).Distinct(StringComparer.Ordinal).ToArray(), page.Location);
+                continue;
+            }
+
+            var classPage = declarations.First();
+            var location = Location.Create(classPage.Location.Path, default, classPage.Location.Span);
+            pages.Add(new Page(classPage.FullName, classPage.ClassName, routes.Distinct(StringComparer.Ordinal).ToArray(), location));
         }
 
         if (pages.Count == 0)
@@ -147,6 +183,8 @@ public sealed class RoutesGenerator : IIncrementalGenerator
         var helpers = new StringBuilder();
         var registrations = new StringBuilder();
         var signatures = new HashSet<string>();
+        var sameRoutes = new Dictionary<string, (string Route, Page Page)>();
+        var overlappingRoutes = new Dictionary<string, (string Route, Page Page)>();
         foreach (var page in pages.OrderBy(page => page.FullName, StringComparer.Ordinal))
         {
             foreach (var route in page.Routes)
@@ -157,6 +195,20 @@ public sealed class RoutesGenerator : IIncrementalGenerator
                     output.ReportDiagnostic(Diagnostic.Create(UnsupportedRoute, page.Location, route, page.ClassName));
                     continue;
                 }
+
+                var sameKey = RouteKey(template, groupNumbers: false);
+                var overlapKey = RouteKey(template, groupNumbers: true);
+                if (sameRoutes.TryGetValue(sameKey, out var same))
+                {
+                    output.ReportDiagnostic(Diagnostic.Create(SameRoute, page.Location, route, page.ClassName, same.Route, same.Page.ClassName));
+                }
+                else if (overlappingRoutes.TryGetValue(overlapKey, out var overlapping))
+                {
+                    output.ReportDiagnostic(Diagnostic.Create(OverlappingRoutes, page.Location, route, page.ClassName, overlapping.Route, overlapping.Page.ClassName));
+                }
+
+                sameRoutes[sameKey] = (route, page);
+                overlappingRoutes[overlapKey] = (route, page);
 
                 registrations.Append("            builder.AddRoute<").Append(page.FullName).Append(">(")
                     .Append(SymbolDisplay.FormatLiteral(route, quote: true)).AppendLine(");");
@@ -232,6 +284,22 @@ public sealed class RoutesGenerator : IIncrementalGenerator
         helpers.Append("            return ").Append(expression).AppendLine(";");
         helpers.AppendLine("        }");
         helpers.AppendLine();
+    }
+
+    // What decides which addresses a route matches: its literals, compared without case as navigation does, and the
+    // type and optionality of each parameter. With groupNumbers, number types count as one, since they overlap.
+    private static string RouteKey(PageRouteTemplate template, bool groupNumbers)
+    {
+        return string.Join("/", template.Segments.Select(segment =>
+        {
+            if (segment.Literal is not null)
+            {
+                return "=" + segment.Literal.ToLowerInvariant();
+            }
+
+            var type = groupNumbers && NumberTypes.Contains(segment.Type!) ? "number" : segment.Type;
+            return segment.IsOptional ? type + "?" : type;
+        }));
     }
 
     // "/summary/" + RouteValue.Format(count), merging literal segments into one string.

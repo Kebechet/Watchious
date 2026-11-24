@@ -7,3 +7,5 @@ Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 WATCHIOUS001 | Watchious.Navigation | Warning | RoutesGenerator
 WATCHIOUS002 | Watchious.Navigation | Warning | RoutesGenerator
+WATCHIOUS004 | Watchious.Navigation | Error | RoutesGenerator
+WATCHIOUS005 | Watchious.Navigation | Warning | RoutesGenerator
