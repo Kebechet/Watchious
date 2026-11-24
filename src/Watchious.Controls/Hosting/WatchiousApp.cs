@@ -23,7 +23,7 @@ public sealed class WatchiousApp : IAsyncDisposable
 
     public IServiceProvider Services => _services;
 
-    // The ws:// address of a Watchious inspector to mirror the app to. The platform hosts set it: watchOS from the
+    // The http:// address of a Watchious inspector to mirror the app to. The platform hosts set it: watchOS from the
     // launch argument --watchious-inspector=..., Wear OS from the watchious_inspector intent extra in debuggable
     // builds only. Set before StartAsync.
     public Uri? InspectorUrl { get; set; }

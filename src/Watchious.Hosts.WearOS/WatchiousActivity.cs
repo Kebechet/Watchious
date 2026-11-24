@@ -28,7 +28,7 @@ public abstract class WatchiousActivity : Activity
         _ = StartAsync(_app, _host);
     }
 
-    // adb shell am start -n <app>/<activity> --es watchious_inspector ws://localhost:5292/inspector/app, after
+    // adb shell am start -n <app>/<activity> --es watchious_inspector http://localhost:5292/inspector/app, after
     // adb reverse tcp:5292 tcp:5292. Only debuggable builds take it: the launcher activity is exported, so any app
     // could otherwise point it at a server of its own and read the app's screens.
     private Uri? ReadInspectorUrl()

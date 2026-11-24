@@ -18,7 +18,7 @@ public class InspectorTests
         var options = new WatchiousInspectorOptions { Url = "http://127.0.0.1:0", OpenBrowser = false };
         await using var server = WatchiousInspector.Start(options);
         await server.StartAsync(cancellationToken);
-        var baseUrl = server.Urls.First().Replace("http://", "ws://", StringComparison.Ordinal);
+        var baseUrl = server.Urls.First();
 
         var nativeHost = new RecordingHost();
         await using var app = CounterApp.CreateWatchiousApp();
@@ -26,7 +26,7 @@ public class InspectorTests
         await app.StartAsync(nativeHost);
 
         using var page = new ClientWebSocket();
-        await page.ConnectAsync(new Uri(baseUrl + "/inspector/page"), cancellationToken);
+        await page.ConnectAsync(new Uri(PageUrl(baseUrl)), cancellationToken);
         var mirror = new HostTree();
 
         // Act
@@ -50,7 +50,7 @@ public class InspectorTests
         // Arrange
         var host = new RecordingHost();
         await using var app = CounterApp.CreateWatchiousApp();
-        app.InspectorUrl = new Uri("ws://127.0.0.1:9/inspector/app");
+        app.InspectorUrl = new Uri("http://127.0.0.1:9/inspector/app");
 
         // Act
         await app.StartAsync(host);
@@ -59,6 +59,55 @@ public class InspectorTests
         // Assert
         host.LastTree.Descendants().ShouldContain(node => node.Content == "Count: 1");
         host.Errors.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task App_WhenDisposed_LeavesThePageWaiting()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var options = new WatchiousInspectorOptions { Url = "http://127.0.0.1:0", OpenBrowser = false };
+        await using var server = WatchiousInspector.Start(options);
+        await server.StartAsync(cancellationToken);
+        var baseUrl = server.Urls.First();
+        var app = CounterApp.CreateWatchiousApp();
+        app.InspectorUrl = new Uri(baseUrl + "/inspector/app");
+        await app.StartAsync(new RecordingHost());
+        using var page = new ClientWebSocket();
+        await page.ConnectAsync(new Uri(PageUrl(baseUrl)), cancellationToken);
+        await ReceiveUntilBinaryAsync(page, new HostTree());
+
+        // Act
+        await app.DisposeAsync();
+        var status = await ReceiveTextAsync(page, new HostTree(), includeStatus: true);
+
+        // Assert
+        status.ShouldBe("""{"status":"waiting"}""");
+    }
+
+    [Fact]
+    public async Task PageMessage_ThatIsNotAJsonObject_IsNotSentToTheApp()
+    {
+        // Arrange
+        var relay = new InspectorRelay();
+        var session = relay.StartApp();
+
+        // Act
+        relay.EnqueueFromPage("{\"id\":"u8.ToArray());
+        relay.EnqueueFromPage("\"click\""u8.ToArray());
+        relay.EnqueueFromPage("""{"id":7,"name":"click","value":null}"""u8.ToArray());
+        var events = await relay.TakeEventsAsync(session, TestContext.Current.CancellationToken);
+
+        // Assert
+        events.ShouldNotBeNull();
+        using var json = JsonDocument.Parse(events);
+        json.RootElement.GetArrayLength().ShouldBe(1);
+        json.RootElement[0].GetProperty("id").GetInt32().ShouldBe(7);
+    }
+
+    private static string PageUrl(string baseUrl)
+    {
+        return baseUrl.Replace("http://", "ws://", StringComparison.Ordinal) + "/inspector/page";
     }
 
     private static async Task<bool> ReceiveUntilBinaryAsync(ClientWebSocket socket, HostTree mirror)
@@ -74,7 +123,7 @@ public class InspectorTests
         }
     }
 
-    private static async Task<string> ReceiveTextAsync(ClientWebSocket socket, HostTree mirror)
+    private static async Task<string> ReceiveTextAsync(ClientWebSocket socket, HostTree mirror, bool includeStatus = false)
     {
         while (true)
         {
@@ -86,7 +135,7 @@ public class InspectorTests
             }
 
             var text = Encoding.UTF8.GetString(bytes);
-            if (!text.Contains("\"status\"", StringComparison.Ordinal))
+            if (includeStatus || !text.Contains("\"status\"", StringComparison.Ordinal))
             {
                 return text;
             }

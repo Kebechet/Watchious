@@ -83,14 +83,14 @@ public class LocalOnlyTests
     }
 
     [Fact]
-    public async Task App_WithAnInspectorAddressThatIsNotWebSocket_StillDisposesItsServices()
+    public async Task App_WithAnInspectorAddressThatIsNotHttp_StillDisposesItsServices()
     {
         // Arrange
         var builder = WatchiousApp.CreateBuilder();
         builder.Services.AddSingleton<DisposalProbe>();
         var app = builder.UseWatchiousApp<CounterPage>().Build();
         var probe = app.Services.GetRequiredService<DisposalProbe>();
-        app.InspectorUrl = new Uri("http://127.0.0.1:9/inspector/app");
+        app.InspectorUrl = new Uri("ftp://127.0.0.1:9/inspector/app");
         await app.StartAsync(new RecordingHost());
 
         // Act
