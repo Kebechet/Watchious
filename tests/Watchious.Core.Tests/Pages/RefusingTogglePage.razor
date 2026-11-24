@@ -1,0 +1,13 @@
+@* A page that keeps its toggle off, as one does when what the toggle starts fails. *@
+<Toggle Text="Count steps" IsOn="isOn" IsOnChanged="Refuse" />
+<Label>Tries: @tries</Label>
+
+@code {
+    private bool isOn;
+    private int tries;
+
+    private void Refuse(bool wanted)
+    {
+        tries++;
+    }
+}

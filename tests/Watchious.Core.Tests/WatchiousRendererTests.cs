@@ -163,6 +163,24 @@ public class WatchiousRendererTests
     }
 
     [Fact]
+    public async Task DispatchEvent_ToggleToggled_StaysAsThePageSaysWhenItRefuses()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        var app = WatchiousApp.CreateBuilder().UseWatchiousApp<RefusingTogglePage>().Build();
+        await using var disposeApp = app;
+        await app.StartAsync(host);
+        var toggledHandlerId = host.LastTree.Single("Toggle").Events["toggled"];
+
+        // Act
+        await app.DispatchEventAsync(toggledHandlerId, "toggled", "true");
+
+        // Assert
+        host.LastTree.Descendants().ShouldContain(node => node.Content == "Tries: 1");
+        host.LastTree.Single("Toggle").Attribute("IsOn").ShouldBe("false");
+    }
+
+    [Fact]
     public async Task DispatchEvent_ToggleToggled_UpdatesTheBoundParentState()
     {
         // Arrange

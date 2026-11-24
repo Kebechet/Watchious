@@ -286,7 +286,11 @@ function createElement(node) {
             toggle.text = element("span");
             toggle.input = element("input");
             toggle.input.type = "checkbox";
-            toggle.input.onchange = () => send(node, "toggled", toggle.input.checked ? "true" : "false");
+            // The page decides, as on the watches: the checkbox shows IsOn, which a page that refuses the change keeps.
+            toggle.input.onchange = () => {
+                send(node, "toggled", toggle.input.checked ? "true" : "false");
+                toggle.input.checked = attribute(node, "IsOn") === "true";
+            };
             toggle.append(toggle.text, toggle.input);
             return toggle;
         }
