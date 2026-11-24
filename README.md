@@ -421,12 +421,14 @@ packages at one version into `artifacts/packages`: it builds the Wear OS librari
 17 to 21, the Android SDK in `ANDROID_HOME`), and fails unless exactly the 10 `Kebechet.Watchious.*` packages come out.
 `.github/scripts/check-packages.sh <package folder> <version>` then checks that each packable project's id is
 `Kebechet.<project name>`, that no package depends on an old `Watchious.*` id, that the Health and Messaging targets
-carry their package's name (the only name NuGet imports), and each package's files. Inside the repository nothing uses
-the packages (the samples build the SDK and libraries from source), so
+carry their package's name (the only name NuGet imports), each package's files, and what nuget.org shows of it: its
+README (`src/<project>/README.md`), the icon (`icon.png`, drawn from `icon.svg`), tags, release notes, license and
+third-party notices, and a symbol package (`.snupkg`) for each package with assemblies. Inside the repository nothing
+uses the packages (the samples build the SDK and libraries from source), so
 `.github/scripts/package-smoke.sh <package folder> <version>` tests them in apps made from the template outside the
-repository: restore, Central Package Management, the optional packages' Swift, and builds for the preview and Wear OS
-in Release (with `--watchos`, on a Mac, for the watchOS simulator instead of Wear OS). CI runs all three on every pull
-request (see "Publishing").
+repository: restore, Central Package Management, the optional packages' Swift, the code the packages' READMEs show,
+builds for the preview (whose pages it then serves) and Wear OS in Release (with `--watchos`, on a Mac, for the watchOS
+simulator instead of Wear OS, and `WATCHIOUS003`). CI runs all three on every pull request (see "Publishing").
 
 ⚠️ **Pack and test only with a throwaway version such as `0.0.0-smoke.<n>`, a new one each run, never a real
 version:** NuGet's global packages folder keeps every version it restores, so a locally packed real version would
@@ -680,4 +682,7 @@ artifact.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Two packages also bundle Google's Android libraries, unchanged, under their own licenses, each listed
+with its license in the package's `THIRD-PARTY-NOTICES.txt`: `Kebechet.Watchious.Hosts.WearOS` (Wear Compose Material
+3 and AndroidX Graphics Path's native library, Apache-2.0) and `Kebechet.Watchious.Health` (Health Services and its
+protos, Apache-2.0, and the protobuf runtime it repackages, BSD-3-Clause).
