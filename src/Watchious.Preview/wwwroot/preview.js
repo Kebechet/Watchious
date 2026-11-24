@@ -307,6 +307,20 @@ function createElement(node) {
         }
         case "Image":
             return element("img", "image");
+        case "DigitalCrownRotation": {
+            // The mouse wheel stands in for the crown: down turns the value up, as the crown scrolls a list down.
+            const crown = element("div", "vstack crown-rotation");
+            crown.tabIndex = 0;
+            crown.partialStep = 0;
+            crown.onwheel = (event) => {
+                event.preventDefault();
+                crown.partialStep += event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? event.deltaY / 100 : event.deltaY;
+                const steps = Math.trunc(crown.partialStep);
+                crown.partialStep -= steps;
+                turnCrown(node, steps);
+            };
+            return crown;
+        }
         default: {
             // A control this page has no element for (https://github.com/Kebechet/Watchious/issues/3): shown as a
             // warning, with its children, instead of dropped.
@@ -315,6 +329,19 @@ function createElement(node) {
             unknown.dataset.type = node.type;
             return unknown;
         }
+    }
+}
+
+// The value on By's grid from From, within the range, as the watch hosts step it.
+function turnCrown(node, steps) {
+    const from = Number(attribute(node, "From") ?? 0);
+    const through = Math.max(Number(attribute(node, "Through") ?? from), from);
+    const by = Number(attribute(node, "By") ?? 1) || 1;
+    const value = Number(attribute(node, "Value") ?? from);
+    const index = Math.round((value - from) / by) + steps;
+    const next = Math.round(Math.min(through, Math.max(from, from + index * by)) * 1e9) / 1e9;
+    if (steps !== 0 && next !== value) {
+        send(node, "changed", String(next));
     }
 }
 

@@ -27,6 +27,12 @@ internal static class ProtocolValue
         return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
     }
 
+    // Finite numbers only: a host never sends NaN or infinity for a value it computed.
+    public static bool TryParseDouble(string? value, out double result)
+    {
+        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result) && double.IsFinite(result);
+    }
+
     public static bool ToBool(string? value)
     {
         return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);

@@ -90,6 +90,7 @@ internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
         "ProgressView" -> WatchProgressView(node, fillWidth)
         "Picker" -> WatchPicker(node, dispatch)
         "TextField" -> WatchTextField(node, dispatch, fillWidth)
+        "DigitalCrownRotation" -> WatchDigitalCrownRotation(node, dispatch, isInRow)
         "Toggle" -> {
             val text = node.attribute("Text")
             SwitchButton(
