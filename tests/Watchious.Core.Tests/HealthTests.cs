@@ -196,7 +196,7 @@ public class HealthTests
     }
 
     [Fact]
-    public async Task Dispose_EndsARunningWorkout()
+    public async Task Dispose_WithoutAStore_EndsARunningWorkout()
     {
         // Arrange
         var backend = new FakeBackend();
@@ -211,6 +211,105 @@ public class HealthTests
         backend.WorkoutEnded.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task Dispose_WithAStore_LeavesTheWorkoutRunning()
+    {
+        // Arrange
+        var backend = new FakeBackend();
+        var store = new MemoryStore();
+        var health = new HealthService(backend, store);
+        await health.Activity.Start(ActivityType.Running, "Evening run");
+        backend.SendHeartRate(150);
+
+        // Act
+        health.Dispose();
+
+        // Assert
+        backend.Calls.ShouldBe(["start Running", "detach"]);
+        store.Saved.ShouldNotBeNull();
+        store.Saved.Title.ShouldBe("Evening run");
+        store.Saved.HeartRateCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task NewService_WhenThePlatformStillRunsTheWorkout_PicksItUp()
+    {
+        // Arrange
+        var start = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var store = new MemoryStore
+        {
+            Saved = new SavedWorkout(
+                "workout-1",
+                ActivityType.Running,
+                "Evening run",
+                start,
+                WorkoutSessionState.Paused,
+                [new SavedPause(start.AddMinutes(10), null)],
+                HeartRateCount: 2,
+                HeartRateSum: 300,
+                MaxHeartRate: 160,
+                MinHeartRate: 140),
+        };
+        var backend = new FakeBackend { IsStillRunning = true };
+
+        // Act
+        var health = new HealthService(backend, store);
+        var active = await health.Activity.GetActive();
+        await health.Activity.Resume();
+        backend.SendHeartRate(180);
+        var workout = await health.Activity.End();
+
+        // Assert
+        active.ShouldNotBeNull();
+        active.Id.ShouldBe("workout-1");
+        active.Title.ShouldBe("Evening run");
+        backend.Calls.ShouldBe(["recover", "resume", "end"]);
+        workout.ShouldNotBeNull();
+        workout.AverageHeartRate.ShouldBe(160);
+        workout.MaxHeartRate.ShouldBe(180);
+        store.Saved.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task NewService_WhenTheWorkoutEndedMeanwhile_ForgetsIt()
+    {
+        // Arrange
+        var store = new MemoryStore
+        {
+            Saved = new SavedWorkout("workout-1", ActivityType.Running, null, DateTimeOffset.UtcNow, WorkoutSessionState.Running, [], 0, 0, null, null),
+        };
+        var backend = new FakeBackend { IsStillRunning = false };
+
+        // Act
+        var health = new HealthService(backend, store);
+        var active = await health.Activity.GetActive();
+
+        // Assert
+        active.ShouldBeNull();
+        store.Saved.ShouldBeNull();
+        backend.HeartRateReceived.ShouldBeNull();
+    }
+
+    private sealed class MemoryStore : IWorkoutStore
+    {
+        public SavedWorkout? Saved { get; set; }
+
+        public SavedWorkout? Load()
+        {
+            return Saved;
+        }
+
+        public void Save(SavedWorkout workout)
+        {
+            Saved = workout;
+        }
+
+        public void Clear()
+        {
+            Saved = null;
+        }
+    }
+
     private sealed class FakeBackend : IHealthBackend
     {
         public List<string> Calls { get; } = [];
@@ -218,6 +317,8 @@ public class HealthTests
         public IList<string> Denied { get; init; } = [];
 
         public Exception? StartError { get; init; }
+
+        public bool IsStillRunning { get; init; }
 
         public bool IsSupported => true;
 
@@ -266,6 +367,17 @@ public class HealthTests
         {
             Calls.Add("end");
             return Task.CompletedTask;
+        }
+
+        public Task<bool> RecoverWorkoutAsync()
+        {
+            Calls.Add("recover");
+            return Task.FromResult(IsStillRunning);
+        }
+
+        public void Detach()
+        {
+            Calls.Add("detach");
         }
     }
 }

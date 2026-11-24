@@ -187,8 +187,12 @@ builder.Services.AddWatchiousHealth();  // Watchious.Health: inject IHealthServi
   phone app that uses Maui.Health as the same type. Wear OS uses Health Services, and asks for its permissions
   itself; watchOS uses HealthKit (`HKWorkoutSession` with `HKLiveWorkoutBuilder`) and needs the HealthKit
   entitlement and `NSHealthShareUsageDescription` / `NSHealthUpdateUsageDescription` in `Platforms/watchOS`.
-  A workout ends when the app closes, on Wear OS when the user leaves it; keeping it running in the background is
-  https://github.com/Kebechet/Watchious/issues/13.
+  A workout keeps running when the user leaves the app: on watchOS its `HKWorkoutSession` keeps the app running, and
+  on Wear OS a foreground service does, with an ongoing activity on the watch face that brings the user back. When the
+  app starts again, `Activity.GetActive()` returns the running workout, with its title and pauses; its heart rate
+  summary counts what the app saw while it was open. After a crash, watchOS hands the app its running session back
+  (`recoverActiveWorkoutSession`); Wear OS's Health Services ends an exercise when its app's process dies (seen on the
+  emulator), so there the workout is over.
 
 Each package brings its native part: a Java module on Wear OS, built with Gradle next to the host, and a Swift file
 that Watchious.Sdk compiles into the watchOS host (`WatchiousWatchOSHostSource`).

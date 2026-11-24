@@ -11,7 +11,9 @@ import androidx.health.services.client.HealthServices;
 import androidx.health.services.client.data.Availability;
 import androidx.health.services.client.data.DataType;
 import androidx.health.services.client.data.ExerciseConfig;
+import androidx.health.services.client.data.ExerciseInfo;
 import androidx.health.services.client.data.ExerciseLapSummary;
+import androidx.health.services.client.data.ExerciseTrackedStatus;
 import androidx.health.services.client.data.ExerciseType;
 import androidx.health.services.client.data.ExerciseUpdate;
 import androidx.health.services.client.data.SampleDataPoint;
@@ -38,6 +40,12 @@ public final class WatchiousHealthServices {
         void onComplete(@Nullable String error);
     }
 
+    public interface RecoveryCallback {
+        // isRunning: an exercise of this app still runs, and now reports to the listener.
+        void onRecovered(boolean isRunning);
+    }
+
+    private final Context context;
     private final ExerciseClient exerciseClient;
     private final Executor executor;
     private final ExerciseUpdateCallback updateCallback;
@@ -46,6 +54,7 @@ public final class WatchiousHealthServices {
 
     public WatchiousHealthServices(@NonNull Context context) {
         Context applicationContext = context.getApplicationContext();
+        this.context = applicationContext;
         exerciseClient = HealthServices.getClient(applicationContext).getExerciseClient();
         executor = applicationContext.getMainExecutor();
         updateCallback = new ExerciseUpdateCallback() {
@@ -86,9 +95,39 @@ public final class WatchiousHealthServices {
             if (error != null) {
                 this.listener = null;
                 exerciseClient.clearUpdateCallbackAsync(updateCallback);
+            } else {
+                WatchiousWorkoutService.start(context);
             }
             callback.onComplete(error);
         });
+    }
+
+    // After the app was closed or restarted: the exercise this app started, if Health Services still runs it, reports
+    // to listener again.
+    public void recoverExercise(@NonNull Listener listener, @NonNull RecoveryCallback callback) {
+        ListenableFuture<ExerciseInfo> future = exerciseClient.getCurrentExerciseInfoAsync();
+        future.addListener(() -> {
+            boolean isRunning = false;
+            try {
+                isRunning = future.get().getExerciseTrackedStatus() == ExerciseTrackedStatus.OWNED_EXERCISE_IN_PROGRESS;
+            } catch (ExecutionException exception) {
+                isRunning = false;
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
+            if (isRunning) {
+                this.listener = listener;
+                exerciseClient.setUpdateCallback(executor, updateCallback);
+                WatchiousWorkoutService.start(context);
+            }
+            callback.onRecovered(isRunning);
+        }, executor);
+    }
+
+    // The app goes away while the exercise runs on: no more updates until recoverExercise.
+    public void detach() {
+        listener = null;
+        exerciseClient.clearUpdateCallbackAsync(updateCallback);
     }
 
     public void pauseExercise(@NonNull Callback callback) {
@@ -103,6 +142,7 @@ public final class WatchiousHealthServices {
         complete(exerciseClient.endExerciseAsync(), error -> {
             listener = null;
             exerciseClient.clearUpdateCallbackAsync(updateCallback);
+            WatchiousWorkoutService.stop(context);
             callback.onComplete(error);
         });
     }
@@ -121,6 +161,7 @@ public final class WatchiousHealthServices {
         if (update.getExerciseStateInfo().getState().isEnded()) {
             listener = null;
             exerciseClient.clearUpdateCallbackAsync(updateCallback);
+            WatchiousWorkoutService.stop(context);
             current.onEnded();
         }
     }

@@ -28,6 +28,13 @@ internal interface IHealthBackend
 
     Task EndWorkoutAsync();
 
+    // After the app was closed or restarted: reattaches to a workout of this app that the platform still runs, and
+    // tells whether there is one. HeartRateReceived and WorkoutEnded are set before.
+    Task<bool> RecoverWorkoutAsync();
+
+    // The app goes away while the workout runs on: no more updates, and the workout isn't ended.
+    void Detach();
+
     // Set by HealthService before a workout starts.
     Action<double, DateTimeOffset>? HeartRateReceived { get; set; }
 
@@ -36,19 +43,33 @@ internal interface IHealthBackend
     Action? WorkoutEnded { get; set; }
 }
 
-internal sealed class HealthService(IHealthBackend backend) : IHealthService, IHealthWorkoutService, IDisposable
+// A workout outlives the app: the platform keeps it running (HealthKit's session keeps the app running in the
+// background; on Wear OS a foreground service does, with an ongoing activity that brings the user back), and the next
+// HealthService picks it up again from what the store kept (https://github.com/Kebechet/Watchious/issues/13).
+internal sealed class HealthService : IHealthService, IHealthWorkoutService, IDisposable
 {
+    private readonly IHealthBackend _backend;
+    private readonly IWorkoutStore? _store;
+    private readonly Task _recovery;
     private readonly Lock _lock = new();
     private WorkoutSession? _session;
     private bool _isEnding;
+    private bool _isDisposed;
     private int _heartRateCount;
     private double _heartRateSum;
     private double? _maxHeartRate;
     private double? _minHeartRate;
 
+    public HealthService(IHealthBackend backend, IWorkoutStore? store = null)
+    {
+        _backend = backend;
+        _store = store;
+        _recovery = store is null ? Task.CompletedTask : RecoverAsync(store);
+    }
+
     public event EventHandler<HeartRateDto>? HeartRateReceived;
 
-    public bool IsSupported => backend.IsSupported;
+    public bool IsSupported => _backend.IsSupported;
 
     public IHealthWorkoutService Activity => this;
 
@@ -56,14 +77,14 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
         IList<HealthPermissionDto> healthPermissions,
         CancellationToken cancellationToken = default)
     {
-        if (!backend.IsSupported)
+        if (!_backend.IsSupported)
         {
             return new RequestPermissionResult { Error = RequestPermissionError.SdkUnavailable };
         }
 
         try
         {
-            var denied = await backend.RequestPermissionsAsync(healthPermissions, cancellationToken);
+            var denied = await _backend.RequestPermissionsAsync(healthPermissions, cancellationToken);
             return new RequestPermissionResult { DeniedPermissions = denied };
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -72,32 +93,36 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
         }
     }
 
-    public Task<WorkoutSession?> GetActive()
+    public async Task<WorkoutSession?> GetActive()
     {
+        await _recovery;
         lock (_lock)
         {
-            return Task.FromResult(_session);
+            return _session;
         }
     }
 
-    public Task<bool> IsRunning()
+    public async Task<bool> IsRunning()
     {
+        await _recovery;
         lock (_lock)
         {
-            return Task.FromResult(_session?.State == WorkoutSessionState.Running);
+            return _session?.State == WorkoutSessionState.Running;
         }
     }
 
-    public Task<bool> IsPaused()
+    public async Task<bool> IsPaused()
     {
+        await _recovery;
         lock (_lock)
         {
-            return Task.FromResult(_session?.State == WorkoutSessionState.Paused);
+            return _session?.State == WorkoutSessionState.Paused;
         }
     }
 
     public async Task Start(ActivityType activityType, string? title = null)
     {
+        await _recovery;
         lock (_lock)
         {
             if (_session is not null)
@@ -105,23 +130,23 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
                 throw new InvalidOperationException("A workout is already running; end it first.");
             }
 
-            _session = new WorkoutSession(Guid.NewGuid().ToString(), activityType, title, backend.DataOrigin, DateTimeOffset.UtcNow);
+            _session = new WorkoutSession(Guid.NewGuid().ToString(), activityType, title, _backend.DataOrigin, DateTimeOffset.UtcNow);
             _heartRateCount = 0;
             _heartRateSum = 0;
             _maxHeartRate = null;
             _minHeartRate = null;
         }
 
-        backend.HeartRateReceived = OnHeartRate;
-        backend.WorkoutEnded = OnWorkoutEnded;
+        _backend.HeartRateReceived = OnHeartRate;
+        _backend.WorkoutEnded = OnWorkoutEnded;
         try
         {
-            await backend.StartWorkoutAsync(activityType);
+            await _backend.StartWorkoutAsync(activityType);
         }
         catch
         {
-            backend.HeartRateReceived = null;
-            backend.WorkoutEnded = null;
+            _backend.HeartRateReceived = null;
+            _backend.WorkoutEnded = null;
             lock (_lock)
             {
                 _session = null;
@@ -129,30 +154,39 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
 
             throw;
         }
+
+        Save();
     }
 
     public async Task Pause()
     {
+        await _recovery;
         var session = RequireSession(WorkoutSessionState.Running);
-        await backend.PauseWorkoutAsync();
+        await _backend.PauseWorkoutAsync();
         lock (_lock)
         {
             session.Pause();
         }
+
+        Save();
     }
 
     public async Task Resume()
     {
+        await _recovery;
         var session = RequireSession(WorkoutSessionState.Paused);
-        await backend.ResumeWorkoutAsync();
+        await _backend.ResumeWorkoutAsync();
         lock (_lock)
         {
             session.Resume();
         }
+
+        Save();
     }
 
     public async Task<WorkoutDto?> End()
     {
+        await _recovery;
         WorkoutSession? session;
         lock (_lock)
         {
@@ -167,7 +201,7 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
 
         try
         {
-            await backend.EndWorkoutAsync();
+            await _backend.EndWorkoutAsync();
         }
         finally
         {
@@ -177,15 +211,16 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
             }
         }
 
-        backend.HeartRateReceived = null;
-        backend.WorkoutEnded = null;
+        _backend.HeartRateReceived = null;
+        _backend.WorkoutEnded = null;
+        _store?.Clear();
         lock (_lock)
         {
             var endTime = DateTimeOffset.UtcNow;
             session.End();
             _session = null;
             return session.ToWorkoutDto(
-                backend.DataSdk,
+                _backend.DataSdk,
                 endTime,
                 averageHeartRate: _heartRateCount == 0 ? null : _heartRateSum / _heartRateCount,
                 maxHeartRate: _maxHeartRate,
@@ -193,29 +228,39 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
         }
     }
 
-    // The workout ends with the app: a workout left running would keep the sensors on with no one to end it, and
-    // running on in the background isn't supported yet.
+    // A running workout runs on, and the next HealthService picks it up again. Without a store (the desktop preview)
+    // nothing could, so there it ends with the app.
     public void Dispose()
     {
-        bool isRunning;
+        bool endWorkout;
         lock (_lock)
         {
-            backend.HeartRateReceived = null;
-            backend.WorkoutEnded = null;
-            isRunning = _session is not null && !_isEnding;
+            _isDisposed = true;
+            _backend.HeartRateReceived = null;
+            _backend.WorkoutEnded = null;
+            endWorkout = _store is null && _session is not null && !_isEnding;
+        }
+
+        Save();
+        lock (_lock)
+        {
             _session = null;
         }
 
-        _ = EndAndDisposeBackendAsync(isRunning);
+        _ = LeaveAsync(endWorkout);
     }
 
-    private async Task EndAndDisposeBackendAsync(bool endWorkout)
+    private async Task LeaveAsync(bool endWorkout)
     {
         try
         {
             if (endWorkout)
             {
-                await backend.EndWorkoutAsync();
+                await _backend.EndWorkoutAsync();
+            }
+            else
+            {
+                _backend.Detach();
             }
         }
         catch (Exception)
@@ -224,7 +269,94 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
         }
         finally
         {
-            (backend as IDisposable)?.Dispose();
+            (_backend as IDisposable)?.Dispose();
+        }
+    }
+
+    private async Task RecoverAsync(IWorkoutStore store)
+    {
+        var saved = store.Load();
+        if (saved is null)
+        {
+            return;
+        }
+
+        _backend.HeartRateReceived = OnHeartRate;
+        _backend.WorkoutEnded = OnWorkoutEnded;
+        bool isRunning;
+        try
+        {
+            isRunning = await _backend.RecoverWorkoutAsync();
+        }
+        catch (Exception)
+        {
+            isRunning = false;
+        }
+
+        lock (_lock)
+        {
+            if (isRunning && !_isDisposed)
+            {
+                List<DateRange> pauses = [.. saved.Pauses.Select(pause => new DateRange(pause.Start, pause.End))];
+                _session = new WorkoutSession(saved.Id, saved.ActivityType, saved.Title, _backend.DataOrigin, saved.StartTime, saved.State, pauses);
+                _heartRateCount = saved.HeartRateCount;
+                _heartRateSum = saved.HeartRateSum;
+                _maxHeartRate = saved.MaxHeartRate;
+                _minHeartRate = saved.MinHeartRate;
+                return;
+            }
+
+            _backend.HeartRateReceived = null;
+            _backend.WorkoutEnded = null;
+        }
+
+        // The workout ended while the app was away. (When this HealthService was disposed first, the workout runs on
+        // for the next one.)
+        if (!isRunning)
+        {
+            store.Clear();
+        }
+    }
+
+    // What the store keeps between app runs.
+    private void Save()
+    {
+        if (_store is null)
+        {
+            return;
+        }
+
+        SavedWorkout? saved;
+        lock (_lock)
+        {
+            var session = _session;
+            saved = session is null
+                ? null
+                : new SavedWorkout(
+                    session.Id,
+                    session.ActivityType,
+                    session.Title,
+                    session.StartTime,
+                    session.State,
+                    [.. session.PauseIntervals.Select(pause => new SavedPause(pause.Start, pause.End))],
+                    _heartRateCount,
+                    _heartRateSum,
+                    _maxHeartRate,
+                    _minHeartRate);
+        }
+
+        if (saved is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _store.Save(saved);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Then a restarted app can't pick the workout up again; this one still ends it normally.
         }
     }
 
@@ -240,9 +372,11 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
 
             _session.End();
             _session = null;
-            backend.HeartRateReceived = null;
-            backend.WorkoutEnded = null;
+            _backend.HeartRateReceived = null;
+            _backend.WorkoutEnded = null;
         }
+
+        _store?.Clear();
     }
 
     private void OnHeartRate(double beatsPerMinute, DateTimeOffset timestamp)
@@ -263,8 +397,8 @@ internal sealed class HealthService(IHealthBackend backend) : IHealthService, IH
         HeartRateReceived?.Invoke(this, new HeartRateDto
         {
             Id = Guid.NewGuid().ToString(),
-            DataSdk = backend.DataSdk,
-            DataOrigin = backend.DataOrigin,
+            DataSdk = _backend.DataSdk,
+            DataOrigin = _backend.DataOrigin,
             Timestamp = timestamp,
             BeatsPerMinute = beatsPerMinute,
             Unit = Units.BeatsPerMinute,

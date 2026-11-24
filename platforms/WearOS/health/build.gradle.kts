@@ -18,6 +18,8 @@ android {
 
 dependencies {
     implementation("androidx.health:health-services-client:1.1.0")
+    // The ongoing activity of a running workout, from Microsoft's Xamarin.AndroidX.Wear.Ongoing in .NET.
+    implementation("androidx.wear:wear-ongoing:1.1.0")
     // Health Services returns ListenableFuture, but ships Guava for runtime only.
     compileOnly("com.google.guava:guava:32.0.1-android")
 }
@@ -31,6 +33,7 @@ tasks.register<Jar>("watchiousBindingApi") {
         include("com/kebechet/watchious/health/WatchiousHealthServices.class")
         include("com/kebechet/watchious/health/WatchiousHealthServices\$Listener.class")
         include("com/kebechet/watchious/health/WatchiousHealthServices\$Callback.class")
+        include("com/kebechet/watchious/health/WatchiousHealthServices\$RecoveryCallback.class")
         include("com/kebechet/watchious/health/WatchiousPermissionActivity*.class")
     }
     archiveFileName.set("watchious-health-api.jar")
