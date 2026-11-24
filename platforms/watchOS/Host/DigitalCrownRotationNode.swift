@@ -21,7 +21,7 @@ struct DigitalCrownRotationNode: View {
         .focusable()
         .digitalCrownRotation($value, from: from, through: through, by: by)
         .onChange(of: value) { _, newValue in
-            let turned = (newValue * 1e9).rounded() / 1e9
+            let turned = Self.rounded(newValue)
             guard turned != knownValue, let eventHandlerId = node.eventHandlerId("changed") else {
                 return
             }
@@ -38,9 +38,14 @@ struct DigitalCrownRotationNode: View {
                     return
                 }
             }
-            knownValue = sentValue
+            // Rounded as a turn is, so that C#'s value itself (0.1 + 0.2, say) doesn't count as a turn.
+            knownValue = Self.rounded(sentValue)
             value = sentValue
         }
+    }
+
+    private static func rounded(_ value: Double) -> Double {
+        (value * 1e9).rounded() / 1e9
     }
 
     private struct Sync: Equatable {

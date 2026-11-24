@@ -85,6 +85,26 @@ public class InspectorTests
         status.ShouldBe("""{"status":"waiting"}""");
     }
 
+    [Fact]
+    public async Task PageMessage_ThatIsNotAJsonObject_IsNotSentToTheApp()
+    {
+        // Arrange
+        var relay = new InspectorRelay();
+        var session = relay.StartApp();
+
+        // Act
+        relay.EnqueueFromPage("{\"id\":"u8.ToArray());
+        relay.EnqueueFromPage("\"click\""u8.ToArray());
+        relay.EnqueueFromPage("""{"id":7,"name":"click","value":null}"""u8.ToArray());
+        var events = await relay.TakeEventsAsync(session, TestContext.Current.CancellationToken);
+
+        // Assert
+        events.ShouldNotBeNull();
+        using var json = JsonDocument.Parse(events);
+        json.RootElement.GetArrayLength().ShouldBe(1);
+        json.RootElement[0].GetProperty("id").GetInt32().ShouldBe(7);
+    }
+
     private static string PageUrl(string baseUrl)
     {
         return baseUrl.Replace("http://", "ws://", StringComparison.Ordinal) + "/inspector/page";

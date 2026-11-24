@@ -135,8 +135,9 @@ the back button on Wear OS. Pages below the top one keep their state.
 > the Razor team keeps by design (https://github.com/dotnet/razor/issues/12620). So the text control keeps MAUI's
 > name. Its content is the text, as in SwiftUI: `<Label>Count: @count</Label>`.
 
-A test (`HostCoverageTests`) fails when a control, attribute, event or enum value of the C# controls is missing
-from the SwiftUI host, the Compose host or the browser preview. An element a host doesn't know, such as a misspelled
+A test (`HostCoverageTests`) fails when a control, attribute, event or enum value of the C# controls appears nowhere
+in the SwiftUI host, the Compose host or the browser preview. It reads each host's sources as text, so it catches a
+name a host lacks altogether, not one that is read on another control only. An element a host doesn't know, such as a misspelled
 tag in the markup, is logged, and in a Debug build it shows a ⚠️ with its name in its place.
 
 `DigitalCrownRotation` is SwiftUI's `digitalCrownRotation` modifier as a wrapper: the crown turns `Value` from
@@ -313,7 +314,9 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
   project: `<WatchiousWatchApp Include="..\MyWatch\MyWatch.csproj" CodesignProvision="<watch app profile>" />`. The
   iPhone build then builds the watch app for the same device or simulator, as its companion
   (`WatchiousCompanionAppBundleIdentifier`, which also works on its own), and puts it into the app's `Watch/` folder
-  before signing it; `samples/Watchious.Samples.Phone` does this. It needs a Mac.
+  before signing it; `samples/Watchious.Samples.Phone` does this. It needs a Mac. The watch app's bundle identifier
+  must start with the iPhone app's (the same `ApplicationId` in both projects does that), and the watch project is
+  built only through the iPhone project, not also in parallel in the same solution build.
 
 | Package (working names) | MAUI equivalent | Contents |
 |---|---|---|
