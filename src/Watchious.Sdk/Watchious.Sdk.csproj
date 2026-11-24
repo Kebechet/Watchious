@@ -9,6 +9,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <PackageType>MSBuildSdk</PackageType>
     <Description>The Watchious MSBuild SDK: one project for Wear OS and watchOS watch apps written in Razor.</Description>
+    <PackageTags>$(PackageTags);msbuild;msbuild-sdk</PackageTags>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <EnableDefaultItems>false</EnableDefaultItems>

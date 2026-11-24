@@ -8,6 +8,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <PackageType>Template</PackageType>
     <Description>Project template for Watchious watch apps: dotnet new watchious.</Description>
+    <PackageTags>$(PackageTags);template;dotnet-new</PackageTags>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <EnableDefaultItems>false</EnableDefaultItems>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
