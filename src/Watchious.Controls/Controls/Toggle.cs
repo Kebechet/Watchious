@@ -26,9 +26,11 @@ public sealed class Toggle : ComponentBase
         builder.CloseElement();
     }
 
+    // The page decides: with @bind-IsOn it takes the new value, and a page that refuses it (because what the toggle
+    // starts failed) keeps the toggle as it was. Setting IsOn here would stick, as Blazor doesn't hand the page's
+    // unchanged value back to the toggle.
     private Task OnNativeToggledAsync(NativeEventArgs args)
     {
-        IsOn = ProtocolValue.ToBool(args.Value);
-        return IsOnChanged.InvokeAsync(IsOn);
+        return IsOnChanged.InvokeAsync(ProtocolValue.ToBool(args.Value));
     }
 }

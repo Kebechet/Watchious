@@ -44,6 +44,26 @@ internal static unsafe class WatchOSCallbacks
         return result.Task;
     }
 
+    // Like RunAsync, but cancelling stops waiting for the native answer, which may never come, and asks the native
+    // side to stop. Without await, which this unsafe class can't use.
+    public static Task<int> RunAsync(Action<long> start, Action stop, CancellationToken cancellationToken)
+    {
+        var token = NextToken();
+        var result = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Pending[token] = result;
+        start(token);
+        var cancelling = cancellationToken.Register(() =>
+        {
+            stop();
+            if (Pending.TryRemove(token, out var pending))
+            {
+                pending.TrySetCanceled(cancellationToken);
+            }
+        });
+        result.Task.ContinueWith(_ => cancelling.Dispose(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        return result.Task;
+    }
+
     public static void SetSensor(WatchOSSensorKind kind, IWatchOSSensor sensor)
     {
         Sensors[(int)kind] = sensor;

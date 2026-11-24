@@ -333,3 +333,67 @@ internal sealed class WearOSOrientationSensor : IOrientationSensor, IDisposable
         ReadingChanged?.Invoke(this, new OrientationSensorChangedEventArgs(data));
     }
 }
+
+// The step counter counts from the watch's start; the steps since StartAsync are the difference to its first reading.
+internal sealed class WearOSPedometer : IPedometer, IDisposable
+{
+    private readonly WearOSSensor<long> _sensor;
+    private readonly WearOSPermissions _permissions;
+    private long? _firstCount;
+
+    public WearOSPedometer(Context context, WearOSPermissions permissions)
+    {
+        _permissions = permissions;
+        _sensor = new(context, SensorType.StepCounter, "step counter", Read, OnCount);
+    }
+
+    public event EventHandler<PedometerChangedEventArgs>? ReadingChanged;
+
+    public bool IsSupported => _sensor.IsSupported;
+
+    public bool IsMonitoring => _sensor.IsMonitoring;
+
+    public async Task StartAsync()
+    {
+        if (!IsSupported)
+        {
+            throw new FeatureNotSupportedException("This watch has no step counter.");
+        }
+
+        // Before the baseline is cleared, which would restart a running count.
+        if (IsMonitoring)
+        {
+            throw new InvalidOperationException("The pedometer is already monitoring; call Stop first.");
+        }
+
+        var isAllowed = await _permissions.RequestAnyAsync(Android.Manifest.Permission.ActivityRecognition);
+        if (!isAllowed)
+        {
+            throw new PermissionException("Physical activity isn't allowed for this app, or its manifest doesn't declare ACTIVITY_RECOGNITION.");
+        }
+
+        _firstCount = null;
+        _sensor.Start(SensorSpeed.Default);
+    }
+
+    public void Stop()
+    {
+        _sensor.Stop();
+    }
+
+    public void Dispose()
+    {
+        _sensor.Dispose();
+    }
+
+    private static long Read(IList<float> values)
+    {
+        return (long)values[0];
+    }
+
+    private void OnCount(long count)
+    {
+        _firstCount ??= count;
+        ReadingChanged?.Invoke(this, new PedometerChangedEventArgs(new PedometerData(count - _firstCount.Value)));
+    }
+}

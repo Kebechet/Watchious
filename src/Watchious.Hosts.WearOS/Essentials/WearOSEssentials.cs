@@ -33,5 +33,11 @@ internal static class WearOSEssentials
         services.AddSingleton<ICompass>(_ => new WearOSCompass(context));
         services.AddSingleton<IBarometer>(_ => new WearOSBarometer(context));
         services.AddSingleton<IOrientationSensor>(_ => new WearOSOrientationSensor(context));
+        services.AddSingleton<IPedometer>(_ => new WearOSPedometer(context, permissions));
+
+        services.AddSingleton<IDeviceDisplay>(new WearOSDeviceDisplay(activity));
+        services.AddSingleton<IAppInfo>(new WearOSAppInfo(context));
+        services.AddSingleton<IFileSystem>(new WearOSFileSystem(context));
+        services.AddSingleton<ITextToSpeech>(_ => new WearOSTextToSpeech(context));
     }
 }

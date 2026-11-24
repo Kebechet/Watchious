@@ -12,6 +12,7 @@ internal enum WatchOSSensorKind
     Compass = 3,
     Barometer = 4,
     Orientation = 5,
+    Pedometer = 6,
 }
 
 internal interface IWatchOSSensor
@@ -32,21 +33,26 @@ internal sealed class WatchOSSensor<TData>(WatchOSSensorKind kind, string name, 
 
     public bool IsMonitoring { get; private set; }
 
+    // Throws what Start would when the watch has no such sensor, or the host was built without it.
+    public void EnsureAvailable()
+    {
+        var support = WatchOSNative.SensorIsSupported((int)kind);
+        if (support == LeftOut)
+        {
+            throw LeftOutException();
+        }
+
+        if (support != Supported)
+        {
+            throw new FeatureNotSupportedException($"This watch has no {name}.");
+        }
+    }
+
     public void Start(SensorSpeed sensorSpeed)
     {
         lock (_lock)
         {
-            var support = WatchOSNative.SensorIsSupported((int)kind);
-            if (support == LeftOut)
-            {
-                throw LeftOutException();
-            }
-
-            if (support != Supported)
-            {
-                throw new FeatureNotSupportedException($"This watch has no {name}.");
-            }
-
+            EnsureAvailable();
             if (IsMonitoring)
             {
                 throw new InvalidOperationException($"The {name} is already monitoring; call Stop first.");
@@ -349,5 +355,73 @@ internal sealed class WatchOSOrientationSensor : IOrientationSensor, IDisposable
     private void OnReading(OrientationSensorData data)
     {
         ReadingChanged?.Invoke(this, new OrientationSensorChangedEventArgs(data));
+    }
+}
+
+// Core Motion asks for Motion & Fitness on first use. StartAsync asks first and waits for the answer, so that a refusal
+// throws, rather than starting a pedometer that never counts.
+internal sealed class WatchOSPedometer : IPedometer, IDisposable
+{
+    // CMAuthorizationStatus, and the answer of watchious_pedometer_request.
+    private const int NotAsked = 0;
+    private const int Restricted = 1;
+    private const int Denied = 2;
+    private const int Authorized = 3;
+    private const int RequestAllowed = 1;
+
+    private readonly WatchOSSensor<PedometerData> _sensor;
+
+    public WatchOSPedometer()
+    {
+        _sensor = new(WatchOSSensorKind.Pedometer, "pedometer", Read, OnReading);
+    }
+
+    public event EventHandler<PedometerChangedEventArgs>? ReadingChanged;
+
+    public bool IsSupported => _sensor.IsSupported;
+
+    public bool IsMonitoring => _sensor.IsMonitoring;
+
+    public async Task StartAsync()
+    {
+        _sensor.EnsureAvailable();
+        if (IsMonitoring)
+        {
+            throw new InvalidOperationException("The pedometer is already monitoring; call Stop first.");
+        }
+
+        var authorization = WatchOSNative.PedometerAuthorization();
+        if (authorization == NotAsked)
+        {
+            var answer = await WatchOSCallbacks.RunAsync(WatchOSNative.PedometerRequest);
+            authorization = answer == RequestAllowed ? Authorized : Denied;
+        }
+
+        if (authorization is Restricted or Denied)
+        {
+            throw new PermissionException("Motion & Fitness isn't allowed for this app; the user can allow it in the watch's Settings, under Privacy & Security.");
+        }
+
+        _sensor.Start(SensorSpeed.Default);
+    }
+
+    public void Stop()
+    {
+        _sensor.Stop();
+    }
+
+    public void Dispose()
+    {
+        _sensor.Dispose();
+    }
+
+    private static PedometerData Read(double x, double y, double z, double w)
+    {
+        return new PedometerData((long)x);
+    }
+
+    private void OnReading(PedometerData data)
+    {
+        ReadingChanged?.Invoke(this, new PedometerChangedEventArgs(data));
     }
 }

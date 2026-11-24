@@ -5,11 +5,11 @@ import CoreLocation
 #endif
 
 // Core Motion, and Core Location's heading for the compass, behind the sensors. Kinds are Watchious.Hosts.watchOS's
-// WatchOSSensorKind: 0 accelerometer, 1 gyroscope, 2 magnetometer, 3 compass, 4 barometer, 5 orientation. Readings
+// WatchOSSensorKind: 0 accelerometer, 1 gyroscope, 2 magnetometer, 3 compass, 4 barometer, 5 orientation, 6 pedometer. Readings
 // arrive on a queue of their own and go to C# as up to four numbers.
 //
-// As for location (Location.swift), the compass is built in only with WATCHIOUS_LOCATION, and the barometer, whose
-// altimeter is motion data, only with WATCHIOUS_MOTION_DATA, which link-watch-app.sh defines when the app's Info.plist
+// As for location (Location.swift), the compass is built in only with WATCHIOUS_LOCATION, and the barometer and the
+// pedometer, which read motion data, only with WATCHIOUS_MOTION_DATA, which link-watch-app.sh defines when the app's Info.plist
 // has NSMotionUsageDescription: App Store Connect refuses code that uses them without the text (ITMS-90683). The
 // accelerometer, gyroscope, magnetometer and device motion need no permission.
 final class WatchiousSensors: NSObject, @unchecked Sendable {
@@ -18,6 +18,7 @@ final class WatchiousSensors: NSObject, @unchecked Sendable {
     private let motion = CMMotionManager()
     #if WATCHIOUS_MOTION_DATA
     private let altimeter = CMAltimeter()
+    private let pedometer = CMPedometer()
     #endif
     private let queue: OperationQueue = {
         let queue = OperationQueue()
@@ -59,6 +60,12 @@ final class WatchiousSensors: NSObject, @unchecked Sendable {
             #endif
         case 5:
             return motion.isDeviceMotionAvailable ? 1 : 0
+        case 6:
+            #if WATCHIOUS_MOTION_DATA
+            return CMPedometer.isStepCountingAvailable() ? 1 : 0
+            #else
+            return 2
+            #endif
         default:
             return 0
         }
@@ -115,11 +122,38 @@ final class WatchiousSensors: NSObject, @unchecked Sendable {
             #else
             return 2
             #endif
+        case 6:
+            #if WATCHIOUS_MOTION_DATA
+            // The steps since now, whenever the count changes.
+            pedometer.startUpdates(from: Date()) { data, error in
+                guard let steps = data?.numberOfSteps else {
+                    if let error {
+                        NSLog("[Watchious] The pedometer stopped: %@", error.localizedDescription)
+                    }
+                    return
+                }
+                report(6, steps.doubleValue, 0, 0, 0)
+            }
+            #else
+            return 2
+            #endif
         default:
             break
         }
         return 0
     }
+
+    #if WATCHIOUS_MOTION_DATA
+    // Core Motion asks for Motion & Fitness on the first query: a query for the last minute's steps shows the question
+    // and answers once the user has, with 1 when allowed and 0 when not.
+    func requestPedometerAccess(_ token: Int64) {
+        let now = Date()
+        pedometer.queryPedometerData(from: now.addingTimeInterval(-60), to: now) { _, _ in
+            let isAllowed = CMPedometer.authorizationStatus() == .authorized
+            WatchiousEssentialsCallbacks.shared.complete(token, isAllowed ? 1 : 0)
+        }
+    }
+    #endif
 
     func stop(_ kind: Int32) {
         switch kind {
@@ -140,6 +174,10 @@ final class WatchiousSensors: NSObject, @unchecked Sendable {
         case 4:
             #if WATCHIOUS_MOTION_DATA
             altimeter.stopRelativeAltitudeUpdates()
+            #endif
+        case 6:
+            #if WATCHIOUS_MOTION_DATA
+            pedometer.stopUpdates()
             #endif
         default:
             break
@@ -209,4 +247,24 @@ public func watchiousSensorStart(_ kind: Int32, _ interval: Double) -> Int32 {
 @_cdecl("watchious_sensor_stop")
 public func watchiousSensorStop(_ kind: Int32) {
     WatchiousSensors.shared.stop(kind)
+}
+
+// CMAuthorizationStatus: 0 not asked yet, 1 restricted, 2 denied, 3 allowed; -1 when the host was built without the
+// pedometer.
+@_cdecl("watchious_pedometer_request")
+public func watchiousPedometerRequest(_ token: Int64) {
+    #if WATCHIOUS_MOTION_DATA
+    WatchiousSensors.shared.requestPedometerAccess(token)
+    #else
+    WatchiousEssentialsCallbacks.shared.complete(token, 0)
+    #endif
+}
+
+@_cdecl("watchious_pedometer_authorization")
+public func watchiousPedometerAuthorization() -> Int32 {
+    #if WATCHIOUS_MOTION_DATA
+    return Int32(CMPedometer.authorizationStatus().rawValue)
+    #else
+    return -1
+    #endif
 }

@@ -4,6 +4,8 @@
   <!-- The Watch APIs page reads the position (IGeolocation). -->
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+  <!-- The More APIs page counts steps (IPedometer). -->
+  <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
   <application android:label="Watchious Counter" android:theme="@android:style/Theme.DeviceDefault">
     <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
   </application>

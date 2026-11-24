@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Watchious.Essentials;
 
@@ -10,6 +11,7 @@ internal static class PreviewEssentials
     // Shared by all page loads, as preferences and secrets outlive an app's restarts on a watch.
     private static readonly PreviewPreferences Preferences = new();
     private static readonly PreviewSecureStorage SecureStorage = new();
+    private static readonly PreviewAppInfo AppInfo = new(Assembly.GetEntryAssembly());
 
     public static void AddTo(IServiceCollection services, PreviewPlatform platform)
     {
@@ -29,6 +31,11 @@ internal static class PreviewEssentials
         services.AddSingleton<ICompass, PreviewCompass>();
         services.AddSingleton<IBarometer, PreviewBarometer>();
         services.AddSingleton<IOrientationSensor, PreviewOrientationSensor>();
+        services.AddSingleton<IPedometer, PreviewPedometer>();
+        services.AddSingleton<IDeviceDisplay, PreviewDeviceDisplay>();
+        services.AddSingleton<IAppInfo>(AppInfo);
+        services.AddSingleton<IFileSystem>(new PreviewFileSystem(AppInfo));
+        services.AddSingleton<ITextToSpeech, PreviewTextToSpeech>();
     }
 
     private static FeatureNotSupportedException NotInThePreview(string feature)
@@ -278,6 +285,100 @@ internal static class PreviewEssentials
         protected override void SetString(string key, string value)
         {
             _values[key] = value;
+        }
+    }
+    private sealed class PreviewPedometer : IPedometer
+    {
+        public bool IsSupported => false;
+
+        public bool IsMonitoring => false;
+
+        public event EventHandler<PedometerChangedEventArgs>? ReadingChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public Task StartAsync()
+        {
+            throw NotInThePreview("pedometer");
+        }
+
+        public void Stop()
+        {
+        }
+    }
+
+    private sealed class PreviewDeviceDisplay : IDeviceDisplay
+    {
+        private bool _keepScreenOn;
+
+        public bool KeepScreenOn
+        {
+            get => _keepScreenOn;
+            set
+            {
+                _keepScreenOn = value;
+                Console.WriteLine($"Watchious preview: keep the screen on {value}");
+            }
+        }
+    }
+
+    // The app's name and version as Watchious.Sdk stamps them into a preview build, from ApplicationTitle,
+    // ApplicationId, ApplicationDisplayVersion and ApplicationVersion.
+    private sealed class PreviewAppInfo(Assembly? app) : IAppInfo
+    {
+        public string Name => Metadata("WatchiousApplicationTitle") ?? app?.GetName().Name ?? "";
+
+        public string PackageName => Metadata("WatchiousApplicationId") ?? app?.GetName().Name ?? "";
+
+        public string VersionString => Metadata("WatchiousApplicationDisplayVersion") ?? "1.0";
+
+        public Version Version
+        {
+            get
+            {
+                var text = VersionString;
+                return Version.TryParse(text.Contains('.') ? text : text + ".0", out var version) ? version : new Version(0, 0);
+            }
+        }
+
+        public string BuildString => Metadata("WatchiousApplicationVersion") ?? "1";
+
+        private string? Metadata(string key)
+        {
+            var value = app?.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(attribute => attribute.Key == key)?.Value;
+            return string.IsNullOrEmpty(value) ? null : value;
+        }
+    }
+
+    // Folders of the app's own under the computer's temporary folder.
+    private sealed class PreviewFileSystem(PreviewAppInfo appInfo) : IFileSystem
+    {
+        public string CacheDirectory => Folder("Cache");
+
+        public string AppDataDirectory => Folder("AppData");
+
+        private string Folder(string name)
+        {
+            return Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "Watchious preview", appInfo.PackageName, name)).FullName;
+        }
+    }
+
+    // Writes what a watch would say.
+    private sealed class PreviewTextToSpeech : ITextToSpeech
+    {
+        public Task<IEnumerable<Locale>> GetLocalesAsync()
+        {
+            return Task.FromResult<IEnumerable<Locale>>([]);
+        }
+
+        public Task SpeakAsync(string text, SpeechOptions? options = null, CancellationToken cancelToken = default)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(text);
+            cancelToken.ThrowIfCancellationRequested();
+            Console.WriteLine($"Watchious preview: says \"{text}\"");
+            return Task.CompletedTask;
         }
     }
 }
