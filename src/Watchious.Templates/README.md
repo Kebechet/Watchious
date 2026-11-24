@@ -13,8 +13,11 @@ dotnet new install Kebechet.Watchious.Templates
 dotnet new watchious -n MyWatchApp
 ```
 
-`--applicationId` sets the app's package name on Wear OS and bundle identifier on watchOS; by default it is made from
-the name, here `com.companyname.mywatchapp`.
+`--applicationId` sets the app's package name on Wear OS; by default it is made from the name, here
+`com.companyname.mywatchapp`. On watchOS the watch app's bundle identifier is the applicationId plus `.watchkitapp`
+(`com.companyname.mywatchapp.watchkitapp`; `WatchiousBundleIdentifier` sets another one), and its provisioning profiles
+are for that identifier. The applicationId itself is the bundle identifier of the App Store package's watch-only
+container.
 
 The app is one project for both watches, built with `Kebechet.Watchious.Sdk`: a counter page (`MainPage.razor`),
 `WatchiousProgram.cs`, which creates the app like MAUI's `MauiProgram.cs`, and `Platforms/WearOS` and
