@@ -22,6 +22,12 @@ final class UiTree {
         nodes = [root.id: root]
     }
 
+    // Live mode: a restarted app on the computer builds its screen again from nothing.
+    func reset() {
+        root.children.removeAll()
+        nodes = [root.id: root]
+    }
+
     func apply(_ patches: Data) throws {
         var buffer = PatchBuffer(bytes: [UInt8](patches))
         let version = try buffer.readInt32()

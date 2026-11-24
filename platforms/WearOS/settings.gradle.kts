@@ -18,3 +18,5 @@ rootProject.name = "watchious-wearos"
 include(":host")
 include(":messaging")
 include(":health")
+// Live mode's host app (Watchious.Preview's --live), the Compose host without .NET.
+include(":live")
