@@ -1,7 +1,10 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Components;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Text;
 using Shouldly;
 using Watchious.Navigation;
 using Watchious.SourceGenerators;
@@ -56,7 +59,21 @@ public class RoutesGeneratorTests
         diagnostics.ShouldBeEmpty();
     }
 
-    private static ImmutableArray<Diagnostic> Generate(string pages)
+    // From .NET 11 the Razor generator's declaration of each page, with its [Route], is in the compilation that other
+    // generators see, so the generator finds a .razor page also as a class.
+    [Fact]
+    public void RazorPageAlsoDeclaredAsAClass_CountsOnce()
+    {
+        // Act
+        var diagnostics = Generate(
+            """[Route("/apis")] public partial class ApisPage : ComponentBase { }""",
+            new RazorText("ApisPage.razor", "@page \"/apis\"\n<Label>APIs</Label>\n"));
+
+        // Assert
+        diagnostics.ShouldBeEmpty();
+    }
+
+    private static ImmutableArray<Diagnostic> Generate(string pages, params AdditionalText[] razorFiles)
     {
         var source = "using Microsoft.AspNetCore.Components;\nnamespace App;\n" + pages;
         var references = AppDomain.CurrentDomain.GetAssemblies()
@@ -70,7 +87,44 @@ public class RoutesGeneratorTests
             [CSharpSyntaxTree.ParseText(source)],
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-        var driver = CSharpGeneratorDriver.Create(new RoutesGenerator()).RunGenerators(compilation);
+        var driver = CSharpGeneratorDriver.Create(
+                [new RoutesGenerator().AsSourceGenerator()],
+                razorFiles,
+                optionsProvider: new RootNamespaceOptions("App"))
+            .RunGenerators(compilation);
         return driver.GetRunResult().Diagnostics;
+    }
+
+    private sealed class RazorText(string path, string text) : AdditionalText
+    {
+        public override string Path => path;
+
+        public override SourceText GetText(CancellationToken cancellationToken = default)
+        {
+            return SourceText.From(text);
+        }
+    }
+
+    private sealed class RootNamespaceOptions(string rootNamespace) : AnalyzerConfigOptionsProvider
+    {
+        public override AnalyzerConfigOptions GlobalOptions { get; } = new Options(new() { ["build_property.RootNamespace"] = rootNamespace });
+
+        public override AnalyzerConfigOptions GetOptions(SyntaxTree tree)
+        {
+            return new Options([]);
+        }
+
+        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile)
+        {
+            return new Options([]);
+        }
+
+        private sealed class Options(Dictionary<string, string> values) : AnalyzerConfigOptions
+        {
+            public override bool TryGetValue(string key, [NotNullWhen(true)] out string? value)
+            {
+                return values.TryGetValue(key, out value);
+            }
+        }
     }
 }
