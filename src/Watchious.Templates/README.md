@@ -19,6 +19,14 @@ dotnet new watchious -n MyWatchApp
 are for that identifier. The applicationId itself is the bundle identifier of the App Store package's watch-only
 container.
 
+The project names `Kebechet.Watchious.Sdk` of this template's version,
+`<Project Sdk="Kebechet.Watchious.Sdk/<version>">`: all Watchious packages share one version, and the SDK adds the
+others at its own. `--sdk-version` names another version:
+
+```bash
+dotnet new watchious -n MyWatchApp --sdk-version <version>
+```
+
 The app is one project for both watches, built with `Kebechet.Watchious.Sdk`: a counter page (`MainPage.razor`),
 `WatchiousProgram.cs`, which creates the app like MAUI's `MauiProgram.cs`, and `Platforms/WearOS` and
 `Platforms/watchOS`. Its target frameworks are `net10.0-android` (Wear OS), `net10.0` (the desktop preview) and, on a

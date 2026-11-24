@@ -425,10 +425,11 @@ carry their package's name (the only name NuGet imports), each package's files, 
 README (`src/<project>/README.md`), the icon (`icon.png`, drawn from `icon.svg`), tags, release notes, license and
 third-party notices, and a symbol package (`.snupkg`) for each package with assemblies. Inside the repository nothing
 uses the packages (the samples build the SDK and libraries from source), so
-`.github/scripts/package-smoke.sh <package folder> <version>` tests them in apps made from the template outside the
-repository: restore, Central Package Management, the optional packages' Swift, the code the packages' READMEs show,
-builds for the preview (whose pages it then serves) and Wear OS in Release (with `--watchos`, on a Mac, for the watchOS
-simulator instead of Wear OS, and `WATCHIOUS003`). CI runs all three on every pull request (see "Publishing").
+`.github/scripts/package-smoke.sh <package folder> <version>` tests them in apps made with the packed template
+(`dotnet new watchious`) outside the repository: the SDK version the template writes, restore, Central Package
+Management, the optional packages' Swift, the code the packages' READMEs show, builds for the preview (whose pages it
+then serves) and Wear OS in Release (with `--watchos`, on a Mac, for the watchOS simulator instead of Wear OS, and
+`WATCHIOUS003`). CI runs all three on every pull request (see "Publishing").
 
 ⚠️ **Pack and test only with a throwaway version such as `0.0.0-smoke.<n>`, a new one each run, never a real
 version:** NuGet's global packages folder keeps every version it restores, so a locally packed real version would
@@ -436,7 +437,7 @@ later stand in for the published one on that machine, and the test refuses a ver
 
 - **Single project**, like MAUI, through the Watchious MSBuild SDK:
   ```xml
-  <Project Sdk="Kebechet.Watchious.Sdk/0.1.0-preview.1">
+  <Project Sdk="Kebechet.Watchious.Sdk/<version>">
     <PropertyGroup>
       <TargetFrameworks>net11.0-android;net11.0-watchos</TargetFrameworks>
       <OutputType>Exe</OutputType>
@@ -449,9 +450,15 @@ later stand in for the published one on that machine, and the test refuses a ver
   `Platforms/watchOS` (`Info.plist`, `Assets.xcassets` with the app icon, `Entitlements.plist` for capabilities such as
   HealthKit, or MAUI's `CodesignEntitlements`). It is an MSBuild SDK, like Uno's
   `Uno.Sdk`, rather than a `UseWatchious` property, because the watchOS target framework has to exist before
-  NuGet restore runs. The SDK adds the `Kebechet.Watchious.*` packages of its own version itself, and
+  NuGet restore runs. The SDK adds the `Kebechet.Watchious.*` packages of its own version itself, so `<version>`, the
+  version of `Kebechet.Watchious.Sdk`, is the one number to change to update Watchious in an app, and
   `WatchiousProgram.CreateWatchiousApp()` creates the app (the `WatchiousAppFactory` property can name another method).
-- **Template:** `dotnet new install Kebechet.Watchious.Templates`, then `dotnet new watchious`.
+- **Template:** `dotnet new install Kebechet.Watchious.Templates`, then `dotnet new watchious`. The app names
+  `Kebechet.Watchious.Sdk` of the template's own version, which the pack writes into the template package
+  (`Watchious.Templates.csproj`); `--sdk-version <version>` names another.
+  ⚠️ **Installed from the repository's folder** (`dotnet new install src/Watchious.Templates/content/watchious`), the
+  template has no version of its own: pass `--sdk-version <version>`, or the app names
+  `Kebechet.Watchious.Sdk/WATCHIOUS_SDK_VERSION_VALUE` and its restore fails with `MSB4236`.
 - **Build and run:** `dotnet build -t:Run -f net11.0-watchos` builds the watch app with no manual Xcode step
   and starts it in the watchOS simulator. `-r ios-arm64 -p:WatchiousDevice=<UDID>` installs it on a watch,
   signed with MAUI's `CodesignKey` and `CodesignProvision`. `-f net11.0-android` works as for any .NET for
