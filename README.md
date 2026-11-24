@@ -172,6 +172,24 @@ Platform-only controls will be available as platform-specific components (for ex
 | `IBattery` | `WKInterfaceDevice` battery (unknown in the simulator) | the battery broadcast |
 | `IConnectivity` | `NWPathMonitor` | `ConnectivityManager` |
 | `IPreferences` | `UserDefaults` (suite `watchious`) | `SharedPreferences` (file `watchious`) |
+| `ISecureStorage` | the Keychain | AES-GCM with a key in the Android Keystore |
+| `IAppLifecycle` | SwiftUI's scene phase | the activity's lifecycle |
+| `IAmbientMode` | `isLuminanceReduced` | `AmbientLifecycleObserver`, turned on when the app uses the service |
+| `ILocalNotifications` | `UNUserNotificationCenter`, shown while the app is open too | a notification channel; `AlarmManager` for a later time |
+| `IGeolocation` | `CLLocationManager` | `LocationManager`, GPS for `High` and `Best` |
+| `IAccelerometer`, `IGyroscope`, `IOrientationSensor` | Core Motion | `SensorManager` |
+| `IMagnetometer` | not on Apple Watch (`IsSupported` is false) | `SensorManager` |
+| `ICompass` | Core Location's heading | the rotation vector's azimuth |
+| `IBarometer` | `CMAltimeter` | the pressure sensor |
+
+The names and shapes are MAUI Essentials' where it has the API (`IGeolocation`, `ISecureStorage`, `IAccelerometer`,
+`SensorSpeed`...). A sensor or service a watch doesn't have says so in `IsSupported`, and using it anyway throws
+`FeatureNotSupportedException`. Location and notifications ask for their permission on first use and throw
+`PermissionException` when it's denied. The app declares what each platform needs:
+`NSLocationWhenInUseUsageDescription` and, for the barometer, `NSMotionUsageDescription` in
+`Platforms/watchOS/Info.plist`; `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` in the Wear OS manifest. Events
+come on the platform's thread, often many times a second for a sensor: a page updates itself through `InvokeAsync`,
+and unsubscribes in `Dispose`.
 
 Each host registers its platform's implementations before the app's `CreateWatchiousApp` runs, so an app (or a
 test) can replace any of them with its own registration. WatchKit, which .NET for iOS has no bindings for,
@@ -383,8 +401,8 @@ Versions stay at `0.x.x` until the API is stable.
    `INavigation`, generated `Routes` helpers, native back on both platforms). Still to do: SF Symbols and
    Material icons for `Image`.
 6. **Watch APIs** (`Watchious.Essentials`): the common watch features as unified C# services, with
-   platform C# as the escape hatch. Done so far: haptics, device info, battery, connectivity and preferences.
-   Next: notifications, location, sensors, secure storage, always-on (ambient) mode and app lifecycle events.
+   platform C# as the escape hatch. ✅ Haptics, device info, battery, connectivity, preferences, secure storage,
+   app lifecycle, always-on (ambient) mode, local notifications, location and sensors.
 7. ✅ **Messaging** between phone and watch (`Watchious.Messaging`, optional,
    https://github.com/Kebechet/Watchious/issues/4). ✅ A Galaxy Watch7 and a Pixel 6 running the plugin exchange
    messages, answers and the application context both ways. An iPhone still needs the watch app installed from

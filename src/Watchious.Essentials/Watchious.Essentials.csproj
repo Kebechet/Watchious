@@ -5,7 +5,7 @@
     <RootNamespace>Watchious.Essentials</RootNamespace>
     <IsAotCompatible>true</IsAotCompatible>
     <IsPackable>true</IsPackable>
-    <Description>Watchious's watch APIs (haptics, device, battery, connectivity, preferences) as C# services, unified across Wear OS and watchOS. The hosts provide the platform implementations.</Description>
+    <Description>Watchious's watch APIs as C# services with MAUI Essentials' names, unified across Wear OS and watchOS: haptics, device, battery, connectivity, preferences, secure storage, app lifecycle, ambient mode, local notifications, geolocation and sensors. The hosts provide the platform implementations.</Description>
   </PropertyGroup>
 
 </Project>

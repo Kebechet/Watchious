@@ -51,6 +51,8 @@
     <PackageReference Include="Xamarin.AndroidX.ProfileInstaller.ProfileInstaller" Version="1.4.1.8" />
     <PackageReference Include="Xamarin.AndroidX.Wear.Compose.Material.Core" Version="1.7.1" />
     <PackageReference Include="Xamarin.AndroidX.Wear.Core" Version="1.1.0.1" />
+    <!-- AmbientLifecycleObserver, for IAmbientMode. -->
+    <PackageReference Include="Xamarin.AndroidX.Wear" Version="1.4.0.2" />
     <PackageReference Include="Xamarin.KotlinX.Coroutines.Core" Version="1.11.0.1" />
   </ItemGroup>
 

@@ -4,6 +4,7 @@ using Shouldly;
 using Watchious.Core.Tests.Pages;
 using Watchious.Essentials;
 using Watchious.Hosting;
+using Watchious.Preview;
 using Xunit;
 
 namespace Watchious.Core.Tests;
@@ -84,6 +85,81 @@ public class EssentialsTests
         preferences.ContainsKey("text").ShouldBeFalse();
     }
 
+    // Each host registers the platform's implementation of every service before the app's own, so a page that injects
+    // one gets it on both watches and in the preview.
+    [Theory]
+    [InlineData("src/Watchious.Hosts.watchOS/Essentials/WatchOSEssentials.cs")]
+    [InlineData("src/Watchious.Hosts.WearOS/Essentials/WearOSEssentials.cs")]
+    [InlineData("src/Watchious.Preview/PreviewEssentials.cs")]
+    public void EveryService_IsRegisteredByTheHost(string registrations)
+    {
+        // Arrange
+        var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), registrations));
+        var services = typeof(IHaptics).Assembly.GetExportedTypes().Where(type => type.IsInterface).Select(type => type.Name).ToList();
+
+        // Act
+        var missing = services.Where(service => !source.Contains($"AddSingleton<{service}", StringComparison.Ordinal)).ToList();
+
+        // Assert
+        services.ShouldContain(nameof(IGeolocation));
+        missing.ShouldBeEmpty($"{registrations} doesn't register these services");
+    }
+
+    [Fact]
+    public void PreviewServices_ResolveForAPage()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        PreviewEssentials.AddTo(services, PreviewPlatform.WearOS);
+        using var provider = services.BuildServiceProvider();
+        var interfaces = typeof(IHaptics).Assembly.GetExportedTypes().Where(type => type.IsInterface).ToList();
+
+        // Act
+        var resolved = interfaces.Select(provider.GetService).ToList();
+
+        // Assert
+        resolved.ShouldAllBe(service => service != null);
+    }
+
+    [Fact]
+    public async Task PreviewSecureStorage_ReadsBackWhatItStored()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        PreviewEssentials.AddTo(services, PreviewPlatform.watchOS);
+        using var provider = services.BuildServiceProvider();
+        var storage = provider.GetRequiredService<ISecureStorage>();
+        storage.RemoveAll();
+
+        // Act
+        await storage.SetAsync("token", "secret");
+        var stored = await storage.GetAsync("token");
+        var isRemoved = storage.Remove("token");
+        var removed = await storage.GetAsync("token");
+
+        // Assert
+        stored.ShouldBe("secret");
+        isRemoved.ShouldBeTrue();
+        removed.ShouldBeNull();
+    }
+
+    [Fact]
+    public void PreviewSensors_AreUnsupportedAndSayWhy()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        PreviewEssentials.AddTo(services, PreviewPlatform.WearOS);
+        using var provider = services.BuildServiceProvider();
+        var accelerometer = provider.GetRequiredService<IAccelerometer>();
+
+        // Act
+        var exception = Should.Throw<FeatureNotSupportedException>(() => accelerometer.Start(SensorSpeed.UI));
+
+        // Assert
+        accelerometer.IsSupported.ShouldBeFalse();
+        exception.Message.ShouldContain("accelerometer");
+    }
+
     [Fact]
     public void ConfigureServices_AddsThePlatformServicesToAppsCreatedInside()
     {
@@ -121,6 +197,17 @@ public class EssentialsTests
 
         // Assert
         app.Services.GetRequiredService<IHaptics>().ShouldBeSameAs(appHaptics);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "platforms")))
+        {
+            directory = directory.Parent;
+        }
+
+        return directory?.FullName ?? throw new DirectoryNotFoundException("The repository root wasn't found above the test output.");
     }
 
     private sealed class MemoryPreferences : StringPreferences

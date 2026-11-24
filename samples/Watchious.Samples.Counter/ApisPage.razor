@@ -1,0 +1,252 @@
+@page "/apis"
+@implements IDisposable
+@inject IAppLifecycle AppLifecycle
+@inject IAmbientMode AmbientMode
+@inject ISecureStorage SecureStorage
+@inject ILocalNotifications Notifications
+@inject IGeolocation Geolocation
+@inject IAccelerometer Accelerometer
+@inject IGyroscope Gyroscope
+@inject IMagnetometer Magnetometer
+@inject ICompass Compass
+@inject IBarometer Barometer
+@inject IOrientationSensor OrientationSensor
+
+<List>
+    <Label Style="TextStyle.Headline">@(AmbientMode.IsAmbient ? "Dimmed" : AppLifecycle.State.ToString())</Label>
+    <Label Style="TextStyle.Caption">@stateLog</Label>
+    <Button Text="Save a secret" OnClick="SaveSecretAsync" />
+    <Label>Secret: @(secret ?? "none")</Label>
+    <Button Text="Notify now" OnClick="() => NotifyAsync(TimeSpan.Zero)" />
+    <Button Text="Notify in 10 s" OnClick="() => NotifyAsync(TimeSpan.FromSeconds(10))" />
+    <Label Style="TextStyle.Caption">@notificationText</Label>
+    <Button Text="Locate" OnClick="LocateAsync" />
+    <Toggle Text="Follow location" IsOn="isFollowing" IsOnChanged="FollowAsync" />
+    <Label>@locationText</Label>
+    <Toggle Text="Sensors" IsOn="isSensing" IsOnChanged="Sense" />
+    <Label Style="TextStyle.Caption">@sensorText</Label>
+    <Label>Acceleration: @acceleration</Label>
+    <Label>Rotation: @rotation</Label>
+    <Label>Magnetic field: @magneticField</Label>
+    <Label>Heading: @heading</Label>
+    <Label>Pressure: @pressure</Label>
+    <Label>Orientation: @orientation</Label>
+</List>
+
+@code {
+    private const string SecretKey = "sample_secret";
+
+    private string stateLog = "";
+    private string? secret;
+    private string notificationText = "";
+    private string locationText = "";
+    private bool isFollowing;
+    private bool isSensing;
+    private string sensorText = "";
+    private string acceleration = "-";
+    private string rotation = "-";
+    private string magneticField = "-";
+    private string heading = "-";
+    private string pressure = "-";
+    private string orientation = "-";
+
+    protected override async Task OnInitializedAsync()
+    {
+        AppLifecycle.StateChanged += OnAppStateChanged;
+        AmbientMode.AmbientModeChanged += OnAmbientModeChanged;
+        Geolocation.LocationChanged += OnLocationChanged;
+        Accelerometer.ReadingChanged += OnAccelerometerReading;
+        Gyroscope.ReadingChanged += OnGyroscopeReading;
+        Magnetometer.ReadingChanged += OnMagnetometerReading;
+        Compass.ReadingChanged += OnCompassReading;
+        Barometer.ReadingChanged += OnBarometerReading;
+        OrientationSensor.ReadingChanged += OnOrientationReading;
+        secret = await SecureStorage.GetAsync(SecretKey);
+    }
+
+    public void Dispose()
+    {
+        AppLifecycle.StateChanged -= OnAppStateChanged;
+        AmbientMode.AmbientModeChanged -= OnAmbientModeChanged;
+        Geolocation.LocationChanged -= OnLocationChanged;
+        Accelerometer.ReadingChanged -= OnAccelerometerReading;
+        Gyroscope.ReadingChanged -= OnGyroscopeReading;
+        Magnetometer.ReadingChanged -= OnMagnetometerReading;
+        Compass.ReadingChanged -= OnCompassReading;
+        Barometer.ReadingChanged -= OnBarometerReading;
+        OrientationSensor.ReadingChanged -= OnOrientationReading;
+        Geolocation.StopListeningForeground();
+        StopSensors();
+    }
+
+    private async Task SaveSecretAsync()
+    {
+        await SecureStorage.SetAsync(SecretKey, $"saved {DateTime.Now:HH:mm:ss}");
+        secret = await SecureStorage.GetAsync(SecretKey);
+    }
+
+    private async Task NotifyAsync(TimeSpan delay)
+    {
+        try
+        {
+            var time = delay == TimeSpan.Zero ? (DateTimeOffset?)null : DateTimeOffset.UtcNow + delay;
+            await Notifications.ShowAsync(new LocalNotification(1, "Watchious", $"Sent at {DateTime.Now:HH:mm:ss}", time));
+            notificationText = delay == TimeSpan.Zero ? "Shown" : $"Due at {DateTime.Now + delay:HH:mm:ss}";
+        }
+        catch (Exception exception) when (exception is PermissionException or FeatureNotSupportedException)
+        {
+            notificationText = exception.Message;
+        }
+    }
+
+    private async Task LocateAsync()
+    {
+        locationText = "Locating...";
+        try
+        {
+            var location = await Geolocation.GetLocationAsync(new GeolocationRequest { DesiredAccuracy = GeolocationAccuracy.Best, Timeout = TimeSpan.FromSeconds(20) });
+            locationText = location is null ? "No position" : Describe(location);
+        }
+        catch (Exception exception) when (exception is PermissionException or FeatureNotSupportedException)
+        {
+            locationText = exception.Message;
+        }
+    }
+
+    private async Task FollowAsync(bool isOn)
+    {
+        isFollowing = isOn;
+        if (!isOn)
+        {
+            Geolocation.StopListeningForeground();
+            return;
+        }
+
+        try
+        {
+            isFollowing = await Geolocation.StartListeningForegroundAsync(new GeolocationListeningRequest { DesiredAccuracy = GeolocationAccuracy.Best });
+            locationText = isFollowing ? "Waiting for a position..." : "No location provider";
+        }
+        catch (Exception exception) when (exception is PermissionException or FeatureNotSupportedException)
+        {
+            isFollowing = false;
+            locationText = exception.Message;
+        }
+    }
+
+    private void Sense(bool isOn)
+    {
+        isSensing = isOn;
+        if (!isOn)
+        {
+            StopSensors();
+            return;
+        }
+
+        var unsupported = new List<string>();
+        StartIfSupported(Accelerometer.IsSupported, () => Accelerometer.Start(SensorSpeed.UI), "accelerometer", unsupported);
+        StartIfSupported(Gyroscope.IsSupported, () => Gyroscope.Start(SensorSpeed.UI), "gyroscope", unsupported);
+        StartIfSupported(Magnetometer.IsSupported, () => Magnetometer.Start(SensorSpeed.UI), "magnetometer", unsupported);
+        StartIfSupported(Compass.IsSupported, () => Compass.Start(SensorSpeed.UI), "compass", unsupported);
+        StartIfSupported(Barometer.IsSupported, () => Barometer.Start(SensorSpeed.UI), "barometer", unsupported);
+        StartIfSupported(OrientationSensor.IsSupported, () => OrientationSensor.Start(SensorSpeed.UI), "orientation", unsupported);
+        sensorText = unsupported.Count == 0 ? "All sensors on" : $"Not on this watch: {string.Join(", ", unsupported)}";
+    }
+
+    private static void StartIfSupported(bool isSupported, Action start, string name, List<string> unsupported)
+    {
+        if (isSupported)
+        {
+            start();
+        }
+        else
+        {
+            unsupported.Add(name);
+        }
+    }
+
+    private void StopSensors()
+    {
+        Accelerometer.Stop();
+        Gyroscope.Stop();
+        Magnetometer.Stop();
+        Compass.Stop();
+        Barometer.Stop();
+        OrientationSensor.Stop();
+    }
+
+    private void OnAppStateChanged(object? sender, AppStateChangedEventArgs e)
+    {
+        _ = InvokeAsync(() =>
+        {
+            stateLog = $"{stateLog} {e.State}".Trim();
+            StateHasChanged();
+        });
+    }
+
+    private void OnAmbientModeChanged(object? sender, AmbientModeChangedEventArgs e)
+    {
+        _ = InvokeAsync(() =>
+        {
+            stateLog = $"{stateLog} {(e.IsAmbient ? "Dimmed" : "Lit")}".Trim();
+            StateHasChanged();
+        });
+    }
+
+    private void OnLocationChanged(object? sender, GeolocationLocationChangedEventArgs e)
+    {
+        _ = InvokeAsync(() =>
+        {
+            locationText = Describe(e.Location);
+            StateHasChanged();
+        });
+    }
+
+    private void OnAccelerometerReading(object? sender, AccelerometerChangedEventArgs e)
+    {
+        Show(ref acceleration, Describe(e.Reading.Acceleration));
+    }
+
+    private void OnGyroscopeReading(object? sender, GyroscopeChangedEventArgs e)
+    {
+        Show(ref rotation, Describe(e.Reading.AngularVelocity));
+    }
+
+    private void OnMagnetometerReading(object? sender, MagnetometerChangedEventArgs e)
+    {
+        Show(ref magneticField, Describe(e.Reading.MagneticField));
+    }
+
+    private void OnCompassReading(object? sender, CompassChangedEventArgs e)
+    {
+        Show(ref heading, $"{e.Reading.HeadingMagneticNorth:0}°");
+    }
+
+    private void OnBarometerReading(object? sender, BarometerChangedEventArgs e)
+    {
+        Show(ref pressure, $"{e.Reading.PressureInHectopascals:0.0} hPa");
+    }
+
+    private void OnOrientationReading(object? sender, OrientationSensorChangedEventArgs e)
+    {
+        var q = e.Reading.Orientation;
+        Show(ref orientation, $"{q.X:0.00} {q.Y:0.00} {q.Z:0.00} {q.W:0.00}");
+    }
+
+    // Readings come many times a second on a sensor thread; the label shows the latest.
+    private void Show(ref string field, string text)
+    {
+        field = text;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private static string Describe(System.Numerics.Vector3 vector)
+    {
+        return $"{vector.X:0.00} {vector.Y:0.00} {vector.Z:0.00}";
+    }
+
+    private static string Describe(Location location)
+    {
+        return $"{location.Latitude:0.0000}, {location.Longitude:0.0000} ±{location.Accuracy:0} m";
+    }
+}

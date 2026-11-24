@@ -44,6 +44,83 @@ internal static unsafe partial class WatchOSNative
     [LibraryImport("__Internal", EntryPoint = "watchious_preferences_clear")]
     public static partial void PreferencesClear();
 
+    // platforms/watchOS/Host/EssentialsCallbacks.swift: completion (token, result), app state, dimming, position
+    // (token, 8 doubles), position failure (token, code) and sensor reading (kind, x, y, z, w).
+    [LibraryImport("__Internal", EntryPoint = "watchious_essentials_set_callbacks")]
+    public static partial void EssentialsSetCallbacks(
+        delegate* unmanaged<long, int, void> completion,
+        delegate* unmanaged<int, void> appState,
+        delegate* unmanaged<int, void> ambient,
+        delegate* unmanaged<long, double*, void> location,
+        delegate* unmanaged<long, int, void> locationFailed,
+        delegate* unmanaged<int, double, double, double, double, void> sensor);
+
+    // 0 active, 1 inactive, 2 background, as Watchious.Essentials.AppState.
+    [LibraryImport("__Internal", EntryPoint = "watchious_app_state")]
+    public static partial int AppState();
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_is_luminance_reduced")]
+    public static partial int IsLuminanceReduced();
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_secure_get", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial nint SecureGet(string key);
+
+    // The Keychain's OSStatus: 0 when stored.
+    [LibraryImport("__Internal", EntryPoint = "watchious_secure_set", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial int SecureSet(string key, string value);
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_secure_remove", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial int SecureRemove(string key);
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_secure_remove_all")]
+    public static partial void SecureRemoveAll();
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_notifications_request_permission")]
+    public static partial void NotificationsRequestPermission(long token);
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_notifications_show", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial void NotificationsShow(int id, string title, string? body, double delaySeconds, long token);
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_notifications_cancel")]
+    public static partial void NotificationsCancel(int id);
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_notifications_cancel_all")]
+    public static partial void NotificationsCancelAll();
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_location_is_supported")]
+    public static partial int LocationIsSupported();
+
+    // Completes with 1 allowed, 0 denied, 2 no NSLocationWhenInUseUsageDescription in the app's Info.plist.
+    [LibraryImport("__Internal", EntryPoint = "watchious_location_request_authorization")]
+    public static partial void LocationRequestAuthorization(long token);
+
+    // Core Location's desired accuracy in metres; -1 is the best it can.
+    [LibraryImport("__Internal", EntryPoint = "watchious_location_request")]
+    public static partial void LocationRequest(long token, double accuracy);
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_location_cancel")]
+    public static partial void LocationCancel(long token);
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_location_start")]
+    public static partial void LocationStart(double accuracy);
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_location_stop")]
+    public static partial void LocationStop();
+
+    // Fills 8 doubles as a position update; 0 when there is no position yet.
+    [LibraryImport("__Internal", EntryPoint = "watchious_location_last_known")]
+    public static partial int LocationLastKnown(double* values);
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_sensor_is_supported")]
+    public static partial int SensorIsSupported(int kind);
+
+    // 0 when started, 2 when it needs NSMotionUsageDescription in the app's Info.plist.
+    [LibraryImport("__Internal", EntryPoint = "watchious_sensor_start")]
+    public static partial int SensorStart(int kind, double intervalSeconds);
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_sensor_stop")]
+    public static partial void SensorStop(int kind);
+
     // The value of the --watchious-inspector=<url> launch argument, or null.
     [LibraryImport("__Internal", EntryPoint = "watchious_inspector_url")]
     public static partial nint InspectorUrl();
