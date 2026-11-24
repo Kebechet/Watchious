@@ -134,8 +134,9 @@ the back button on Wear OS. Pages below the top one keep their state.
 > the Razor team keeps by design (https://github.com/dotnet/razor/issues/12620). So the text control keeps MAUI's
 > name. Its content is the text, as in SwiftUI: `<Label>Count: @count</Label>`.
 
-A test (`HostCoverageTests`) fails when a control, attribute, event or enum value of the C# controls is missing
-from the SwiftUI host, the Compose host or the browser preview. An element a host doesn't know, such as a misspelled
+A test (`HostCoverageTests`) fails when a control, attribute, event or enum value of the C# controls appears nowhere
+in the SwiftUI host, the Compose host or the browser preview. It reads each host's sources as text, so it catches a
+name a host lacks altogether, not one that is read on another control only. An element a host doesn't know, such as a misspelled
 tag in the markup, is logged, and in a Debug build it shows a ⚠️ with its name in its place.
 
 Platform-only controls will be available as platform-specific components (for example

@@ -7,7 +7,8 @@ namespace Watchious.Core.Tests;
 
 // The names the C# controls send are plain strings that each host matches by hand, so a control, attribute, event or
 // value added to C# but not to a host would only show up as a missing or wrongly styled element
-// (https://github.com/Kebechet/Watchious/issues/3).
+// (https://github.com/Kebechet/Watchious/issues/3). Each name only has to appear somewhere in a host's sources: which
+// control reads it isn't checked.
 public partial class HostCoverageTests
 {
     // Read by the C# side only: tests find navigation pages by their route.

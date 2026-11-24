@@ -130,7 +130,8 @@ struct NodeView: View {
 }
 
 // A name or value this host doesn't know means it and the C# controls don't match
-// (https://github.com/Kebechet/Watchious/issues/3). It's logged; a debug build also shows an unknown control in place.
+// (https://github.com/Kebechet/Watchious/issues/3). An unknown value is only logged, and the control uses its default;
+// an unknown control is shown as a warning in a debug build (UnknownNodeView).
 func reportUnknownValue(_ value: String, of attribute: String, on type: String) {
     NSLog("[Watchious] unknown %@ value %@ on %@", attribute, value, type)
 }
