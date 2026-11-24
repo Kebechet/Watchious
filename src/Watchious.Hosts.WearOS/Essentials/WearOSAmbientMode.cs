@@ -29,14 +29,22 @@ internal sealed class WearOSAmbientMode(Activity activity, WearOSAppLifecycle ap
 
     public event EventHandler<AmbientModeChangedEventArgs>? AmbientModeChanged
     {
+        // Under the lock, as a field-like event would change it atomically: a lost remove would keep a disposed page's
+        // handler running.
         add
         {
             EnsureStarted();
-            _ambientModeChanged += value;
+            lock (_lock)
+            {
+                _ambientModeChanged += value;
+            }
         }
         remove
         {
-            _ambientModeChanged -= value;
+            lock (_lock)
+            {
+                _ambientModeChanged -= value;
+            }
         }
     }
 

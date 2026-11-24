@@ -49,6 +49,12 @@ internal static unsafe class WatchOSCallbacks
         Sensors[(int)kind] = sensor;
     }
 
+    // Only while it is still the registered one: a newer sensor of the same kind may have taken its place.
+    public static void RemoveSensor(WatchOSSensorKind kind, IWatchOSSensor sensor)
+    {
+        Sensors.TryRemove(new KeyValuePair<int, IWatchOSSensor>((int)kind, sensor));
+    }
+
     [UnmanagedCallersOnly]
     private static void OnCompleted(long token, int result)
     {

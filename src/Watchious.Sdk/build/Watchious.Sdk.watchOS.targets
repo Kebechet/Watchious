@@ -73,7 +73,7 @@
   <!-- Replaces the .NET for iOS link of an iPhone executable. -->
   <Target Name="_LinkNativeExecutable"
           DependsOnTargets="$(_LinkNativeExecutableDependsOn)"
-          Inputs="@(_LinkNativeExecutableInputs);@(_WatchiousHostSource);$(_WatchiousEntitlements);$(WatchiousToolsDirectory)link-watch-app.sh;$(WatchiousToolsDirectory)retag-macho.py"
+          Inputs="@(_LinkNativeExecutableInputs);@(_WatchiousHostSource);$(_WatchiousEntitlements);$(_WatchiousInfoPlist);$(WatchiousToolsDirectory)link-watch-app.sh;$(WatchiousToolsDirectory)retag-macho.py"
           Outputs="@(_LinkNativeExecutableOutputs)">
     <PropertyGroup>
       <_WatchiousInputsFile>$(_WatchiousWorkDirectory)link-inputs.txt</_WatchiousInputsFile>
@@ -89,7 +89,7 @@
     <WriteLinesToFile File="$(_WatchiousExtraSourcesFile)" Overwrite="true" Lines="@(WatchiousWatchOSHostSource->'%(FullPath)')" />
     <Exec Command="bash &quot;$(WatchiousToolsDirectory)link-watch-app.sh&quot;"
           IgnoreStandardErrorWarningFormat="true"
-          EnvironmentVariables="WATCHIOUS_SDK_NAME=$(_WatchiousSdkName);WATCHIOUS_MIN_OS=$(WatchiousMinimumWatchOSVersion);WATCHIOUS_HOST_DIR=$(WatchiousWatchOSHostDirectory);WATCHIOUS_TOOLS_DIR=$(WatchiousToolsDirectory);WATCHIOUS_WORK_DIR=$(_WatchiousWorkDirectory);WATCHIOUS_OUTPUT=$(MSBuildProjectDirectory)/$(_IntermediateNativeLibraryDir)$(_NativeExecutableName);WATCHIOUS_INPUTS_FILE=$(_WatchiousInputsFile);WATCHIOUS_FLAGS_FILE=$(_WatchiousFlagsFile);WATCHIOUS_FRAMEWORKS_FILE=$(_WatchiousFrameworksFile);WATCHIOUS_ENTITLEMENTS=$(_WatchiousEntitlements);WATCHIOUS_EXTRA_SOURCES_FILE=$(_WatchiousExtraSourcesFile);WATCHIOUS_BUNDLE_ID=$(WatchiousBundleIdentifier);WATCHIOUS_CONFIGURATION=$(Configuration)" />
+          EnvironmentVariables="WATCHIOUS_SDK_NAME=$(_WatchiousSdkName);WATCHIOUS_MIN_OS=$(WatchiousMinimumWatchOSVersion);WATCHIOUS_HOST_DIR=$(WatchiousWatchOSHostDirectory);WATCHIOUS_TOOLS_DIR=$(WatchiousToolsDirectory);WATCHIOUS_WORK_DIR=$(_WatchiousWorkDirectory);WATCHIOUS_OUTPUT=$(MSBuildProjectDirectory)/$(_IntermediateNativeLibraryDir)$(_NativeExecutableName);WATCHIOUS_INPUTS_FILE=$(_WatchiousInputsFile);WATCHIOUS_FLAGS_FILE=$(_WatchiousFlagsFile);WATCHIOUS_FRAMEWORKS_FILE=$(_WatchiousFrameworksFile);WATCHIOUS_ENTITLEMENTS=$(_WatchiousEntitlements);WATCHIOUS_EXTRA_SOURCES_FILE=$(_WatchiousExtraSourcesFile);WATCHIOUS_BUNDLE_ID=$(WatchiousBundleIdentifier);WATCHIOUS_CONFIGURATION=$(Configuration);WATCHIOUS_INFO_PLIST=$(_WatchiousInfoPlist)" />
     <ItemGroup>
       <ResolvedFileToPublish Include="$(_IntermediateNativeLibraryDir)$(_NativeExecutableName)">
         <RelativePath>$(_NativeExecutablePublishDir)\$(_NativeExecutableName)</RelativePath>

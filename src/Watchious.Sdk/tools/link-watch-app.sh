@@ -14,6 +14,7 @@
 #   WATCHIOUS_BUNDLE_ID       the watch app's bundle identifier
 #   WATCHIOUS_EXTRA_SOURCES_FILE Swift and C files optional packages add to the host, one per line
 #   WATCHIOUS_CONFIGURATION   the build configuration (Debug compiles the host with DEBUG)
+#   WATCHIOUS_INFO_PLIST      the app's Info.plist, if any
 set -euo pipefail
 
 SDK_ROOT="$(xcrun --sdk "$WATCHIOUS_SDK_NAME" --show-sdk-path)"
@@ -150,6 +151,18 @@ if [ "$(printf '%s' "${WATCHIOUS_CONFIGURATION:-}" | tr '[:upper:]' '[:lower:]')
     DEBUG_FLAGS=(-D DEBUG)
 fi
 
+# The host's location and motion-data code only for an app whose Info.plist explains them: App Store Connect refuses
+# code that uses them without the text (ITMS-90683), and watchOS never asks the user without it either.
+PERMISSION_FLAGS=()
+if [ -n "${WATCHIOUS_INFO_PLIST:-}" ] && [ -f "$WATCHIOUS_INFO_PLIST" ]; then
+    if plutil -extract NSLocationWhenInUseUsageDescription raw "$WATCHIOUS_INFO_PLIST" > /dev/null 2>&1; then
+        PERMISSION_FLAGS+=(-D WATCHIOUS_LOCATION)
+    fi
+    if plutil -extract NSMotionUsageDescription raw "$WATCHIOUS_INFO_PLIST" > /dev/null 2>&1; then
+        PERMISSION_FLAGS+=(-D WATCHIOUS_MOTION_DATA)
+    fi
+fi
+
 # .NET for iOS's generated main.arm64.o defines an iPhone main(); the SwiftUI host gets its own entry point name.
 mkdir -p "$(dirname "$WATCHIOUS_OUTPUT")"
 xcrun --sdk "$WATCHIOUS_SDK_NAME" swiftc \
@@ -157,6 +170,7 @@ xcrun --sdk "$WATCHIOUS_SDK_NAME" swiftc \
     -parse-as-library \
     -O \
     "${DEBUG_FLAGS[@]+"${DEBUG_FLAGS[@]}"}" \
+    "${PERMISSION_FLAGS[@]+"${PERMISSION_FLAGS[@]}"}" \
     -import-objc-header "$WATCHIOUS_HOST_DIR/Watchious.h" \
     -Xfrontend -entry-point-function-name -Xfrontend watchious_main \
     "$WATCHIOUS_HOST_DIR"/*.swift \

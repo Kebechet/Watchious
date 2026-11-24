@@ -1,51 +1,70 @@
-import CoreLocation
 import CoreMotion
 import Foundation
+#if WATCHIOUS_LOCATION
+import CoreLocation
+#endif
 
 // Core Motion, and Core Location's heading for the compass, behind the sensors. Kinds are Watchious.Hosts.watchOS's
 // WatchOSSensorKind: 0 accelerometer, 1 gyroscope, 2 magnetometer, 3 compass, 4 barometer, 5 orientation. Readings
 // arrive on a queue of their own and go to C# as up to four numbers.
-final class WatchiousSensors: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
+//
+// As for location (Location.swift), the compass is built in only with WATCHIOUS_LOCATION, and the barometer, whose
+// altimeter is motion data, only with WATCHIOUS_MOTION_DATA, which link-watch-app.sh defines when the app's Info.plist
+// has NSMotionUsageDescription: App Store Connect refuses code that uses them without the text (ITMS-90683). The
+// accelerometer, gyroscope, magnetometer and device motion need no permission.
+final class WatchiousSensors: NSObject, @unchecked Sendable {
     static let shared = WatchiousSensors()
 
     private let motion = CMMotionManager()
+    #if WATCHIOUS_MOTION_DATA
     private let altimeter = CMAltimeter()
+    #endif
     private let queue: OperationQueue = {
         let queue = OperationQueue()
         queue.name = "watchious.sensors"
         queue.maxConcurrentOperationCount = 1
         return queue
     }()
+    #if WATCHIOUS_LOCATION
     private lazy var headingManager: CLLocationManager = {
         let manager = CLLocationManager()
         manager.delegate = self
         return manager
     }()
+    #endif
     // The gyroscope (without a raw one) and the orientation share device motion's single stream.
     private let lock = NSLock()
     private var deviceMotionIntervals: [Int32: Double] = [:]
 
-    func isSupported(_ kind: Int32) -> Bool {
+    // 1 when this watch has it, 0 when it doesn't, 2 when the host was built without it (see above).
+    func support(_ kind: Int32) -> Int32 {
         switch kind {
         case 0:
-            return motion.isAccelerometerAvailable
+            return motion.isAccelerometerAvailable ? 1 : 0
         case 1:
-            return motion.isGyroAvailable || motion.isDeviceMotionAvailable
+            return motion.isGyroAvailable || motion.isDeviceMotionAvailable ? 1 : 0
         case 2:
-            return motion.isMagnetometerAvailable
+            return motion.isMagnetometerAvailable ? 1 : 0
         case 3:
-            return CLLocationManager.headingAvailable()
+            #if WATCHIOUS_LOCATION
+            return CLLocationManager.headingAvailable() ? 1 : 0
+            #else
+            return 2
+            #endif
         case 4:
-            return CMAltimeter.isRelativeAltitudeAvailable()
+            #if WATCHIOUS_MOTION_DATA
+            return CMAltimeter.isRelativeAltitudeAvailable() ? 1 : 0
+            #else
+            return 2
+            #endif
         case 5:
-            return motion.isDeviceMotionAvailable
+            return motion.isDeviceMotionAvailable ? 1 : 0
         default:
-            return false
+            return 0
         }
     }
 
-    // 0 when started, 2 when the barometer needs NSMotionUsageDescription in the app's Info.plist, without which
-    // watchOS ends the app.
+    // 0 when started, 2 when the host was built without it.
     func start(_ kind: Int32, interval: Double) -> Int32 {
         switch kind {
         case 0:
@@ -77,13 +96,15 @@ final class WatchiousSensors: NSObject, CLLocationManagerDelegate, @unchecked Se
                 report(2, field.x, field.y, field.z, 0)
             }
         case 3:
+            #if WATCHIOUS_LOCATION
             DispatchQueue.main.async {
                 self.headingManager.startUpdatingHeading()
             }
+            #else
+            return 2
+            #endif
         case 4:
-            guard Bundle.main.object(forInfoDictionaryKey: "NSMotionUsageDescription") != nil else {
-                return 2
-            }
+            #if WATCHIOUS_MOTION_DATA
             altimeter.startRelativeAltitudeUpdates(to: queue) { data, _ in
                 guard let pressure = data?.pressure else {
                     return
@@ -91,6 +112,9 @@ final class WatchiousSensors: NSObject, CLLocationManagerDelegate, @unchecked Se
                 // Kilopascals.
                 report(4, pressure.doubleValue * 10, 0, 0, 0)
             }
+            #else
+            return 2
+            #endif
         default:
             break
         }
@@ -108,18 +132,18 @@ final class WatchiousSensors: NSObject, CLLocationManagerDelegate, @unchecked Se
         case 2:
             motion.stopMagnetometerUpdates()
         case 3:
+            #if WATCHIOUS_LOCATION
             DispatchQueue.main.async {
                 self.headingManager.stopUpdatingHeading()
             }
+            #endif
         case 4:
+            #if WATCHIOUS_MOTION_DATA
             altimeter.stopRelativeAltitudeUpdates()
+            #endif
         default:
             break
         }
-    }
-
-    func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
-        report(3, newHeading.magneticHeading, 0, 0, 0)
     }
 
     private func startDeviceMotion(_ kind: Int32, interval: Double) {
@@ -159,13 +183,22 @@ final class WatchiousSensors: NSObject, CLLocationManagerDelegate, @unchecked Se
     }
 }
 
+#if WATCHIOUS_LOCATION
+extension WatchiousSensors: CLLocationManagerDelegate {
+    func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        report(3, newHeading.magneticHeading, 0, 0, 0)
+    }
+}
+#endif
+
 private func report(_ kind: Int32, _ x: Double, _ y: Double, _ z: Double, _ w: Double) {
     WatchiousEssentialsCallbacks.shared.sensor?(kind, x, y, z, w)
 }
 
+// 1 when this watch has it, 0 when not, 2 when the host was built without it.
 @_cdecl("watchious_sensor_is_supported")
 public func watchiousSensorIsSupported(_ kind: Int32) -> Int32 {
-    WatchiousSensors.shared.isSupported(kind) ? 1 : 0
+    WatchiousSensors.shared.support(kind)
 }
 
 @_cdecl("watchious_sensor_start")

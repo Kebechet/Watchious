@@ -65,6 +65,8 @@ public abstract class WatchiousActivity : Activity
 
     protected override void OnDestroy()
     {
+        _permissions?.CancelPending();
+        _permissions = null;
         if (_host is not null)
         {
             _host.Dispose();

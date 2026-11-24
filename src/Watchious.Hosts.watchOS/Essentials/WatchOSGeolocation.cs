@@ -17,7 +17,7 @@ internal sealed class WatchOSGeolocation : IGeolocation, IDisposable
         WatchOSCallbacks.Geolocation = this;
     }
 
-    public bool IsSupported => WatchOSNative.LocationIsSupported() != 0;
+    public bool IsSupported => WatchOSNative.LocationIsSupported() == LocationSupport.Supported;
 
     public bool IsListeningForeground { get; private set; }
 
@@ -163,6 +163,11 @@ internal sealed class WatchOSGeolocation : IGeolocation, IDisposable
 
     private static async Task EnsurePermissionAsync()
     {
+        if (WatchOSNative.LocationIsSupported() == LocationSupport.LeftOut)
+        {
+            throw new FeatureNotSupportedException("Location is left out of this app: its Platforms/watchOS/Info.plist has no NSLocationWhenInUseUsageDescription, the text watchOS shows when it asks for location (and that App Store Connect requires of an app that uses location).");
+        }
+
         var result = await WatchOSCallbacks.RunAsync(WatchOSNative.LocationRequestAuthorization);
         if (result == 2)
         {
@@ -173,6 +178,13 @@ internal sealed class WatchOSGeolocation : IGeolocation, IDisposable
         {
             throw new PermissionException("The user didn't allow location.");
         }
+    }
+
+    // watchious_location_is_supported's answers.
+    private static class LocationSupport
+    {
+        public const int Supported = 1;
+        public const int LeftOut = 2;
     }
 
     // Core Location's desired accuracy in metres: kCLLocationAccuracyBest is -1.

@@ -19,7 +19,8 @@ internal sealed class WearOSGeolocation(Context context, WearOSPermissions permi
     private readonly Lock _lock = new();
     private Listener? _listener;
 
-    public bool IsSupported => _manager.AllProviders.Count > 0;
+    // The passive provider, which every device lists, only passes on positions other apps asked for.
+    public bool IsSupported => _manager.AllProviders.Any(provider => provider != LocationManager.PassiveProvider);
 
     public bool IsListeningForeground => _listener is not null;
 
@@ -53,14 +54,21 @@ internal sealed class WearOSGeolocation(Context context, WearOSPermissions permi
         var result = new TaskCompletionSource<Location?>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var consumer = new LocationConsumer(result);
         await using var registration = timeout.Token.Register(signal.Cancel);
-        if (OperatingSystem.IsAndroidVersionAtLeast(31))
+        try
         {
-            using var locationRequest = new LocationRequest.Builder(0).SetQuality((int)Quality(request.DesiredAccuracy)).Build();
-            _manager.GetCurrentLocation(provider, locationRequest, signal, context.MainExecutor!, consumer);
+            if (OperatingSystem.IsAndroidVersionAtLeast(31))
+            {
+                using var locationRequest = new LocationRequest.Builder(0).SetQuality((int)Quality(request.DesiredAccuracy)).Build();
+                _manager.GetCurrentLocation(provider, locationRequest, signal, context.MainExecutor!, consumer);
+            }
+            else
+            {
+                _manager.GetCurrentLocation(provider, signal, context.MainExecutor!, consumer);
+            }
         }
-        else
+        catch (Java.Lang.SecurityException exception)
         {
-            _manager.GetCurrentLocation(provider, signal, context.MainExecutor!, consumer);
+            throw NotAllowed(exception);
         }
 
         await using var resultOnTimeout = timeout.Token.Register(() => result.TrySetResult(null));
@@ -85,17 +93,27 @@ internal sealed class WearOSGeolocation(Context context, WearOSPermissions permi
                 throw new InvalidOperationException("Already listening for location updates; call StopListeningForeground first.");
             }
 
-            _listener = new Listener(OnLocationChanged, OnProviderDisabled);
+            var listener = new Listener(OnLocationChanged, OnProviderDisabled);
             var interval = (long)request.MinimumTime.TotalMilliseconds;
-            if (OperatingSystem.IsAndroidVersionAtLeast(31))
+            try
             {
-                using var locationRequest = new LocationRequest.Builder(interval).SetQuality((int)Quality(request.DesiredAccuracy)).Build();
-                _manager.RequestLocationUpdates(provider, locationRequest, context.MainExecutor!, _listener);
+                if (OperatingSystem.IsAndroidVersionAtLeast(31))
+                {
+                    using var locationRequest = new LocationRequest.Builder(interval).SetQuality((int)Quality(request.DesiredAccuracy)).Build();
+                    _manager.RequestLocationUpdates(provider, locationRequest, context.MainExecutor!, listener);
+                }
+                else
+                {
+                    _manager.RequestLocationUpdates(provider, interval, 0f, listener, Looper.MainLooper);
+                }
             }
-            else
+            catch (Java.Lang.SecurityException exception)
             {
-                _manager.RequestLocationUpdates(provider, interval, 0f, _listener, Looper.MainLooper);
+                listener.Dispose();
+                throw NotAllowed(exception);
             }
+
+            _listener = listener;
         }
 
         return true;
@@ -128,6 +146,12 @@ internal sealed class WearOSGeolocation(Context context, WearOSPermissions permi
         {
             throw new PermissionException("The user didn't allow location, or the app's AndroidManifest.xml doesn't declare ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION.");
         }
+    }
+
+    // Only approximate location allowed, while the request picked the GPS provider, which needs precise location.
+    private static PermissionException NotAllowed(Java.Lang.SecurityException exception)
+    {
+        return new PermissionException($"The app isn't allowed this location provider: {exception.Message}");
     }
 
     private string? ChooseProvider(GeolocationAccuracy accuracy)
@@ -177,7 +201,8 @@ internal sealed class WearOSGeolocation(Context context, WearOSPermissions permi
     {
         public void Accept(Java.Lang.Object? value)
         {
-            result.TrySetResult(value is AndroidLocation location ? ToLocation(location) : null);
+            var location = value as AndroidLocation;
+            result.TrySetResult(location is null ? null : ToLocation(location));
         }
     }
 

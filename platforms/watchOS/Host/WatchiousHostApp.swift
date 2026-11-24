@@ -6,6 +6,7 @@ struct WatchiousHostApp: App {
 
     init() {
         DebugAutomation.clearResultsIfRequested()
+        WatchiousNotifications.shared.attach()
         watchious_start_runtime()
         let result = watchious_start(watchiousPatchesCallback, watchiousErrorCallback)
         if result != 0 {

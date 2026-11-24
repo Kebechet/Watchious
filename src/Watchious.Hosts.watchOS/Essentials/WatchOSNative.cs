@@ -87,6 +87,8 @@ internal static unsafe partial class WatchOSNative
     [LibraryImport("__Internal", EntryPoint = "watchious_notifications_cancel_all")]
     public static partial void NotificationsCancelAll();
 
+    // 1 when location services are on, 0 when not, 2 when the host was built without location, for an app whose
+    // Info.plist has no NSLocationWhenInUseUsageDescription.
     [LibraryImport("__Internal", EntryPoint = "watchious_location_is_supported")]
     public static partial int LocationIsSupported();
 
@@ -111,10 +113,12 @@ internal static unsafe partial class WatchOSNative
     [LibraryImport("__Internal", EntryPoint = "watchious_location_last_known")]
     public static partial int LocationLastKnown(double* values);
 
+    // 1 when the watch has it, 0 when not, 2 when the host was built without it (the compass without
+    // NSLocationWhenInUseUsageDescription, the barometer without NSMotionUsageDescription in the app's Info.plist).
     [LibraryImport("__Internal", EntryPoint = "watchious_sensor_is_supported")]
     public static partial int SensorIsSupported(int kind);
 
-    // 0 when started, 2 when it needs NSMotionUsageDescription in the app's Info.plist.
+    // 0 when started, 2 when the host was built without it.
     [LibraryImport("__Internal", EntryPoint = "watchious_sensor_start")]
     public static partial int SensorStart(int kind, double intervalSeconds);
 

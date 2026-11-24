@@ -15,13 +15,17 @@ internal sealed class WearOSLocalNotifications(Context context, WearOSPermission
     private const string ScheduledFile = "watchious_notifications";
     private const string ScheduledIds = "scheduled_ids";
 
+    // The app and WatchiousNotificationReceiver both change the scheduled ids.
+    private static readonly Lock ScheduledLock = new();
+
     public bool IsSupported => true;
 
+    // Before Android 13 there is nothing to ask for, but the user can still have turned the app's notifications off.
     public Task<bool> RequestPermissionAsync()
     {
         return OperatingSystem.IsAndroidVersionAtLeast(33)
             ? permissions.RequestAnyAsync(Manifest.Permission.PostNotifications)
-            : Task.FromResult(true);
+            : Task.FromResult(NotificationManager.FromContext(context)?.AreNotificationsEnabled() ?? false);
     }
 
     public async Task ShowAsync(LocalNotification notification)
@@ -34,6 +38,9 @@ internal sealed class WearOSLocalNotifications(Context context, WearOSPermission
 
         if (notification.NotifyTime is null || notification.NotifyTime <= DateTimeOffset.UtcNow)
         {
+            // It replaces a scheduled one with its id, which would otherwise still show up later.
+            CancelAlarm(notification.Id);
+            UpdateScheduled(ids => ids.Remove(notification.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             WatchiousNotificationReceiver.Post(context, notification.Id, notification.Title, notification.Body);
             return;
         }
@@ -62,30 +69,31 @@ internal sealed class WearOSLocalNotifications(Context context, WearOSPermission
 
     public void CancelAll()
     {
-        var scheduled = ReadScheduled(context);
-        foreach (var id in scheduled)
+        UpdateScheduled(ids =>
         {
-            if (int.TryParse(id, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var notificationId))
+            foreach (var id in ids)
             {
-                CancelAlarm(notificationId);
+                if (int.TryParse(id, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var notificationId))
+                {
+                    CancelAlarm(notificationId);
+                }
             }
-        }
 
-        UpdateScheduled(ids => ids.Clear());
+            ids.Clear();
+        });
         NotificationManager.FromContext(context)?.CancelAll();
     }
 
-    internal static HashSet<string> ReadScheduled(Context context)
+    internal static void UpdateScheduled(Context context, Action<HashSet<string>> update)
     {
-        var preferences = context.GetSharedPreferences(ScheduledFile, FileCreationMode.Private)!;
-        return [.. preferences.GetStringSet(ScheduledIds, null) ?? []];
-    }
-
-    internal static void WriteScheduled(Context context, HashSet<string> ids)
-    {
-        var preferences = context.GetSharedPreferences(ScheduledFile, FileCreationMode.Private)!;
-        using var editor = preferences.Edit()!;
-        editor.PutStringSet(ScheduledIds, ids)!.Apply();
+        lock (ScheduledLock)
+        {
+            var preferences = context.GetSharedPreferences(ScheduledFile, FileCreationMode.Private)!;
+            HashSet<string> ids = [.. preferences.GetStringSet(ScheduledIds, null) ?? []];
+            update(ids);
+            using var editor = preferences.Edit()!;
+            editor.PutStringSet(ScheduledIds, ids)!.Apply();
+        }
     }
 
     private void CancelAlarm(int id)
@@ -101,9 +109,7 @@ internal sealed class WearOSLocalNotifications(Context context, WearOSPermission
 
     private void UpdateScheduled(Action<HashSet<string>> update)
     {
-        var ids = ReadScheduled(context);
-        update(ids);
-        WriteScheduled(context, ids);
+        UpdateScheduled(context, update);
     }
 }
 
@@ -125,9 +131,7 @@ internal sealed class WatchiousNotificationReceiver : BroadcastReceiver
 
         var id = intent.GetIntExtra(ExtraId, 0);
         Post(context, id, intent.GetStringExtra(ExtraTitle) ?? "", intent.GetStringExtra(ExtraBody));
-        var scheduled = WearOSLocalNotifications.ReadScheduled(context);
-        scheduled.Remove(id.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        WearOSLocalNotifications.WriteScheduled(context, scheduled);
+        WearOSLocalNotifications.UpdateScheduled(context, ids => ids.Remove(id.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
 
     public static void Post(Context context, int id, string title, string? body)

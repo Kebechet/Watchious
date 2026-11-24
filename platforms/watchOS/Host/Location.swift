@@ -1,10 +1,17 @@
-import CoreLocation
 import Foundation
+#if WATCHIOUS_LOCATION
+import CoreLocation
+#endif
 
 // CLLocationManager behind IGeolocation. Token 0 is the foreground listening; any other token is a one-shot request. A
 // position goes to C# as 8 doubles: latitude, longitude, altitude, horizontal and vertical accuracy, speed, course and
 // the time in seconds since 1970, where a negative accuracy, speed or course is unknown, as in Core Location. The
 // manager lives on the main thread, whose run loop delivers its updates.
+//
+// link-watch-app.sh defines WATCHIOUS_LOCATION only when the app's Info.plist has NSLocationWhenInUseUsageDescription.
+// Without it the host leaves Core Location out, since App Store Connect refuses an app whose code uses location
+// without that text (ITMS-90683), and the functions below report location as left out.
+#if WATCHIOUS_LOCATION
 final class WatchiousLocation: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
     static let shared = WatchiousLocation()
 
@@ -71,9 +78,14 @@ final class WatchiousLocation: NSObject, CLLocationManagerDelegate, @unchecked S
         manager.startUpdatingLocation()
     }
 
+    // stopUpdatingLocation also cancels a pending requestLocation, so one-shot requests still waiting (for the next
+    // listening update, or from before the listening) ask again.
     func stopListening() {
         isListening = false
         manager.stopUpdatingLocation()
+        if !requestTokens.isEmpty {
+            manager.requestLocation()
+        }
     }
 
     func lastKnown(_ values: UnsafeMutablePointer<Double>) -> Int32 {
@@ -131,6 +143,7 @@ final class WatchiousLocation: NSObject, CLLocationManagerDelegate, @unchecked S
     }
 }
 
+// 1 when location services are on, 0 when not, 2 when the host was built without location.
 @_cdecl("watchious_location_is_supported")
 public func watchiousLocationIsSupported() -> Int32 {
     WatchiousLocation.shared.isSupported ? 1 : 0
@@ -178,3 +191,37 @@ public func watchiousLocationLastKnown(_ values: UnsafeMutablePointer<Double>) -
         WatchiousLocation.shared.lastKnown(values)
     }
 }
+#else
+// C# checks watchious_location_is_supported first and reports the missing key; the others answer as if refused.
+@_cdecl("watchious_location_is_supported")
+public func watchiousLocationIsSupported() -> Int32 {
+    2
+}
+
+@_cdecl("watchious_location_request_authorization")
+public func watchiousLocationRequestAuthorization(_ token: Int64) {
+    WatchiousEssentialsCallbacks.shared.complete(token, 2)
+}
+
+@_cdecl("watchious_location_request")
+public func watchiousLocationRequest(_ token: Int64, _ accuracy: Double) {
+    WatchiousEssentialsCallbacks.shared.locationFailed?(token, 2)
+}
+
+@_cdecl("watchious_location_cancel")
+public func watchiousLocationCancel(_ token: Int64) {
+}
+
+@_cdecl("watchious_location_start")
+public func watchiousLocationStart(_ accuracy: Double) {
+}
+
+@_cdecl("watchious_location_stop")
+public func watchiousLocationStop() {
+}
+
+@_cdecl("watchious_location_last_known")
+public func watchiousLocationLastKnown(_ values: UnsafeMutablePointer<Double>) -> Int32 {
+    0
+}
+#endif

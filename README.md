@@ -188,7 +188,11 @@ The names and shapes are MAUI Essentials' where it has the API (`IGeolocation`, 
 `FeatureNotSupportedException`. Location and notifications ask for their permission on first use and throw
 `PermissionException` when it's denied. The app declares what each platform needs:
 `NSLocationWhenInUseUsageDescription` and, for the barometer, `NSMotionUsageDescription` in
-`Platforms/watchOS/Info.plist`; `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` in the Wear OS manifest. Events
+`Platforms/watchOS/Info.plist`; `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` in the Wear OS manifest. ⚠️ The
+watchOS host builds its location and compass code only when `NSLocationWhenInUseUsageDescription` is there, and its
+barometer only with `NSMotionUsageDescription`: App Store Connect refuses an app whose code uses them without the text
+(ITMS-90683). Without the key, `IsSupported` is false and using the API throws `FeatureNotSupportedException` naming
+it. Events
 come on the platform's thread, often many times a second for a sensor: a page updates itself through `InvokeAsync`,
 and unsubscribes in `Dispose`.
 

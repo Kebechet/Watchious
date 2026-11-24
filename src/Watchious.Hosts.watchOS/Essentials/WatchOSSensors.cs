@@ -23,9 +23,12 @@ internal interface IWatchOSSensor
 internal sealed class WatchOSSensor<TData>(WatchOSSensorKind kind, string name, Func<double, double, double, double, TData> read, Action<TData> received)
     : IWatchOSSensor, IDisposable
 {
+    private const int Supported = 1;
+    private const int LeftOut = 2;
+
     private readonly Lock _lock = new();
 
-    public bool IsSupported => WatchOSNative.SensorIsSupported((int)kind) != 0;
+    public bool IsSupported => WatchOSNative.SensorIsSupported((int)kind) == Supported;
 
     public bool IsMonitoring { get; private set; }
 
@@ -33,7 +36,13 @@ internal sealed class WatchOSSensor<TData>(WatchOSSensorKind kind, string name, 
     {
         lock (_lock)
         {
-            if (!IsSupported)
+            var support = WatchOSNative.SensorIsSupported((int)kind);
+            if (support == LeftOut)
+            {
+                throw LeftOutException();
+            }
+
+            if (support != Supported)
             {
                 throw new FeatureNotSupportedException($"This watch has no {name}.");
             }
@@ -52,9 +61,9 @@ internal sealed class WatchOSSensor<TData>(WatchOSSensorKind kind, string name, 
             };
             WatchOSCallbacks.SetSensor(kind, this);
             var result = WatchOSNative.SensorStart((int)kind, interval);
-            if (result == 2)
+            if (result == LeftOut)
             {
-                throw new InvalidOperationException($"The {name} needs NSMotionUsageDescription in the app's Platforms/watchOS/Info.plist.");
+                throw LeftOutException();
             }
 
             IsMonitoring = true;
@@ -86,6 +95,14 @@ internal sealed class WatchOSSensor<TData>(WatchOSSensorKind kind, string name, 
     public void Dispose()
     {
         Stop();
+        WatchOSCallbacks.RemoveSensor(kind, this);
+    }
+
+    // The host leaves out the code of a sensor whose usage description the app's Info.plist lacks (Sensors.swift).
+    private FeatureNotSupportedException LeftOutException()
+    {
+        var key = kind == WatchOSSensorKind.Compass ? "NSLocationWhenInUseUsageDescription" : "NSMotionUsageDescription";
+        return new FeatureNotSupportedException($"The {name} is left out of this app: its Platforms/watchOS/Info.plist has no {key}, which watchOS (and App Store Connect) require of an app that uses it.");
     }
 }
 

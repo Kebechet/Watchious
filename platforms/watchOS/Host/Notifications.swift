@@ -2,16 +2,15 @@ import Foundation
 import UserNotifications
 
 // UNUserNotificationCenter behind ILocalNotifications. As its delegate, it shows a notification also while the app is
-// open, which watchOS otherwise keeps to the notification list.
+// open, which watchOS otherwise keeps to the notification list. The host attaches it as it starts, since Apple asks for
+// the delegate before launch finishes: a notification scheduled in an earlier run then also shows while the app is open.
 final class WatchiousNotifications: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     static let shared = WatchiousNotifications()
 
     let center = UNUserNotificationCenter.current()
 
     func attach() {
-        if center.delegate !== self {
-            center.delegate = self
-        }
+        center.delegate = self
     }
 
     func userNotificationCenter(
@@ -26,9 +25,7 @@ final class WatchiousNotifications: NSObject, UNUserNotificationCenterDelegate, 
 // Completes with 1 when notifications are allowed; asks the user only the first time.
 @_cdecl("watchious_notifications_request_permission")
 public func watchiousNotificationsRequestPermission(_ token: Int64) {
-    let notifications = WatchiousNotifications.shared
-    notifications.attach()
-    notifications.center.requestAuthorization(options: [.alert, .sound]) { isGranted, _ in
+    WatchiousNotifications.shared.center.requestAuthorization(options: [.alert, .sound]) { isGranted, _ in
         WatchiousEssentialsCallbacks.shared.complete(token, isGranted ? 1 : 0)
     }
 }
@@ -50,9 +47,7 @@ public func watchiousNotificationsShow(
     content.sound = .default
     let trigger = delay > 0 ? UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false) : nil
     let request = UNNotificationRequest(identifier: String(id), content: content, trigger: trigger)
-    let notifications = WatchiousNotifications.shared
-    notifications.attach()
-    notifications.center.add(request) { error in
+    WatchiousNotifications.shared.center.add(request) { error in
         if let error {
             NSLog("[Watchious] notification %d: %@", id, error.localizedDescription)
         }
