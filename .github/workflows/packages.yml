@@ -1,0 +1,135 @@
+name: Packages
+
+# Packs the 10 Kebechet.Watchious.* packages at one version and tests them as an app outside the repository uses them,
+# the same way for pull requests (build.yml) and for a publish (publish.yml). In-repo builds never use the packages, so
+# only these checks catch a package that is wrong. The steps are the repository's scripts, which also run on a
+# developer's machine: .github/scripts/pack.sh, check-packages.sh and package-smoke.sh.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The package version, for example 0.1.0-preview.1, or 0.0.0-ci.<run number> for a test.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # The SDK and workload set the packages are built and tested with. The Android packages come out as
+  # lib/net10.0-android36.0 from this workload set, and Kebechet.Watchious.Sdk is tested with its .NET for iOS.
+  DOTNET_SDK_VERSION: '10.0.404'
+  DOTNET_WORKLOAD_SET: '10.0.404'
+  XCODE_VERSION: '27.2'
+  VERSION: ${{ inputs.version }}
+
+jobs:
+  pack-test:
+    name: Pack, test and smoke (Linux, Wear OS)
+    # Pinned: ubuntu-latest's default JDK 25 can't run the Gradle 8.13 the Wear OS libraries build with.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      # No Gradle daemon left running while the cache of ~/.gradle is saved.
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
+    steps:
+      - uses: actions/checkout@v7
+
+      # Not setup-dotnet: its workloads input runs `dotnet workload update` first, which leaves the pinned workload set.
+      - name: Install .NET ${{ env.DOTNET_SDK_VERSION }} and the android workload
+        run: |
+          set -euo pipefail
+          install_dir="$RUNNER_TEMP/dotnet"
+          curl -sSL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
+          bash "$RUNNER_TEMP/dotnet-install.sh" --version "$DOTNET_SDK_VERSION" --install-dir "$install_dir" --no-path
+          echo "DOTNET_ROOT=$install_dir" >> "$GITHUB_ENV"
+          echo "$install_dir" >> "$GITHUB_PATH"
+          "$install_dir/dotnet" workload install android --version "$DOTNET_WORKLOAD_SET"
+
+      - name: Use JDK 21 and Android platform 36
+        run: |
+          set -euo pipefail
+          echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Cache Gradle downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('platforms/WearOS/**/*.gradle.kts', 'platforms/WearOS/gradle.properties', 'platforms/WearOS/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Pack
+        id: pack
+        run: bash .github/scripts/pack.sh "$VERSION" artifacts/packages
+
+      - name: Test
+        run: dotnet test --project tests/Watchious.Core.Tests/Watchious.Core.Tests.csproj -c Release
+
+      - name: Check the packages
+        run: bash .github/scripts/check-packages.sh artifacts/packages "$VERSION"
+
+      - name: Smoke-test the packages (preview, Wear OS Release)
+        run: bash .github/scripts/package-smoke.sh artifacts/packages "$VERSION" "$RUNNER_TEMP/package-smoke"
+
+      - name: Upload the packages
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+
+      - name: Upload the smoke test logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-smoke-logs-linux
+          path: ${{ runner.temp }}/package-smoke/logs
+          if-no-files-found: ignore
+
+  smoke-watchos:
+    name: Smoke (macOS, watchOS simulator)
+    needs: pack-test
+    # Xcode 27.2 with watchOS 27.2 simulators, as the watchOS canary:
+    # https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      # android too: the template app also targets Wear OS, and its restore covers that target framework.
+      - name: Install .NET ${{ env.DOTNET_SDK_VERSION }} and the ios and android workloads
+        run: |
+          set -euo pipefail
+          install_dir="$RUNNER_TEMP/dotnet"
+          curl -sSL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
+          bash "$RUNNER_TEMP/dotnet-install.sh" --version "$DOTNET_SDK_VERSION" --install-dir "$install_dir" --no-path
+          echo "DOTNET_ROOT=$install_dir" >> "$GITHUB_ENV"
+          echo "$install_dir" >> "$GITHUB_PATH"
+          "$install_dir/dotnet" workload install ios android --version "$DOTNET_WORKLOAD_SET"
+
+      - name: Download the packages
+        uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: ${{ runner.temp }}/packages
+
+      - name: Smoke-test the packages (watchOS simulator)
+        run: bash .github/scripts/package-smoke.sh --watchos "$RUNNER_TEMP/packages" "$VERSION" "$RUNNER_TEMP/package-smoke"
+
+      - name: Upload the smoke test logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-smoke-logs-watchos
+          path: ${{ runner.temp }}/package-smoke/logs
+          if-no-files-found: ignore
