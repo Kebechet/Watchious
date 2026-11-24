@@ -10,9 +10,9 @@ on Apple Watch and native Compose on Wear OS, and the app's C# runs on the watch
 
 The native Wear OS host, in Kotlin, which turns the renderer's patches into a live Compose for Wear OS view tree, and
 its C# side: `WatchiousActivity`, which the app's `MainActivity` derives from, starts the app and brings taps, crown
-and rotary input back. It also has the Wear OS implementations of `Kebechet.Watchious.Essentials`. The host's own Android library (`host-release.aar`) ships in the
-package; the Android libraries it depends on come from Microsoft's `Xamarin.AndroidX.*` packages, except Wear Compose
-Material 3, which the package bundles (see "License").
+and rotary input back. It also has the Wear OS implementations of `Kebechet.Watchious.Essentials`. The host's own
+Android library (`host-release.aar`) ships in the package; the Android libraries it depends on come from Microsoft's
+`Xamarin.AndroidX.*` packages, except Wear Compose Material 3, which the package bundles (see "License").
 
 ## When an app needs it
 

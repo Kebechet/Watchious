@@ -8,11 +8,12 @@ on Apple Watch and native Compose on Wear OS, and the app's C# runs on the watch
 
 ## What it is
 
-Messages and the application context between a watch app and its phone app, wire-compatible with
+Messages, messages with an answer, and the application context between a watch app and its phone app. It is
+wire-compatible with
 [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging), which the
-phone app uses unchanged: messages, messages with an answer, and the application context. On Wear OS it uses the
-Wearable Data Layer (Play Services), and the phone and watch apps must share the applicationId and signing key. On
-watchOS it uses WatchConnectivity, and the watch app must be the iPhone app's companion, installed from inside it.
+phone app uses unchanged. On Wear OS it uses the Wearable Data Layer (Play Services), and the phone and watch apps must
+share the applicationId and signing key. On watchOS it uses WatchConnectivity, and the watch app must be the iPhone
+app's companion, installed from inside it.
 
 ## When an app needs it
 
