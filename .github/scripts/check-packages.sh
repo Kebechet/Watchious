@@ -156,6 +156,14 @@ bundled_binaries() {
     done | sort -u
 }
 
+# For an error about a native library inside the AAR .NET for Android makes of the project: .NET for Android 36.1.69
+# (workload set 10.0.401) on Windows copies a dependency's native libraries into it, CI's (10.0.404) doesn't.
+native_hint() {
+    if printf '%s\n' "$1" | grep -q '\.so$'; then
+        echo " A native library inside $name.aar can come from the .NET for Android that packed it: pack with the workload set CI uses."
+    fi
+}
+
 ANDROID_LIB='lib/net10\.0-android[0-9.]+'
 BACKSLASH=$'\\'
 
@@ -214,7 +222,7 @@ for id in "${IDS[@]}"; do
             ;;
         Hosts.WearOS)
             expect_entries "$id" "$ANDROID_LIB/$name_re\.dll" "$ANDROID_LIB/host-release\.aar"
-            # Wear Compose Material 3, and AndroidX Graphics Path's native library.
+            # Wear Compose Material 3.
             license='MIT AND Apache-2.0'
             ;;
         Health|Messaging)
@@ -287,7 +295,7 @@ for id in "${IDS[@]}"; do
     bundled="$(maven_libraries "$ROOT/src/$name/$name.csproj"; bundled_binaries)"
     notices="$(unzip -p "$PACKAGE" THIRD-PARTY-NOTICES.txt 2>/dev/null | tr -d '\r' || true)"
     if [ "$license" = MIT ]; then
-        [ -z "$bundled" ] || error "$id bundles other projects' binaries but its license is MIT alone: $(words "$bundled"). Name them and their licenses in a THIRD-PARTY-NOTICES.txt, and set the expression in the project and here."
+        [ -z "$bundled" ] || error "$id bundles other projects' binaries but its license is MIT alone: $(words "$bundled"). Name them and their licenses in a THIRD-PARTY-NOTICES.txt, and set the expression in the project and here.$(native_hint "$bundled")"
         [ -z "$notices" ] || error "$id has a THIRD-PARTY-NOTICES.txt, but its license is MIT alone."
     elif [ -z "$notices" ]; then
         error "$id: its license is '$license', but it has no THIRD-PARTY-NOTICES.txt."
@@ -295,7 +303,7 @@ for id in "${IDS[@]}"; do
         unnamed="$(printf '%s\n' "$bundled" | sed '/^$/d' | while IFS= read -r binary; do
             printf '%s\n' "$notices" | grep -qF "$binary" || echo "$binary"
         done)"
-        [ -z "$unnamed" ] || error "$id: its THIRD-PARTY-NOTICES.txt doesn't name what it bundles: $(words "$unnamed")"
+        [ -z "$unnamed" ] || error "$id: its THIRD-PARTY-NOTICES.txt doesn't name what it bundles: $(words "$unnamed").$(native_hint "$unnamed")"
     fi
 
     # The .pdb of each assembly, for the packages with assemblies.

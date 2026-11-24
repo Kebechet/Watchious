@@ -26,9 +26,8 @@ dotnet new watchious -n MyWatchApp
 
 ## License
 
-Watchious is MIT-licensed. This package also contains, unchanged, Google's Wear Compose Material 3 library and the
-native library of AndroidX Graphics Path, both Apache-2.0: `THIRD-PARTY-NOTICES.txt` in the package lists them, with
-their licenses.
+Watchious is MIT-licensed. This package also contains, unchanged, Google's Wear Compose Material 3 library
+(Apache-2.0): `THIRD-PARTY-NOTICES.txt` in the package names it, with its license.
 
 ## More
 

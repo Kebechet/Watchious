@@ -8,8 +8,7 @@
     <PackageId>Kebechet.Watchious.Hosts.WearOS</PackageId>
     <Description>Watchious's Wear OS host: renders Watchious apps with Compose for Wear OS.</Description>
     <PackageTags>$(PackageTags);compose;wear-compose;android</PackageTags>
-    <!-- The package bundles Apache-2.0 binaries: Wear Compose Material 3 and AndroidX Graphics Path's native library
-         (THIRD-PARTY-NOTICES.txt). -->
+    <!-- The package bundles Wear Compose Material 3, which is Apache-2.0 (THIRD-PARTY-NOTICES.txt). -->
     <PackageLicenseExpression>MIT AND Apache-2.0</PackageLicenseExpression>
   </PropertyGroup>
 

@@ -684,5 +684,5 @@ artifact.
 
 [MIT](LICENSE). Two packages also bundle Google's Android libraries, unchanged, under their own licenses, each listed
 with its license in the package's `THIRD-PARTY-NOTICES.txt`: `Kebechet.Watchious.Hosts.WearOS` (Wear Compose Material
-3 and AndroidX Graphics Path's native library, Apache-2.0) and `Kebechet.Watchious.Health` (Health Services and its
-protos, Apache-2.0, and the protobuf runtime it repackages, BSD-3-Clause).
+3, Apache-2.0) and `Kebechet.Watchious.Health` (Health Services and its protos, Apache-2.0, and the protobuf runtime it
+repackages, BSD-3-Clause).

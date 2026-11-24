@@ -13,17 +13,8 @@ text is the LICENSE.txt that ships inside the component.
    Copyright: The Android Open Source Project
    License: Apache-2.0 (The Apache Software License, Version 2.0), below
 
-2. Android Graphics Path, its native library
-   Maven artifact: androidx.graphics:graphics-path:1.1.0
-   In this package: libandroidx.graphics.path.so, for each Android ABI, inside Watchious.Hosts.WearOS.aar. The .NET for
-   Android build copies it there from Microsoft's Xamarin.AndroidX.Graphics.Path 1.1.0.1 package, a dependency of
-   Xamarin.AndroidX.Compose.UI.Graphics.Android, which comes with the Compose packages this package depends on.
-   Project: https://developer.android.com/jetpack/androidx/releases/graphics#1.1.0
-   Copyright: The Android Open Source Project
-   License: Apache-2.0 (The Apache Software License, Version 2.0), below
-
 ========================================================================================================================
-Apache License, Version 2.0 (components 1 and 2)
+Apache License, Version 2.0 (component 1)
 ========================================================================================================================
 
                                  Apache License
