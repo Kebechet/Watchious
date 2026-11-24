@@ -50,7 +50,7 @@ internal fun WatchList(node: UiNode, dispatch: EventDispatch) {
     val crown = rememberScreenCrown()
     // Apple's own controls, and the ones on the screen's edges, would otherwise become empty rows.
     val rows = node.children.filterNot { it.isBlankText() || it.isAppleOnly() || it.isScreenEdge() }
-    EdgesScreenScaffold(state, dispatch) { contentPadding: PaddingValues ->
+    EdgesScreenScaffold(state, crown, dispatch) { contentPadding: PaddingValues ->
         CompositionLocalProvider(LocalScreenCrown provides crown) {
             // The list's own crown handling, like ScrollView's, so that it can let a Picker have the crown.
             TransformingLazyColumn(

@@ -131,7 +131,7 @@ private fun UnknownNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
 private fun WatchScrollView(node: UiNode, dispatch: EventDispatch) {
     val scrollState = rememberScrollState()
     val crown = rememberScreenCrown()
-    EdgesScreenScaffold(scrollState, dispatch) { contentPadding: PaddingValues ->
+    EdgesScreenScaffold(scrollState, crown, dispatch) { contentPadding: PaddingValues ->
         CompositionLocalProvider(LocalScreenCrown provides crown) {
             Column(
                 modifier = Modifier

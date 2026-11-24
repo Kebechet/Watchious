@@ -14,6 +14,12 @@ public partial class HostCoverageTests
     // Read by the C# side only: tests find navigation pages by their route.
     private static readonly string[] CSharpOnlyAttributes = ["Route"];
 
+    // Enums of one platform's controls that live outside its namespace (see GaugeStyle.cs).
+    private static readonly Dictionary<string, string> PlatformOnlyEnums = new()
+    {
+        [nameof(GaugeStyle)] = "watchOS",
+    };
+
     // Read by one watch host only, and by the preview, which draws both platforms.
     private static readonly Dictionary<string, string> PlatformOnlyAttributes = new()
     {
@@ -80,7 +86,7 @@ public partial class HostCoverageTests
         // Arrange
         var source = HostSource(host);
         var values = typeof(Label).Assembly.GetExportedTypes()
-            .Where(type => type.IsEnum && (PlatformOfNamespace(type.Namespace) is null || PlatformOfNamespace(type.Namespace) == host))
+            .Where(type => type.IsEnum && IsForHost(type, host))
             .SelectMany(type => Enum.GetNames(type).Select(name => $"{type.Name}.{name}"))
             .ToList();
 
@@ -133,6 +139,12 @@ public partial class HostCoverageTests
             .Where(group => host == "Preview" || group.Any(found => found.Platform is null || found.Platform == host))
             .Select(group => group.Key)
             .ToList();
+    }
+
+    private static bool IsForHost(Type enumType, string host)
+    {
+        var platform = PlatformOfNamespace(enumType.Namespace) ?? PlatformOnlyEnums.GetValueOrDefault(enumType.Name);
+        return platform is null || platform == host;
     }
 
     private static string? PlatformOfFile(string file)

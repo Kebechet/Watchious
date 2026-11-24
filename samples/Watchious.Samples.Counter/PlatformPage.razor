@@ -5,8 +5,8 @@
 <List>
     <Label Style="TextStyle.Headline">Platform</Label>
     <Apple.Gauge Value="heartRate" From="40" Through="180" Text="Heart rate" CurrentValueText="@heartRate.ToString()"
-                 MinimumText="40" MaximumText="180" Style="Apple.GaugeStyle.Circular" />
-    <Apple.Gauge Value="0.6" Text="Battery" MinimumText="0%" MaximumText="100%" Style="Apple.GaugeStyle.LinearCapacity" />
+                 MinimumText="40" MaximumText="180" Style="GaugeStyle.Circular" />
+    <Apple.Gauge Value="0.6" Text="Battery" MinimumText="0%" MaximumText="100%" Style="GaugeStyle.LinearCapacity" />
     <Label>Taps: @taps</Label>
     @if (DeviceInfo.Platform == WatchPlatform.watchOS)
     {

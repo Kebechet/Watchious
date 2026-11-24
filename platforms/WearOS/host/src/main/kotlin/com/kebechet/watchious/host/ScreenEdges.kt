@@ -1,15 +1,19 @@
 package com.kebechet.watchious.host
 
+import android.util.Log
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.wear.compose.foundation.CurvedDirection
 import androidx.wear.compose.foundation.CurvedLayout
@@ -28,11 +32,16 @@ import androidx.wear.compose.material3.timeTextSeparator
 
 // The Wear-only controls that sit on the round screen's edges (Wear.TimeText, Wear.CurvedText and Wear.EdgeButton in
 // C#). Wherever a page puts them, its ScreenScaffold shows them on the edges, and they take no place in the layout.
-internal class ScreenEdges(val timeText: UiNode?, val curvedText: UiNode?, val edgeButton: UiNode?) {
+// A data class, so that a page that rebuilds it with the same nodes doesn't recompose what reads it.
+internal data class ScreenEdges(val timeText: UiNode?, val curvedText: UiNode?, val edgeButton: UiNode?) {
     val isEmpty: Boolean get() = timeText == null && curvedText == null && edgeButton == null
+
+    companion object {
+        val None = ScreenEdges(null, null, null)
+    }
 }
 
-internal val LocalScreenEdges = compositionLocalOf { ScreenEdges(null, null, null) }
+internal val LocalScreenEdges = compositionLocalOf { ScreenEdges.None }
 
 // Apple's own controls (the Apple namespace in C#) have no place on Wear OS.
 internal fun UiNode.isAppleOnly(): Boolean = type.startsWith("Apple.")
@@ -61,11 +70,13 @@ internal fun UiNode.hasScreenScaffold(): Boolean = type == "List" || type == "Sc
 @Composable
 internal fun EdgesScreenScaffold(
     state: TransformingLazyColumnState,
+    crown: ScreenCrown,
     dispatch: EventDispatch,
     content: @Composable BoxScope.(PaddingValues) -> Unit,
 ) {
     val edges = LocalScreenEdges.current
     val edgeButton = edges.edgeButton
+    KeepListCrown(crown, hasEdgeButton = edgeButton != null)
     if (edgeButton == null) {
         ScreenScaffold(scrollState = state, timeText = edges.timeTextSlot()) { padding -> Edges(edges, padding, content) }
     } else {
@@ -77,44 +88,78 @@ internal fun EdgesScreenScaffold(
     }
 }
 
+// crown is null for a page that doesn't scroll, which has no scroll indicator either.
 @Composable
 internal fun EdgesScreenScaffold(
     state: ScrollState,
+    crown: ScreenCrown?,
     dispatch: EventDispatch,
     content: @Composable BoxScope.(PaddingValues) -> Unit,
 ) {
     val edges = LocalScreenEdges.current
     val edgeButton = edges.edgeButton
+    if (crown != null) {
+        KeepListCrown(crown, hasEdgeButton = edgeButton != null)
+    }
+    val scrollIndicator: (@Composable BoxScope.() -> Unit)? = if (crown != null) {
+        { ScrollIndicator(state) }
+    } else {
+        null
+    }
     if (edgeButton == null) {
-        ScreenScaffold(scrollState = state, timeText = edges.timeTextSlot()) { padding -> Edges(edges, padding, content) }
+        ScreenScaffold(scrollState = state, timeText = edges.timeTextSlot(), scrollIndicator = scrollIndicator) { padding ->
+            Edges(edges, padding, content)
+        }
     } else {
         ScreenScaffold(
             scrollInfoProvider = ScrollInfoProvider(state),
             edgeButton = { ScreenEdgeButton(edgeButton, dispatch) },
             timeText = edges.timeTextSlot(),
-            scrollIndicator = { ScrollIndicator(state) },
+            scrollIndicator = scrollIndicator,
         ) { padding -> Edges(edges, padding, content) }
     }
 }
 
-// A page without a List or ScrollView: the edges around its content, which doesn't scroll.
+// A page without a List or ScrollView: the edges around its content, which doesn't scroll, and so keeps clear of the
+// edge button.
 @Composable
 internal fun EdgesPage(dispatch: EventDispatch, content: @Composable () -> Unit) {
-    EdgesScreenScaffold(rememberScrollState(), dispatch) { padding ->
-        Box(modifier = Modifier.fillMaxSize()) {
+    val hasEdgeButton = LocalScreenEdges.current.edgeButton != null
+    EdgesScreenScaffold(rememberScrollState(), crown = null, dispatch) { padding ->
+        val bottom = if (hasEdgeButton) padding.calculateBottomPadding() else 0.dp
+        Box(modifier = Modifier.fillMaxSize().padding(bottom = bottom)) {
             content()
         }
     }
 }
 
+// Adding or removing the edge button moves the content into the other ScreenScaffold, and the list's crown focus
+// doesn't come along: the list asks for the crown again, unless a control has it.
+@Composable
+private fun KeepListCrown(crown: ScreenCrown, hasEdgeButton: Boolean) {
+    LaunchedEffect(hasEdgeButton) {
+        if (crown.control == null) {
+            crown.focusRequester.requestFocus()
+        }
+    }
+}
+
+// The curved text and the edge button share the bottom edge, so the edge button wins.
 @Composable
 private fun Edges(edges: ScreenEdges, padding: PaddingValues, content: @Composable BoxScope.(PaddingValues) -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         // A List inside a ScrollView has a ScreenScaffold of its own, which mustn't show the edges a second time.
-        CompositionLocalProvider(LocalScreenEdges provides ScreenEdges(null, null, null)) {
+        CompositionLocalProvider(LocalScreenEdges provides ScreenEdges.None) {
             content(padding)
         }
-        edges.curvedText?.let { ScreenCurvedText(it) }
+        val curvedText = edges.curvedText
+        if (curvedText != null && edges.edgeButton == null) {
+            ScreenCurvedText(curvedText)
+        } else if (curvedText != null) {
+            LaunchedEffect(curvedText) {
+                Log.w(LOG_TAG, "Wear.CurvedText and Wear.EdgeButton share the bottom edge; the curved text isn't shown")
+            }
+        }
     }
 }
 

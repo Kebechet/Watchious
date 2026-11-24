@@ -29,6 +29,22 @@ public class PlatformControlsTests
     }
 
     [Fact]
+    public async Task Gauge_SendsANaNOrTooLowValueAsFrom()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        var app = WatchiousApp.CreateBuilder().UseWatchiousApp<ClampedGaugesPage>().Build();
+        await using var disposeApp = app;
+
+        // Act
+        await app.StartAsync(host);
+
+        // Assert
+        host.Errors.ShouldBeEmpty();
+        host.LastTree.Descendants().Where(node => node.Type == "Apple.Gauge").Select(node => node.Attribute("Value")).ShouldBe(["10", "10"]);
+    }
+
+    [Fact]
     public async Task Gauge_ThroughBelowFrom_ReportsTheError()
     {
         // Arrange

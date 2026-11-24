@@ -232,7 +232,7 @@ round screen while their page is shown, wherever the page puts them:
 ```razor
 <List>
     <Apple.Gauge Value="@heartRate" From="40" Through="180" CurrentValueText="@heartRate.ToString()"
-                 Style="Apple.GaugeStyle.Circular" />
+                 Style="GaugeStyle.Circular" />
     <Wear.TimeText Text="Run" />                        @* "Run · 10:09" along the top *@
     <Wear.EdgeButton Icon="Icon.Plus" Text="Lap" OnClick="Lap" />
 </List>
