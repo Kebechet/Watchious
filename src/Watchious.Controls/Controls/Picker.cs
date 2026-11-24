@@ -40,7 +40,7 @@ public sealed class Picker : ComponentBase
             return Task.CompletedTask;
         }
 
-        SelectedIndex = index;
+        // The page decides, as with Toggle: a page that refuses the new index keeps the picker where it was.
         return SelectedIndexChanged.InvokeAsync(index);
     }
 }

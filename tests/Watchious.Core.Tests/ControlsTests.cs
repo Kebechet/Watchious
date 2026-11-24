@@ -217,6 +217,25 @@ public class ControlsTests
         host.Errors.ShouldHaveSingleItem().ShouldBeOfType<ArgumentOutOfRangeException>().ParamName.ShouldBe("By");
     }
 
+    [Fact]
+    public async Task PickerAndCrown_StayAsThePageSaysWhenItRefuses()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        var app = WatchiousApp.CreateBuilder().UseWatchiousApp<RefusingControlsPage>().Build();
+        await using var disposeApp = app;
+        await app.StartAsync(host);
+
+        // Act
+        await app.DispatchEventAsync(host.LastTree.Single("Picker").Events["selected"], "selected", "2");
+        await app.DispatchEventAsync(host.LastTree.Single("DigitalCrownRotation").Events["changed"], "changed", "5");
+
+        // Assert
+        host.LastTree.Descendants().ShouldContain(node => node.Content == "Tries: 2");
+        host.LastTree.Single("Picker").Attribute("SelectedIndex").ShouldBe("0");
+        host.LastTree.Single("DigitalCrownRotation").Attribute("Value").ShouldBe("1");
+    }
+
     private static async Task<(WatchiousApp App, RecordingHost Host)> StartAsync()
     {
         var host = new RecordingHost();

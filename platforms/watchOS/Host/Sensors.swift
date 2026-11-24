@@ -143,6 +143,18 @@ final class WatchiousSensors: NSObject, @unchecked Sendable {
         return 0
     }
 
+    #if WATCHIOUS_MOTION_DATA
+    // Core Motion asks for Motion & Fitness on the first query: a query for the last minute's steps shows the question
+    // and answers once the user has, with 1 when allowed and 0 when not.
+    func requestPedometerAccess(_ token: Int64) {
+        let now = Date()
+        pedometer.queryPedometerData(from: now.addingTimeInterval(-60), to: now) { _, _ in
+            let isAllowed = CMPedometer.authorizationStatus() == .authorized
+            WatchiousEssentialsCallbacks.shared.complete(token, isAllowed ? 1 : 0)
+        }
+    }
+    #endif
+
     func stop(_ kind: Int32) {
         switch kind {
         case 0:
@@ -239,6 +251,15 @@ public func watchiousSensorStop(_ kind: Int32) {
 
 // CMAuthorizationStatus: 0 not asked yet, 1 restricted, 2 denied, 3 allowed; -1 when the host was built without the
 // pedometer.
+@_cdecl("watchious_pedometer_request")
+public func watchiousPedometerRequest(_ token: Int64) {
+    #if WATCHIOUS_MOTION_DATA
+    WatchiousSensors.shared.requestPedometerAccess(token)
+    #else
+    WatchiousEssentialsCallbacks.shared.complete(token, 0)
+    #endif
+}
+
 @_cdecl("watchious_pedometer_authorization")
 public func watchiousPedometerAuthorization() -> Int32 {
     #if WATCHIOUS_MOTION_DATA

@@ -58,7 +58,7 @@ public sealed class DigitalCrownRotation : ComponentBase
             return Task.CompletedTask;
         }
 
-        Value = Math.Clamp(value, From, Through);
-        return ValueChanged.InvokeAsync(Value);
+        // The page decides, as with Toggle: a page that refuses the new value keeps the old one.
+        return ValueChanged.InvokeAsync(Math.Clamp(value, From, Through));
     }
 }

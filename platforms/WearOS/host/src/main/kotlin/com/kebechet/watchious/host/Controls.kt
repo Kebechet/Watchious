@@ -50,7 +50,7 @@ internal fun WatchList(node: UiNode, dispatch: EventDispatch) {
     val crown = rememberScreenCrown()
     // Apple's own controls, and the ones on the screen's edges, would otherwise become empty rows.
     val rows = node.children.filterNot { it.isBlankText() || it.isAppleOnly() || it.isScreenEdge() }
-    EdgesScreenScaffold(state, dispatch) { contentPadding: PaddingValues ->
+    EdgesScreenScaffold(state, crown, dispatch) { contentPadding: PaddingValues ->
         CompositionLocalProvider(LocalScreenCrown provides crown) {
             // The list's own crown handling, like ScrollView's, so that it can let a Picker have the crown.
             TransformingLazyColumn(
@@ -229,18 +229,18 @@ internal fun WatchImage(node: UiNode) {
     )
 }
 
-// MaterialIcon names any Material icon and wins over Icon, the shared set. An icon a name doesn't find is logged, and
-// shows as a warning in a debuggable build.
+// MaterialIcon names any Material icon and wins over Icon, the shared set, which stands in when the name isn't found
+// (such as an icon R8 left out of a release build). An icon neither finds is logged, and shows as a warning in a
+// debuggable build.
 @Composable
 private fun WatchIcon(node: UiNode, materialName: String?, iconName: String?) {
     val icon = remember(materialName, iconName) {
-        when {
-            !materialName.isNullOrEmpty() -> materialIcon(materialName)
-            iconName != null -> watchiousIcon(iconName) ?: run {
-                reportUnknownValue(iconName, "Icon", node.type)
+        val own = if (materialName.isNullOrEmpty()) null else materialIcon(materialName)
+        own ?: iconName?.let { name ->
+            watchiousIcon(name) ?: run {
+                reportUnknownValue(name, "Icon", node.type)
                 null
             }
-            else -> null
         }
     }
     if (icon == null) {
@@ -251,14 +251,14 @@ private fun WatchIcon(node: UiNode, materialName: String?, iconName: String?) {
         return
     }
 
+    // An icon is square, so one side sets both, as SwiftUI's scaledToFit does: Compose scales a vector up only when both
+    // sides are fixed.
     val width = node.attribute("Width")?.toFloatOrNull()
     val height = node.attribute("Height")?.toFloatOrNull()
-    var modifier: Modifier = Modifier
-    if (width != null) {
-        modifier = modifier.width(width.dp)
-    }
-    if (height != null) {
-        modifier = modifier.height(height.dp)
+    val modifier = if (width != null || height != null) {
+        Modifier.size((width ?: height!!).dp, (height ?: width!!).dp)
+    } else {
+        Modifier
     }
     Icon(imageVector = icon, contentDescription = node.attribute("Description"), modifier = modifier)
 }

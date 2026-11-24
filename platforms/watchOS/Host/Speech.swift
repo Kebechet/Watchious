@@ -8,18 +8,21 @@ final class WatchiousSpeech: NSObject, AVSpeechSynthesizerDelegate, @unchecked S
 
     private let synthesizer = AVSpeechSynthesizer()
     private let lock = NSLock()
-    private var tokens: [ObjectIdentifier: Int64] = [:]
+    // Matched by the utterance object: an ObjectIdentifier can come back for a later utterance once this one is freed.
+    private var pending: [(utterance: AVSpeechUtterance, token: Int64)] = []
 
     override init() {
         super.init()
         synthesizer.delegate = self
     }
 
-    // A negative pitch or volume keeps the voice's own; pitch goes from 0 to 2, as in C#, and AVSpeechUtterance
-    // takes 0.5 to 2.
-    func speak(_ text: String, language: String?, pitch: Float, volume: Float, token: Int64) {
+    // A voice by its identifier, or else by language. A negative pitch or volume keeps the voice's own; pitch goes from 0
+    // to 2, as in C#, and AVSpeechUtterance takes 0.5 to 2.
+    func speak(_ text: String, voice: String?, language: String?, pitch: Float, volume: Float, token: Int64) {
         let utterance = AVSpeechUtterance(string: text)
-        if let language, !language.isEmpty {
+        if let voice, let named = AVSpeechSynthesisVoice(identifier: voice) {
+            utterance.voice = named
+        } else if let language, !language.isEmpty {
             utterance.voice = AVSpeechSynthesisVoice(language: language)
         }
         if pitch >= 0 {
@@ -29,7 +32,7 @@ final class WatchiousSpeech: NSObject, AVSpeechSynthesizerDelegate, @unchecked S
             utterance.volume = max(0, min(1, volume))
         }
         lock.lock()
-        tokens[ObjectIdentifier(utterance)] = token
+        pending.append((utterance, token))
         lock.unlock()
         synthesizer.speak(utterance)
     }
@@ -48,7 +51,8 @@ final class WatchiousSpeech: NSObject, AVSpeechSynthesizerDelegate, @unchecked S
 
     private func complete(_ utterance: AVSpeechUtterance, _ result: Int32) {
         lock.lock()
-        let token = tokens.removeValue(forKey: ObjectIdentifier(utterance))
+        let index = pending.firstIndex { $0.utterance === utterance }
+        let token = index.map { pending.remove(at: $0).token }
         lock.unlock()
         if let token {
             WatchiousEssentialsCallbacks.shared.complete(token, result)
@@ -59,6 +63,7 @@ final class WatchiousSpeech: NSObject, AVSpeechSynthesizerDelegate, @unchecked S
 @_cdecl("watchious_speech_speak")
 public func watchiousSpeechSpeak(
     _ text: UnsafePointer<CChar>,
+    _ voice: UnsafePointer<CChar>?,
     _ language: UnsafePointer<CChar>?,
     _ pitch: Float,
     _ volume: Float,
@@ -66,6 +71,7 @@ public func watchiousSpeechSpeak(
 ) {
     WatchiousSpeech.shared.speak(
         String(cString: text),
+        voice: voice.map { String(cString: $0) },
         language: language.map { String(cString: $0) },
         pitch: pitch,
         volume: volume,

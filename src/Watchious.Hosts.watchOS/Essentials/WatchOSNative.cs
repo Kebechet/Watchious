@@ -29,7 +29,7 @@ internal static unsafe partial class WatchOSNative
     // platforms/watchOS/Host/Speech.swift: completes with 1 when spoken, 0 when stopped. A negative pitch or volume keeps
     // the voice's own.
     [LibraryImport("__Internal", EntryPoint = "watchious_speech_speak", StringMarshalling = StringMarshalling.Utf8)]
-    public static partial void SpeechSpeak(string text, string? language, float pitch, float volume, long token);
+    public static partial void SpeechSpeak(string text, string? voice, string? language, float pitch, float volume, long token);
 
     [LibraryImport("__Internal", EntryPoint = "watchious_speech_stop")]
     public static partial void SpeechStop();
@@ -41,6 +41,14 @@ internal static unsafe partial class WatchOSNative
     // CMAuthorizationStatus: 0 not asked yet, 1 restricted, 2 denied, 3 allowed; -1 when the host has no pedometer.
     [LibraryImport("__Internal", EntryPoint = "watchious_pedometer_authorization")]
     public static partial int PedometerAuthorization();
+
+    // Asks for Motion & Fitness; completes with 1 when allowed, 0 when not.
+    [LibraryImport("__Internal", EntryPoint = "watchious_pedometer_request")]
+    public static partial void PedometerRequest(long token);
+
+    // 1 while an extended runtime session keeps the app on screen.
+    [LibraryImport("__Internal", EntryPoint = "watchious_display_is_kept_on")]
+    public static partial int DisplayIsKeptOn();
 
     // From 0 to 1, or -1 when unknown.
     [LibraryImport("__Internal", EntryPoint = "watchious_battery_level")]

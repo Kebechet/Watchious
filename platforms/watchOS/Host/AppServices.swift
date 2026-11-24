@@ -53,8 +53,16 @@ final class WatchiousDisplay: NSObject, WKExtendedRuntimeSessionDelegate, @unche
         }
     }
 
+    // Main thread only. True from the start until the session ends, by itself or through keepOn(false).
+    var isKeptOn: Bool {
+        guard let session else {
+            return false
+        }
+        return session.state != .invalid
+    }
+
     private func startIfNeeded() {
-        if let session, session.state == .running || session.state == .scheduled {
+        if isKeptOn {
             return
         }
         let session = WKExtendedRuntimeSession()
@@ -84,6 +92,13 @@ final class WatchiousDisplay: NSObject, WKExtendedRuntimeSessionDelegate, @unche
                 self.session = nil
             }
         }
+    }
+}
+
+@_cdecl("watchious_display_is_kept_on")
+public func watchiousDisplayIsKeptOn() -> Int32 {
+    onMainThreadSync {
+        WatchiousDisplay.shared.isKeptOn ? 1 : 0
     }
 }
 

@@ -1,0 +1,21 @@
+@* A page that keeps its picker and crown value, as one does when what they would change fails. *@
+<Picker Text="Reps" Items="reps" SelectedIndex="0" SelectedIndexChanged="Refuse" />
+<DigitalCrownRotation Value="1" From="0" Through="10" ValueChanged="Refuse">
+    <Label>Speed</Label>
+</DigitalCrownRotation>
+<Label>Tries: @tries</Label>
+
+@code {
+    private readonly string[] reps = ["a", "b", "c"];
+    private int tries;
+
+    private void Refuse(int index)
+    {
+        tries++;
+    }
+
+    private void Refuse(double value)
+    {
+        tries++;
+    }
+}
