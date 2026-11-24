@@ -2,7 +2,8 @@
 # Checks the packed Kebechet.Watchious.* packages before anything installs or publishes them. A package id is permanent
 # on nuget.org, and the traps here pass every in-repo build, which never uses the packages:
 #   - every packable project in src/ has the id Kebechet.<project name>, and there are exactly 10;
-#   - the folder holds exactly those 10 packages at the version, each nuspec with its id and the version;
+#   - the folder holds exactly those 10 packages at the version, each nuspec with its id and the version, and no
+#     file path with an empty folder (host/watchOS//file) or a backslash;
 #   - no nuspec depends on an old Watchious.* id, and the dependencies on the other packages are at the version;
 #   - a props or targets file in build/ or buildTransitive/ is named after its package, the only name NuGet imports
 #     (Health's and Messaging's put their Swift into the watchOS host). The SDK is the exception: Sdk/Sdk.props and
@@ -106,6 +107,7 @@ expect_entries() {
 }
 
 ANDROID_LIB='lib/net10\.0-android[0-9.]+'
+BACKSLASH=$'\\'
 
 # 3. Each package.
 for id in "${IDS[@]}"; do
@@ -123,6 +125,9 @@ for id in "${IDS[@]}"; do
         error "$id has no $id.nuspec."
         continue
     fi
+    # Packed on Linux, a PackagePath such as host\watchOS\ gives entries like host/watchOS//file.
+    malformed="$(printf '%s\n' "$ENTRIES" | grep -F -e '//' -e "$BACKSLASH" || true)"
+    [ -z "$malformed" ] || error "$id has entries with an empty folder or a backslash in their path: $(words "$malformed")"
     printf '%s\n' "$nuspec" | grep -qF "<id>$id</id>" || error "$id: its nuspec doesn't say <id>$id</id>."
     printf '%s\n' "$nuspec" | grep -qF "<version>$VERSION</version>" || error "$id: its nuspec doesn't say <version>$VERSION</version>."
 
