@@ -118,7 +118,8 @@
   <!-- The built watch app, for an iPhone project that embeds it (Watchious.Sdk.Companion.targets). -->
   <Target Name="WatchiousGetWatchApp" DependsOnTargets="_GenerateBundleName" Returns="@(_WatchiousBuiltWatchApp)">
     <ItemGroup>
-      <_WatchiousBuiltWatchApp Include="$(MSBuildProjectDirectory)/$(_AppBundlePath.TrimEnd('/').TrimEnd('\'))" />
+      <_WatchiousBuiltWatchApp Include="$(MSBuildProjectDirectory)/$(_AppBundlePath.TrimEnd('/').TrimEnd('\'))"
+                               BundleIdentifier="$(WatchiousBundleIdentifier)" />
     </ItemGroup>
   </Target>
 
