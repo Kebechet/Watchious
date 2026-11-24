@@ -479,7 +479,7 @@ later stand in for the published one on that machine, and the test refuses a ver
 - The repository itself still builds with .NET 10 (`net10.0-*`) until .NET 11 is installed on its
   development machines. The Wear OS libraries come from Gradle first: `./gradlew assembleRelease` in
   `platforms/WearOS` (with Android Studio's JDK) also writes the POMs and binding jars the .NET projects read
-  (`pack.sh` runs it).
+  (`pack.sh` runs it only for `:host`, `:messaging` and `:health`, the modules the packages are built from).
 - **Companion apps:** a watch app can ship inside a .NET iPhone app (for example a MAUI app), which
   WatchConnectivity needs: iOS connects the two only when the watch app came inside the iPhone app (tried on a real
   watch). Until .NET for iOS's `AdditionalWatchOSApp` item (https://github.com/dotnet/macios/pull/27284, still open)
