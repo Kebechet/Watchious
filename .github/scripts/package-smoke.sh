@@ -152,7 +152,9 @@ check_served() {
     "$@" > "$LOGS/$log.log" 2>&1 &
     pid=$!
     for _ in $(seq 1 60); do
-        if curl -sf "$url" 2>/dev/null | grep -qF "$text"; then
+        # Not grep -q: it stops reading at the match, so on a page larger than the pipe buffer curl fails to write the
+        # rest, and pipefail turns the match into a failure.
+        if curl -sf "$url" 2>/dev/null | grep -F "$text" > /dev/null; then
             served=true
             break
         fi
@@ -212,8 +214,9 @@ printf '%s' "$sdk_directory" | tr '\\' '/' | grep -qi "kebechet.watchious.sdk/$V
 echo "== the SDK is the package: $sdk_directory"
 run build-preview "$DOTNET" build "$APP1" -f net10.0 -nologo
 # dotnet run -f net10.0 [-- --inspector] (Kebechet.Watchious.Preview's README), on ports of their own (-- --urls=...).
-preview_app="$WORK_ABS/WatchiousApp1/bin/Debug/net10.0/WatchiousApp1.dll"
-[ -f "$preview_app" ] || fail "the preview build made no $preview_app."
+preview_dll=WatchiousApp1/bin/Debug/net10.0/WatchiousApp1.dll
+[ -f "$WORK_ABS/$preview_dll" ] || fail "the preview build made no $WORK/$preview_dll."
+preview_app="$WORK/$preview_dll"
 check_served run-preview http://localhost:5390/ '<title>Watchious preview</title>' \
     "$DOTNET" "$preview_app" --no-browser --urls=http://localhost:5390
 check_served run-preview-script http://localhost:5391/preview.js 'function' \
