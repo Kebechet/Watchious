@@ -362,9 +362,9 @@ builder.Services.AddWatchiousHealth();  // Watchious.Health: inject IHealthServi
 Each package brings its native part: a Java module on Wear OS, built with Gradle next to the host, and a Swift file
 that Watchious.Sdk compiles into the watchOS host (`WatchiousWatchOSHostSource`).
 
-## Preview and inspector
+## Preview, inspector and live mode
 
-NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development pages:
+NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development pages and a live mode:
 
 - **Preview:** `dotnet run -f net10.0` (or the `net10.0` framework picked in Visual Studio) runs the app on the
   desktop and opens a page that renders it in a Wear OS or Apple Watch frame. The page applies the same patches
@@ -387,6 +387,23 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
     sensor values.
   - ⚠️ **Keep the watch's screen on.** watchOS runs an app only while its screen is on: an app started while the
     screen is off stays in the background, suspended, and reaches the inspector once the user raises the wrist.
+- **Live mode:** `dotnet run -f net10.0 -- --live` runs the app's C# on the computer, under the debugger, and a live
+  host, a watch host app without .NET, draws it in the Wear OS emulator or the watchOS simulator with the real Compose
+  and SwiftUI controls. Taps go back to the computer, and when the app is started again, the live host starts over by
+  itself. The watch APIs are the preview's stand-ins. The live host talks plain HTTP to the computer, like the
+  inspector's app side.
+  - Wear OS, in `platforms/WearOS`: `./gradlew :live:assembleDebug` builds the live host, then
+    `adb install live/build/outputs/apk/debug/live-debug.apk`, `adb reverse tcp:5293 tcp:5293` and
+    `adb shell am start -n com.kebechet.watchious.live/.LiveActivity --es watchious_live http://localhost:5293`.
+  - watchOS: on an Apple silicon Mac, `platforms/watchOS/Live/live-watch-app.sh <simulator UDID>
+    [http://<computer>:5293]` builds the live host (the SwiftUI host, with `LiveRuntime.swift` instead of .NET),
+    installs it in the simulator and starts it. Tried with the app on the same Mac. An app that runs on another
+    computer, such as Windows, is started with `--urls=http://0.0.0.0:5293` and given by its address; that way hasn't
+    been tried yet.
+  - ⚠️ **`--urls=http://0.0.0.0:5293` lets every device on the network start the app and tap in it:** use it on a
+    network you trust only. Without `--urls`, live mode listens on this computer only.
+  - ⚠️ **From the repository for now:** the live hosts aren't packaged with Watchious.Sdk yet, and they haven't been
+    tried on a real watch, which needs a signed build of the live host.
 
 ## Project and packaging
 
@@ -552,7 +569,7 @@ Versions stay at `0.x.x` until the API is stable.
    messages, answers and the application context both ways, and so do an Apple Watch SE 3 and an iPhone SE, with the
    watch app installed from inside the iPhone app (see "Companion apps").
 8. ✅ **Preview host:** the same screens on the desktop, for debugging in Visual Studio (`Watchious.Preview`,
-   see "Preview and inspector").
+   see "Preview, inspector and live mode").
 9. ✅ **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
    it events (https://github.com/Kebechet/Watchious/issues/5). Works with a real Galaxy Watch7 and a real Apple Watch
    SE 3. The app's side uses plain HTTP requests, which a real Apple Watch allows (it refused the earlier WebSocket).
@@ -560,11 +577,11 @@ Versions stay at `0.x.x` until the API is stable.
     resume and a summary works on a Galaxy Watch7 and an Apple Watch SE 3, and on the Wear OS emulator with Health
     Services' synthetic data. A workout keeps running when the user leaves the app, and on an Apple Watch SE 3 it
     comes back after the app was killed.
-11. **Live mode:** the app's C# runs on the computer, under the debugger, and a host app without .NET draws it
+11. ✅ **Live mode:** the app's C# runs on the computer, under the debugger, and a host app without .NET draws it
     in the watchOS simulator or the Wear OS emulator, connected like the inspector. Unlike the preview, the
-    screens are the real SwiftUI and Compose controls. From Windows, the simulator on the Mac connects to the
-    computer over the network. Not on a real Apple Watch, which allows no such connection. The idea comes from
-    SwiftDotNet's live mode.
+    screens are the real SwiftUI and Compose controls. It talks plain HTTP, which a real watch allows too, but it has
+    been tried in the Wear OS emulator and the watchOS simulator only (see "Preview, inspector and live mode"). The
+    idea comes from SwiftDotNet's live mode.
 12. ✅ **Crown input for values:** the Digital Crown and the Wear OS rotary input change a value, such as a weight
     or a number of reps, not only scroll a list or turn a `Picker`: `DigitalCrownRotation`, on SwiftUI's
     `digitalCrownRotation` and Compose's `onRotaryScrollEvent`, one crown step per value step, clockwise up. Works on

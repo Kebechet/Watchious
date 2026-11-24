@@ -25,12 +25,20 @@ public sealed class WatchiousPreviewOptions
 public static class WatchiousPreview
 {
     // The generated Main of a Watchious app's preview target: dotnet run -f net10.0 [-- --urls=... --no-browser],
-    // or -- --inspector for the live inspector of the app running on a watch.
+    // -- --inspector for the live inspector of the app running on a watch, or -- --live for live mode.
     public static async Task RunAsync(Func<WatchiousApp> createApp, string[] args, CancellationToken cancellationToken = default)
     {
         var urlArgument = args.FirstOrDefault(argument => argument.StartsWith("--urls=", StringComparison.Ordinal));
         var url = urlArgument?["--urls=".Length..];
         var openBrowser = !args.Contains("--no-browser");
+        if (args.Contains("--live"))
+        {
+            var liveOptions = new WatchiousLiveOptions();
+            liveOptions.Url = url ?? liveOptions.Url;
+            await WatchiousLive.RunAsync(createApp, liveOptions, cancellationToken);
+            return;
+        }
+
         if (args.Contains("--inspector"))
         {
             var inspectorOptions = new WatchiousInspectorOptions { OpenBrowser = openBrowser };

@@ -21,6 +21,12 @@ final class WatchiousStore {
         watchious_patches_applied()
     }
 
+    // Live mode (platforms/watchOS/Live): the app on the computer was restarted.
+    func reset() {
+        tree.reset()
+        lastError = nil
+    }
+
     func goBackLikeTheBackButton() {
         automatedBackCount += 1
     }
