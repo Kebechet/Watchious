@@ -124,7 +124,7 @@ the back button on Wear OS. Pages below the top one keep their state.
 | ✅ `Label` | `Text` | `Text` |
 | ✅ `Button` | `Button` | `Button` |
 | ✅ `Toggle` (with a `Text` label) | `Toggle` | `SwitchButton` |
-| ✅ `Image` (app images; SF Symbols and Material icons later) | `Image` | `Image` |
+| ✅ `Image` (app images and system icons) | `Image`, `Image(systemName:)` for SF Symbols | `Image`, `Icon` for Material icons |
 | ✅ `ProgressView` | `ProgressView` | `CircularProgressIndicator` / `LinearProgressIndicator` |
 | ✅ `Picker` | `Picker` | `Picker`, which the crown turns once it is touched |
 | ✅ `DigitalCrownRotation` (the crown turns a value) | `.digitalCrownRotation` on its content | its content with `onRotaryScrollEvent` |
@@ -150,6 +150,74 @@ touches the content, as with a `Picker`:
     <Label Style="TextStyle.Title">@weight kg</Label>
 </DigitalCrownRotation>
 ```
+
+`Image` also shows system icons in each platform's own style: `<Image Icon="Icon.Heart" />` is the SF Symbol
+`heart.fill` on watchOS and the Material icon `Favorite` (Rounded, the style of Wear OS) on Wear OS. An icon takes the
+colour and size of the text around it, or `Width` and `Height`. `AppleSymbol` and `MaterialIcon` name any other icon
+of one platform, and win over `Icon` there: `<Image Icon="Icon.Walk" AppleSymbol="figure.hiking" MaterialIcon="Hiking" />`.
+A name a platform doesn't have is logged, and a debug build shows a ⚠️ with the name in its place. The preview draws
+the icons with Google's Material Symbols font when it is online, and shows an `AppleSymbol` by its name.
+
+<details>
+<summary>The shared icons</summary>
+
+| `Icon` | SF Symbol | Material icon (Rounded) |
+|---|---|---|
+| `Heart` | `heart.fill` | `Favorite` |
+| `Star` | `star.fill` | `Star` |
+| `Bell` | `bell.fill` | `Notifications` |
+| `Home` | `house.fill` | `Home` |
+| `Person` | `person.fill` | `Person` |
+| `Settings` | `gearshape.fill` | `Settings` |
+| `Info` | `info.circle.fill` | `Info` |
+| `Warning` | `exclamationmark.triangle.fill` | `Warning` |
+| `Search` | `magnifyingglass` | `Search` |
+| `Lock` | `lock.fill` | `Lock` |
+| `Plus` | `plus` | `Add` |
+| `Minus` | `minus` | `Remove` |
+| `Checkmark` | `checkmark` | `Check` |
+| `Close` | `xmark` | `Close` |
+| `Edit` | `pencil` | `Edit` |
+| `Delete` | `trash.fill` | `Delete` |
+| `Refresh` | `arrow.clockwise` | `Refresh` |
+| `Share` | `square.and.arrow.up` | `Share` |
+| `ChevronLeft` | `chevron.left` | `ChevronLeft` |
+| `ChevronRight` | `chevron.right` | `ChevronRight` |
+| `ChevronUp` | `chevron.up` | `KeyboardArrowUp` |
+| `ChevronDown` | `chevron.down` | `KeyboardArrowDown` |
+| `Play` | `play.fill` | `PlayArrow` |
+| `Pause` | `pause.fill` | `Pause` |
+| `Stop` | `stop.fill` | `Stop` |
+| `Microphone` | `mic.fill` | `Mic` |
+| `Speaker` | `speaker.wave.2.fill` | `AutoMirrored.VolumeUp` |
+| `Music` | `music.note` | `MusicNote` |
+| `Phone` | `phone.fill` | `Phone` |
+| `Message` | `message.fill` | `AutoMirrored.Chat` |
+| `Location` | `mappin.and.ellipse` | `LocationOn` |
+| `Calendar` | `calendar` | `CalendarToday` |
+| `Clock` | `clock.fill` | `Schedule` |
+| `Timer` | `timer` | `Timer` |
+| `Alarm` | `alarm.fill` | `Alarm` |
+| `Run` | `figure.run` | `AutoMirrored.DirectionsRun` |
+| `Walk` | `figure.walk` | `AutoMirrored.DirectionsWalk` |
+| `Bike` | `figure.outdoor.cycle` | `AutoMirrored.DirectionsBike` |
+| `Swim` | `figure.pool.swim` | `Pool` |
+| `Dumbbell` | `dumbbell.fill` | `FitnessCenter` |
+| `Flame` | `flame.fill` | `LocalFireDepartment` |
+| `Bolt` | `bolt.fill` | `Bolt` |
+| `Drop` | `drop.fill` | `WaterDrop` |
+| `Moon` | `moon.fill` | `Bedtime` |
+| `Sun` | `sun.max.fill` | `WbSunny` |
+| `Battery` | `battery.100` | `BatteryFull` |
+| `Wifi` | `wifi` | `Wifi` |
+| `List` | `list.bullet` | `AutoMirrored.List` |
+
+</details>
+
+⚠️ **List each `MaterialIcon` the app uses in the Wear OS project**, as `<WatchiousMaterialIcon Include="Hiking" />`.
+Release builds run R8 (`AndroidLinkTool=r8`, which Watchious.Sdk turns on), and R8 keeps only the icons that code
+names: a `MaterialIcon` is found by its name at run time, so without the item it works in a debug build and is gone in
+a release build.
 
 Platform-only controls will be available as platform-specific components (for example
 `<Apple.Gauge>` or `<Wear.CurvedText>`). Styling uses semantic tokens (`TextStyle.Title`,
@@ -322,7 +390,9 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
 - **Release:** from CI pipelines, like a MAUI app: `dotnet publish -f net11.0-android` gives the Play Store
   bundle, and `dotnet build -f net11.0-watchos -r ios-arm64 -p:BuildIpa=true` on a macOS runner gives the
   App Store `.ipa`, inside the watch-only container Apple requires (`WatchiousContainerProvision` is the
-  container's profile). Signing comes from the pipeline's secrets.
+  container's profile). Signing comes from the pipeline's secrets. A Wear OS release build runs R8, which drops the
+  Java code the app never calls (the sample's code shrinks from 52 MB to 13 MB); an app that sets `AndroidLinkTool`
+  itself keeps its own choice.
 - The repository itself still builds with .NET 10 (`net10.0-*`) until .NET 11 is installed on its
   development machines. The Wear OS libraries come from Gradle first: `./gradlew assembleRelease` in
   `platforms/WearOS` (with Android Studio's JDK) also writes the POMs and binding jars the .NET projects read.
@@ -420,8 +490,8 @@ Versions stay at `0.x.x` until the API is stable.
    50 counter taps grew the app's memory by 8.6 MB instead of 10.9 MB.
 5. ✅ **Controls and navigation:** the controls under SwiftUI's names, the rest of the planned controls including
    `List`, and navigation with typed routes. ✅ All controls in the table above, and navigation (`@page` routes,
-   `INavigation`, generated `Routes` helpers, native back on both platforms). Still to do: SF Symbols and
-   Material icons for `Image`.
+   `INavigation`, generated `Routes` helpers, native back on both platforms). ✅ System icons for `Image`: a shared set
+   as SF Symbols and Material icons, and any other icon of either platform by name.
 6. **Watch APIs** (`Watchious.Essentials`): the common watch features as unified C# services, with
    platform C# as the escape hatch. ✅ Haptics, device info, battery, connectivity, preferences, secure storage,
    app lifecycle, always-on (ambient) mode, local notifications, location and sensors. The ones added last (secure

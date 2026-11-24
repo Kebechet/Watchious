@@ -29,6 +29,8 @@
   <ItemGroup>
     <AndroidMavenLibrary Include="androidx.wear.compose:compose-material3" Version="1.7.1" Repository="Google" Bind="false" />
     <PackageReference Include="Xamarin.AndroidX.Wear.Compose.Foundation" Version="1.7.1" />
+    <!-- Image's icons; the version must match Gradle's material-icons-extended (1.7.8). -->
+    <PackageReference Include="Xamarin.AndroidX.Compose.Material.Icons.Extended" Version="1.7.8.6" />
     <PackageReference Include="Xamarin.AndroidX.Lifecycle.Runtime" Version="2.11.0.1" />
     <PackageReference Include="Xamarin.AndroidX.SavedState" Version="1.5.0.1" />
     <PackageReference Include="Xamarin.Kotlin.StdLib" Version="2.4.21" />

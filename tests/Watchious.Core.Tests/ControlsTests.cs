@@ -115,13 +115,34 @@ public class ControlsTests
         await using var disposeApp = app;
 
         // Act
-        var image = host.LastTree.Single("Image");
+        var image = host.LastTree.Descendants().First(node => node.Type == "Image");
 
         // Assert
         image.Attribute("Source").ShouldBe("logo");
         image.Attribute("Width").ShouldBe("32");
         image.Attributes.ShouldNotContainKey("Height");
         image.Attribute("Description").ShouldBe("Logo");
+    }
+
+    [Fact]
+    public async Task Image_SendsTheIconAndEachPlatformsOwnName()
+    {
+        // Arrange
+        var (app, host) = await StartAsync();
+        await using var disposeApp = app;
+
+        // Act
+        var images = host.LastTree.Descendants().Where(node => node.Type == "Image").ToList();
+
+        // Assert
+        images[1].Attribute("Icon").ShouldBe("Heart");
+        images[1].Attribute("Height").ShouldBe("20");
+        images[1].Attributes.ShouldNotContainKey("AppleSymbol");
+        images[1].Attributes.ShouldNotContainKey("MaterialIcon");
+        images[1].Attributes.ShouldNotContainKey("Source");
+        images[2].Attribute("Icon").ShouldBe("Run");
+        images[2].Attribute("AppleSymbol").ShouldBe("figure.hiking");
+        images[2].Attribute("MaterialIcon").ShouldBe("Hiking");
     }
 
     [Fact]

@@ -306,7 +306,7 @@ function createElement(node) {
             return input;
         }
         case "Image":
-            return element("img", "image");
+            return element("span", "image");
         case "DigitalCrownRotation": {
             // The mouse wheel stands in for the crown: down turns the value up, as the crown scrolls a list down.
             const crown = element("div", "vstack crown-rotation");
@@ -420,18 +420,57 @@ function render(node) {
             }
             return;
         }
-        case "Image": {
-            target.src = `/images/${encodeURIComponent(attribute(node, "Source") ?? "")}`;
-            target.alt = attribute(node, "Description") ?? "";
-            const width = attribute(node, "Width");
-            const height = attribute(node, "Height");
-            target.style.width = width ? `${width}px` : "";
-            target.style.height = height ? `${height}px` : "";
+        case "Image":
+            renderImage(node, target);
             return;
-        }
         default:
             target.replaceChildren(...node.children.map((child) => child.element));
     }
+}
+
+// The shared icons (Watchious.Controls.Icon) as Material Symbols, which stand in for the SF Symbols in the watchOS
+// frame too.
+const materialSymbols = {
+    Heart: "favorite", Star: "star", Bell: "notifications", Home: "home", Person: "person", Settings: "settings",
+    Info: "info", Warning: "warning", Search: "search", Lock: "lock", Plus: "add", Minus: "remove", Checkmark: "check",
+    Close: "close", Edit: "edit", Delete: "delete", Refresh: "refresh", Share: "share", ChevronLeft: "chevron_left",
+    ChevronRight: "chevron_right", ChevronUp: "keyboard_arrow_up", ChevronDown: "keyboard_arrow_down",
+    Play: "play_arrow", Pause: "pause", Stop: "stop", Microphone: "mic", Speaker: "volume_up", Music: "music_note",
+    Phone: "call", Message: "chat", Location: "location_on", Calendar: "calendar_today", Clock: "schedule",
+    Timer: "timer", Alarm: "alarm", Run: "directions_run", Walk: "directions_walk", Bike: "directions_bike",
+    Swim: "pool", Dumbbell: "fitness_center", Flame: "local_fire_department", Bolt: "bolt", Drop: "water_drop",
+    Moon: "bedtime", Sun: "wb_sunny", Battery: "battery_full", Wifi: "wifi", List: "list",
+};
+
+// An icon is a glyph of Google's Material Symbols font, which the page loads when it is online (offline, its name
+// shows). The platform's own name wins over Icon, as on the watch; an SF Symbol can't be drawn here, so its name shows.
+function renderImage(node, target) {
+    const width = attribute(node, "Width");
+    const height = attribute(node, "Height");
+    const description = attribute(node, "Description") ?? "";
+    const ownName = attribute(node, platform === "watchos" ? "AppleSymbol" : "MaterialIcon");
+    const icon = attribute(node, "Icon");
+    if (ownName || icon) {
+        const glyph = element("span", "icon");
+        if (ownName && platform === "watchos") {
+            glyph.classList.add("symbol-name");
+            glyph.textContent = ownName;
+        } else {
+            glyph.classList.add("material-symbols-rounded");
+            glyph.textContent = ownName ? ownName.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase() : materialSymbols[icon] ?? icon;
+            glyph.style.fontSize = height || width ? `${height || width}px` : "";
+        }
+        glyph.title = description;
+        target.replaceChildren(glyph);
+        return;
+    }
+
+    const image = element("img");
+    image.src = `/images/${encodeURIComponent(attribute(node, "Source") ?? "")}`;
+    image.alt = description;
+    image.style.width = width ? `${width}px` : "";
+    image.style.height = height ? `${height}px` : "";
+    target.replaceChildren(image);
 }
 
 // Blank text is the whitespace between controls in the Razor markup.

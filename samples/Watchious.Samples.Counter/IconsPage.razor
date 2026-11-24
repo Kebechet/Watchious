@@ -1,0 +1,17 @@
+@page "/icons"
+
+@* Every shared icon with its name, then one icon of each platform's own catalog. *@
+<List>
+    <Label Style="TextStyle.Headline">Icons</Label>
+    <HStack Spacing="6">
+        <Image Icon="Icon.Run" AppleSymbol="figure.hiking" MaterialIcon="Hiking" Height="24" Description="Hiking" />
+        <Label>Own name: hiking</Label>
+    </HStack>
+    @foreach (var icon in Enum.GetValues<Icon>())
+    {
+        <HStack Spacing="6">
+            <Image Icon="icon" Description="@icon.ToString()" />
+            <Label>@icon</Label>
+        </HStack>
+    }
+</List>

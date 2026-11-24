@@ -14,6 +14,13 @@ public partial class HostCoverageTests
     // Read by the C# side only: tests find navigation pages by their route.
     private static readonly string[] CSharpOnlyAttributes = ["Route"];
 
+    // Read by one watch host only, and by the preview, which draws both platforms.
+    private static readonly Dictionary<string, string> PlatformOnlyAttributes = new()
+    {
+        [nameof(Image.AppleSymbol)] = "watchOS",
+        [nameof(Image.MaterialIcon)] = "WearOS",
+    };
+
     private static readonly string Root = FindRepositoryRoot();
 
     private static readonly Dictionary<string, string[]> HostSources = new()
@@ -53,6 +60,7 @@ public partial class HostCoverageTests
         var source = HostSource(host);
         var attributes = ControlsSource(AddAttribute())
             .Except(CSharpOnlyAttributes)
+            .Where(attribute => !PlatformOnlyAttributes.TryGetValue(attribute, out var platform) || platform == host || host == "Preview")
             .Select(attribute => attribute.StartsWith("on", StringComparison.Ordinal) ? attribute[2..] : attribute)
             .ToList();
 

@@ -18,6 +18,11 @@
     <!-- Like MAUI's Platforms/Android/Resources: .NET for Android otherwise takes every image under Resources/ as
          an Android resource, including the shared Resources/Images, which go to both platforms. -->
     <MonoAndroidResourcePrefix Condition="'$(MonoAndroidResourcePrefix)' == ''">Platforms\WearOS\Resources</MonoAndroidResourcePrefix>
+    <!-- R8 drops the Java code a release app never calls, such as the thousands of Material icons that Image's icons
+         come from: the sample's code shrinks from 52 MB to 13 MB. .NET for Android leaves it off by default. Set here
+         rather than once the target platform is known: set later, the app ships without the Java libraries'
+         META-INF/services files, and Kotlin coroutines then find no main dispatcher at start-up. -->
+    <AndroidLinkTool Condition="'$(AndroidLinkTool)' == '' And '$(Configuration)' == 'Release' And $(TargetFramework.Contains('-android'))">r8</AndroidLinkTool>
   </PropertyGroup>
 
 </Project>

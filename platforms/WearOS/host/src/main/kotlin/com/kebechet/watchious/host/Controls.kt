@@ -1,5 +1,6 @@
 package com.kebechet.watchious.host
 
+import android.content.pm.ApplicationInfo
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +36,7 @@ import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.material3.CircularProgressIndicator
+import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.LinearProgressIndicator
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Picker
@@ -191,9 +193,16 @@ internal fun WatchTextField(node: UiNode, dispatch: EventDispatch, modifier: Mod
     )
 }
 
-// An app image, which Watchious.Sdk adds to the app as an Android drawable named like the file.
+// A system icon, or an app image, which Watchious.Sdk adds to the app as an Android drawable named like the file.
 @Composable
 internal fun WatchImage(node: UiNode) {
+    val materialName = node.attribute("MaterialIcon")
+    val iconName = node.attribute("Icon")
+    if (!materialName.isNullOrEmpty() || !iconName.isNullOrEmpty()) {
+        WatchIcon(node, materialName, iconName)
+        return
+    }
+
     val context = LocalContext.current
     val source = node.attribute("Source").orEmpty()
     val resourceId = remember(source) {
@@ -218,6 +227,40 @@ internal fun WatchImage(node: UiNode) {
         modifier = modifier,
         contentScale = ContentScale.Fit,
     )
+}
+
+// MaterialIcon names any Material icon and wins over Icon, the shared set. An icon a name doesn't find is logged, and
+// shows as a warning in a debuggable build.
+@Composable
+private fun WatchIcon(node: UiNode, materialName: String?, iconName: String?) {
+    val icon = remember(materialName, iconName) {
+        when {
+            !materialName.isNullOrEmpty() -> materialIcon(materialName)
+            iconName != null -> watchiousIcon(iconName) ?: run {
+                reportUnknownValue(iconName, "Icon", node.type)
+                null
+            }
+            else -> null
+        }
+    }
+    if (icon == null) {
+        val isDebuggable = (LocalContext.current.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (isDebuggable) {
+            Text("⚠️ ${materialName ?: iconName}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        return
+    }
+
+    val width = node.attribute("Width")?.toFloatOrNull()
+    val height = node.attribute("Height")?.toFloatOrNull()
+    var modifier: Modifier = Modifier
+    if (width != null) {
+        modifier = modifier.width(width.dp)
+    }
+    if (height != null) {
+        modifier = modifier.height(height.dp)
+    }
+    Icon(imageVector = icon, contentDescription = node.attribute("Description"), modifier = modifier)
 }
 
 internal fun UiNode.isBlankText(): Boolean = type == UiNode.TEXT_TYPE && text.isNullOrBlank()

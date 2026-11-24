@@ -32,6 +32,11 @@
     <WatchiousWatchOSHostSource Include="..\..\src\Watchious.Messaging\watchOS\*.swift;..\..\src\Watchious.Health\watchOS\*.swift" />
   </ItemGroup>
 
+  <!-- The Material icon the Icons page names with MaterialIcon, which a release build keeps only when it's listed. -->
+  <ItemGroup>
+    <WatchiousMaterialIcon Include="Hiking" />
+  </ItemGroup>
+
   <!-- HealthKit for the Workout page. A real watch also needs a provisioning profile whose App ID has HealthKit. -->
   <PropertyGroup>
     <CodesignEntitlements>Platforms/watchOS/HealthKit.entitlements</CodesignEntitlements>
