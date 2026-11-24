@@ -10,7 +10,17 @@
 #     Sdk.targets import its build/ files by path;
 #   - each package has its files: the assemblies, the Android libraries, the analyzer, the Swift, and for the SDK and the
 #     template every file of the source folders they pack, plus the SDK's build/Watchious.Sdk.Version.props with the
-#     version.
+#     version;
+#   - nuget.org's page of each package: its README.md (the one in its project folder, titled with its id, with no
+#     relative link, which nuget.org can't follow), the icon (the repository's icon.png), the copyright, the tags (the
+#     ones in Directory.Build.props, and its own), the release notes (the GitHub release of the version) and the
+#     repository commit;
+#   - the license: MIT, and for a package that bundles another project's binaries, the expression this script names
+#     plus a THIRD-PARTY-NOTICES.txt that names each of them: every Maven library its project downloads
+#     (AndroidMavenLibrary), every Android library in it that isn't Watchious's own, and every native library inside one.
+#     An MIT package must bundle none;
+#   - a symbol package (.snupkg) with the .pdb of each assembly for the 8 packages with assemblies, and none for the SDK
+#     and the template, which have no assembly (a symbol package of nothing fails their pack: NU5017).
 # Runs in bash on Linux and macOS and in Git Bash on Windows; it needs unzip, and the android workload to evaluate the
 # Android projects:
 #
@@ -68,6 +78,17 @@ missing_files="$(comm -23 <(printf '%s\n' "$expected_files") <(printf '%s\n' "$f
 extra_files="$(comm -13 <(printf '%s\n' "$expected_files") <(printf '%s\n' "$found_files" | sed '/^$/d'))"
 [ -z "$missing_files" ] || error "$FEED lacks $(words "$missing_files")."
 [ -z "$extra_files" ] || error "$FEED has packages of $VERSION besides the 10: $(words "$extra_files")."
+# Which ids have a symbol package is checked per package below; this catches one of another id.
+symbol_files="$(cd "$FEED" && for file in *."$VERSION".snupkg; do [ ! -e "$file" ] || echo "${file%.snupkg}.nupkg"; done | sort)"
+stray_symbol_files="$(comm -13 <(printf '%s\n' "$expected_files") <(printf '%s\n' "$symbol_files" | sed '/^$/d'))"
+[ -z "$stray_symbol_files" ] || error "$FEED has symbol packages of $VERSION besides the 10 packages': $(words "$stray_symbol_files" | sed 's/\.nupkg/.snupkg/g')."
+
+SHARED_TAGS="$(sed -n 's|.*<PackageTags>\([^$<]*\)</PackageTags>.*|\1|p' "$ROOT/Directory.Build.props" | tr ';' '\n' | sed '/^$/d' | sort -u)"
+[ -n "$SHARED_TAGS" ] || error "Directory.Build.props sets no PackageTags shared by the packages."
+ICON="$ROOT/icon.png"
+[ -f "$ICON" ] || error "the repository has no icon.png."
+# Watchious's own Android libraries: the Gradle modules' release AARs.
+GRADLE_MODULES="$(sed -n 's/^include(":\([^"]*\)")/\1/p' "$ROOT/platforms/WearOS/settings.gradle.kts")"
 
 # Every file in the package under a folder (prefix ends with /), relative to it.
 package_entries() {
@@ -102,6 +123,37 @@ expect_entries() {
     for pattern in "$@"; do
         printf '%s\n' "$ENTRIES" | grep -qE "^$pattern\$" || error "$id has no file matching $pattern."
     done
+}
+
+# The project's AndroidMavenLibrary items, as group:artifact:version: the Java libraries its Android build downloads
+# from a Maven repository and packs, unbound.
+maven_libraries() {
+    local csproj="$1" android
+    android="$("$DOTNET" msbuild "$csproj" -nologo -getProperty:TargetFrameworks -getProperty:TargetFramework | tr -d '\r' \
+        | sed -n 's/.*"TargetFrameworks\{0,1\}": *"\([^"]*\)".*/\1/p' | tr ';' '\n' | grep -E -- '-android' | head -1 || true)"
+    [ -n "$android" ] || return 0
+    "$DOTNET" msbuild "$csproj" -nologo -getItem:AndroidMavenLibrary "-p:TargetFramework=$android" | tr -d '\r' \
+        | grep -oE '"(Identity|Version)": *"[^"]*"' \
+        | awk -F'"' '$2 == "Identity" { id = $4 } $2 == "Version" { print id ":" $4 }'
+}
+
+# What the package bundles of other projects, one per line: every Android library (.aar) in lib/ that isn't Watchious's
+# own (a Gradle module's release AAR, or the one .NET for Android makes of the project), and every native library
+# inside any of its Android libraries.
+bundled_binaries() {
+    local aar file module own
+    for aar in $(printf '%s\n' "$ENTRIES" | grep -E '^lib/.*\.aar$' || true); do
+        file="${aar##*/}"
+        own=false
+        [ "$file" != "$name.aar" ] || own=true
+        for module in $GRADLE_MODULES; do
+            [ "$file" != "$module-release.aar" ] || own=true
+        done
+        [ "$own" = true ] || echo "$file"
+        # unzip can't list an archive it reads from a pipe, but an archive stores its entry names uncompressed, so they
+        # are read from its bytes, with no copy of the AAR on disk.
+        unzip -p "$PACKAGE" "$aar" | grep -aoE 'jni/[^/[:cntrl:]]+/[^/[:cntrl:]]+\.so' | sed 's|.*/||' || true
+    done | sort -u
 }
 
 ANDROID_LIB='lib/net10\.0-android[0-9.]+'
@@ -150,6 +202,9 @@ for id in "${IDS[@]}"; do
         [ -z "$unimported" ] || error "$id has MSBuild files NuGet never imports, since they aren't named $id.props or .targets: $(words "$unimported")"
     fi
 
+    # MIT is Watchious's own license; a package that bundles another project's binaries is under theirs too.
+    license=MIT
+    symbols=true
     case "$short" in
         Core|Essentials|Preview|Hosts.watchOS)
             expect_entries "$id" "lib/net10\.0/$name_re\.dll"
@@ -159,12 +214,16 @@ for id in "${IDS[@]}"; do
             ;;
         Hosts.WearOS)
             expect_entries "$id" "$ANDROID_LIB/$name_re\.dll" "$ANDROID_LIB/host-release\.aar"
+            # Wear Compose Material 3, and AndroidX Graphics Path's native library.
+            license='MIT AND Apache-2.0'
             ;;
         Health|Messaging)
             module="$(printf '%s' "$short" | tr '[:upper:]' '[:lower:]')"
             expect_entries "$id" "lib/net10\.0/$name_re\.dll" "$ANDROID_LIB/$name_re\.dll" "$ANDROID_LIB/$module-release\.aar" \
                 "build/$id_re\.targets" "buildTransitive/$id_re\.targets"
             expect_exactly "$id" host/watchOS/ "$(source_files "$ROOT/src/$name/watchOS" '*.swift')"
+            # Health Services and its protos, and the protobuf runtime it repackages.
+            [ "$short" != Health ] || license='MIT AND Apache-2.0 AND BSD-3-Clause'
             ;;
         Sdk)
             printf '%s\n' "$nuspec" | grep -q '<packageType name="MSBuildSdk"' || error "$id isn't of package type MSBuildSdk."
@@ -176,6 +235,7 @@ for id in "${IDS[@]}"; do
             version_props="$(unzip -p "$PACKAGE" build/Watchious.Sdk.Version.props 2>/dev/null | tr -d '\r' || true)"
             printf '%s\n' "$version_props" | grep -qF "<WatchiousVersion>$VERSION</WatchiousVersion>" \
                 || error "$id: build/Watchious.Sdk.Version.props doesn't set WatchiousVersion to $VERSION."
+            symbols=false
             ;;
         Templates)
             printf '%s\n' "$nuspec" | grep -q '<packageType name="Template"' || error "$id isn't of package type Template."
@@ -183,11 +243,75 @@ for id in "${IDS[@]}"; do
             template_project="$(unzip -p "$PACKAGE" content/watchious/WatchiousApp1.csproj 2>/dev/null | tr -d '\r' || true)"
             printf '%s\n' "$template_project" | grep -q '<Project Sdk="Kebechet\.Watchious\.Sdk/' \
                 || error "$id: the template's project doesn't use the Kebechet.Watchious.Sdk."
+            symbols=false
             ;;
         *)
             error "$id: this script doesn't know which files the package must have; add them here."
             ;;
     esac
+
+    # nuget.org's page of the package.
+    printf '%s\n' "$nuspec" | grep -qF '<readme>README.md</readme>' || error "$id: its nuspec has no <readme>README.md</readme>."
+    readme_source="$ROOT/src/$name/README.md"
+    if ! printf '%s\n' "$ENTRIES" | grep -qxF README.md; then
+        error "$id has no README.md."
+    elif [ ! -f "$readme_source" ]; then
+        error "$id: src/$name/README.md doesn't exist."
+    else
+        unzip -p "$PACKAGE" README.md | cmp -s - "$readme_source" || error "$id: its README.md isn't src/$name/README.md."
+        [ "$(head -1 "$readme_source" | tr -d '\r')" = "# $id" ] || error "$id: src/$name/README.md doesn't start with '# $id'."
+        relative_links="$(grep -oE '\]\([^)]*\)' "$readme_source" | grep -vE '^\]\((https?://|#)' || true)"
+        [ -z "$relative_links" ] || error "$id: src/$name/README.md has links relative to the repository, which nuget.org can't follow: $(words "$relative_links")"
+    fi
+    printf '%s\n' "$nuspec" | grep -qF '<icon>icon.png</icon>' || error "$id: its nuspec has no <icon>icon.png</icon>."
+    if ! printf '%s\n' "$ENTRIES" | grep -qxF icon.png; then
+        error "$id has no icon.png."
+    elif [ -f "$ICON" ]; then
+        unzip -p "$PACKAGE" icon.png | cmp -s - "$ICON" || error "$id: its icon.png isn't the repository's icon.png."
+    fi
+    printf '%s\n' "$nuspec" | grep -qE '<copyright>Copyright \(c\) [0-9]{4} Kebechet</copyright>' \
+        || error "$id: its nuspec has no <copyright> of Kebechet."
+    tags="$(printf '%s\n' "$nuspec" | sed -n 's|.*<tags>\(.*\)</tags>.*|\1|p' | tr ' ' '\n' | sed '/^$/d' | sort -u)"
+    missing_tags="$(comm -23 <(printf '%s\n' "$SHARED_TAGS") <(printf '%s\n' "$tags"))"
+    [ -z "$missing_tags" ] || error "$id lacks tags that every package has (Directory.Build.props): $(words "$missing_tags")"
+    [ -n "$(comm -13 <(printf '%s\n' "$SHARED_TAGS") <(printf '%s\n' "$tags") | sed '/^$/d')" ] \
+        || error "$id has no tags of its own besides the shared ones; add them to its PackageTags."
+    release_notes="https://github.com/Kebechet/Watchious/releases/tag/v$VERSION"
+    printf '%s\n' "$nuspec" | grep -qF "<releaseNotes>$release_notes</releaseNotes>" || error "$id: its release notes aren't $release_notes."
+    printf '%s\n' "$nuspec" | grep -qE '<repository type="git" url="https://github.com/Kebechet/Watchious"[^>]* commit="[0-9a-f]{40}"' \
+        || error "$id: its nuspec has no <repository> with the commit."
+
+    # The license, and the notices of what the package bundles of other projects.
+    printf '%s\n' "$nuspec" | grep -qF "<license type=\"expression\">$license</license>" \
+        || error "$id: its license isn't the expression '$license': $(printf '%s\n' "$nuspec" | grep -oE '<license[^<]*</license>' || echo none)."
+    bundled="$(maven_libraries "$ROOT/src/$name/$name.csproj"; bundled_binaries)"
+    notices="$(unzip -p "$PACKAGE" THIRD-PARTY-NOTICES.txt 2>/dev/null | tr -d '\r' || true)"
+    if [ "$license" = MIT ]; then
+        [ -z "$bundled" ] || error "$id bundles other projects' binaries but its license is MIT alone: $(words "$bundled"). Name them and their licenses in a THIRD-PARTY-NOTICES.txt, and set the expression in the project and here."
+        [ -z "$notices" ] || error "$id has a THIRD-PARTY-NOTICES.txt, but its license is MIT alone."
+    elif [ -z "$notices" ]; then
+        error "$id: its license is '$license', but it has no THIRD-PARTY-NOTICES.txt."
+    else
+        unnamed="$(printf '%s\n' "$bundled" | sed '/^$/d' | while IFS= read -r binary; do
+            printf '%s\n' "$notices" | grep -qF "$binary" || echo "$binary"
+        done)"
+        [ -z "$unnamed" ] || error "$id: its THIRD-PARTY-NOTICES.txt doesn't name what it bundles: $(words "$unnamed")"
+    fi
+
+    # The .pdb of each assembly, for the packages with assemblies.
+    symbol_package="$FEED/$id.$VERSION.snupkg"
+    if [ "$symbols" = true ]; then
+        if [ ! -f "$symbol_package" ]; then
+            error "$id has no symbol package $id.$VERSION.snupkg."
+        else
+            expected_pdbs="$(printf '%s\n' "$ENTRIES" | grep -E '^lib/.+\.dll$' | sed 's/\.dll$/.pdb/' || true)"
+            [ -n "$expected_pdbs" ] || error "$id has no assembly in lib/."
+            missing_pdbs="$(comm -23 <(printf '%s\n' "$expected_pdbs" | sed '/^$/d' | sort) <(unzip -Z1 "$symbol_package" | tr -d '\r' | sort))"
+            [ -z "$missing_pdbs" ] || error "$id.$VERSION.snupkg lacks $(words "$missing_pdbs")"
+        fi
+    elif [ -f "$symbol_package" ]; then
+        error "$id has no assembly, but a symbol package $id.$VERSION.snupkg."
+    fi
     [ ${#ERRORS[@]} -ne "$errors_before" ] || echo "== $id $VERSION: ok"
 done
 
