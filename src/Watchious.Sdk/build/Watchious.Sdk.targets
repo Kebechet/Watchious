@@ -35,7 +35,7 @@
     <None Include="@(WatchiousImage)" Link="Resources\Images\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- R8 (on in release builds, see Watchious.Sdk.BeforeCommon.targets) keeps only the Material icons that code names.
+  <!-- R8 (on in release builds, see Watchious.Sdk.props) keeps only the Material icons that code names.
        Image's MaterialIcon finds its icon by name at run time, so the app lists each one it uses:
        <WatchiousMaterialIcon Include="Hiking" />. -->
   <Target Name="_WatchiousKeepMaterialIcons" BeforeTargets="_CalculateProguardConfigurationFiles"
