@@ -6,6 +6,7 @@ struct WatchiousHostApp: App {
 
     init() {
         DebugAutomation.clearResultsIfRequested()
+        WatchiousNotifications.shared.attach()
         watchious_start_runtime()
         let result = watchious_start(watchiousPatchesCallback, watchiousErrorCallback)
         if result != 0 {
@@ -23,6 +24,9 @@ struct WatchiousHostApp: App {
 struct RootView: View {
     let store: WatchiousStore
 
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+
     var body: some View {
         Group {
             if let lastError = store.lastError {
@@ -39,6 +43,13 @@ struct RootView: View {
         }
         .task {
             await DebugAutomation.runIfRequested(store: store)
+        }
+        // For IAppLifecycle and IAmbientMode.
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            WatchiousAppState.shared.update(phase: phase)
+        }
+        .onChange(of: isLuminanceReduced, initial: true) { _, isReduced in
+            WatchiousAppState.shared.update(isLuminanceReduced: isReduced)
         }
     }
 }

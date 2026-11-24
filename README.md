@@ -173,6 +173,28 @@ Platform-only controls will be available as platform-specific components (for ex
 | `IBattery` | `WKInterfaceDevice` battery (unknown in the simulator) | the battery broadcast |
 | `IConnectivity` | `NWPathMonitor` | `ConnectivityManager` |
 | `IPreferences` | `UserDefaults` (suite `watchious`) | `SharedPreferences` (file `watchious`) |
+| `ISecureStorage` | the Keychain | AES-GCM with a key in the Android Keystore |
+| `IAppLifecycle` | SwiftUI's scene phase | the activity's lifecycle |
+| `IAmbientMode` | `isLuminanceReduced` | `AmbientLifecycleObserver`, turned on when the app uses the service |
+| `ILocalNotifications` | `UNUserNotificationCenter`, shown while the app is open too | a notification channel; `AlarmManager` for a later time |
+| `IGeolocation` | `CLLocationManager` | `LocationManager`, GPS for `High` and `Best` |
+| `IAccelerometer`, `IGyroscope`, `IOrientationSensor` | Core Motion | `SensorManager` |
+| `IMagnetometer` | not on Apple Watch (`IsSupported` is false) | `SensorManager` |
+| `ICompass` | Core Location's heading | the rotation vector's azimuth |
+| `IBarometer` | `CMAltimeter` | the pressure sensor |
+
+The names and shapes are MAUI Essentials' where it has the API (`IGeolocation`, `ISecureStorage`, `IAccelerometer`,
+`SensorSpeed`...). A sensor or service a watch doesn't have says so in `IsSupported`, and using it anyway throws
+`FeatureNotSupportedException`. Location and notifications ask for their permission on first use and throw
+`PermissionException` when it's denied. The app declares what each platform needs:
+`NSLocationWhenInUseUsageDescription` and, for the barometer, `NSMotionUsageDescription` in
+`Platforms/watchOS/Info.plist`; `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` in the Wear OS manifest. ⚠️ The
+watchOS host builds its location and compass code only when `NSLocationWhenInUseUsageDescription` is there, and its
+barometer only with `NSMotionUsageDescription`: App Store Connect refuses an app whose code uses them without the text
+(ITMS-90683). Without the key, `IsSupported` is false and using the API throws `FeatureNotSupportedException` naming
+it. Events
+come on the platform's thread, often many times a second for a sensor: a page updates itself through `InvokeAsync`,
+and unsubscribes in `Dispose`.
 
 Each host registers its platform's implementations before the app's `CreateWatchiousApp` runs, so an app (or a
 test) can replace any of them with its own registration. WatchKit, which .NET for iOS has no bindings for,
@@ -196,7 +218,15 @@ builder.Services.AddWatchiousHealth();  // Watchious.Health: inject IHealthServi
   the phone and watch apps must share the applicationId and signing key. On watchOS it uses WatchConnectivity; the
   watch app must be the iPhone app's companion, installed from inside it (see "Companion apps").
   `samples/Watchious.Samples.Phone` is a MAUI phone app with the plugin for testing it; with
-  `--watchious-phone=check,hello,ask,context` it presses its own buttons and logs to the console.
+  `--watchious-phone=check,hello,ask,context` it presses its own buttons and logs to the console (not on iOS yet:
+  the arguments of `xcrun devicectl device process launch` don't reach `Environment.GetCommandLineArgs()`).
+  Messages, answers and the application context go both ways between a Galaxy Watch7 and a Pixel 6, and between an
+  Apple Watch SE 3 and an iPhone SE.
+  ⚠️ **On iOS, don't await the plugin's `SendMessageAsync` yet.** In 0.6.5 it completes only when sending fails, so
+  for a delivered message the `await` never returns
+  (https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging/issues/5, fixed in
+  https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging/pull/6). The phone sample doesn't await it
+  on iOS until a release has that fix.
 - **`Watchious.Health`** does what a watch does with health data: permissions and live workouts with heart
   rate, with [Kebechet.Maui.Health](https://github.com/Kebechet/Maui.Health)'s service names (`IHealthService`,
   `Activity.Start/Pause/Resume/End`). Its data types are Maui.Health's own (`WorkoutDto`, `HeartRateDto`,
@@ -208,8 +238,9 @@ builder.Services.AddWatchiousHealth();  // Watchious.Health: inject IHealthServi
   on Wear OS a foreground service does, with an ongoing activity on the watch face that brings the user back. When the
   app starts again, `Activity.GetActive()` returns the running workout, with its title and pauses; its heart rate
   summary counts what the app saw while it was open. After a crash, watchOS hands the app its running session back
-  (`recoverActiveWorkoutSession`); Wear OS's Health Services ends an exercise when its app's process dies (seen on the
-  emulator), so there the workout is over.
+  (`recoverActiveWorkoutSession`): on an Apple Watch SE 3, an app killed during a run started again with the workout
+  and its heart rate, and could resume and end it. Wear OS's Health Services ends an exercise when its app's process
+  dies (seen on the emulator), so there the workout is over.
 
 Each package brings its native part: a Java module on Wear OS, built with Gradle next to the host, and a Swift file
 that Watchious.Sdk compiles into the watchOS host (`WatchiousWatchOSHostSource`).
@@ -235,7 +266,10 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
     HTTP(S) but no sockets, and WebSockets only while an app streams audio or runs a call
     (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos); an earlier
     WebSocket version was refused on an Apple Watch SE 3. Debug watch builds allow plain HTTP on the local network
-    (`NSAllowsLocalNetworking`).
+    (`NSAllowsLocalNetworking`). The HTTP version works on an Apple Watch SE 3, with clicks from the page and live
+    sensor values.
+  - ⚠️ **Keep the watch's screen on.** watchOS runs an app only while its screen is on: an app started while the
+    screen is off stays in the background, suspended, and reaches the inspector once the user raises the wrist.
 
 ## Project and packaging
 
@@ -267,12 +301,15 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
   - An Apple Watch is reached over a Wi-Fi tunnel that drops while the watch sleeps. Run waits for the watch,
     keeps the tunnel up during the install, and tries install and launch again while the watch can't be reached
     (up to 5 times, 10 s apart), so a dozing watch only needs a wake-up. Signing and provisioning errors fail at
-    once.
+    once. ⚠️ The app starts in the background, suspended, when the watch's screen is off, and runs once the user
+    raises the wrist.
   - .NET has no watchOS target, so the SDK builds a `net*-watchos` project with .NET for iOS (NativeAOT),
     relabels the native code for watchOS and links it into the SwiftUI host. C# gets Microsoft's bindings for
     Apple's frameworks that way, while NuGet still treats the project as `net*-watchos`.
   - **From Windows:** set `WatchiousRemoteMac=user@host` and the watchOS target builds on that Mac over ssh,
-    like MAUI's "Pair to Mac", and the app comes back. Windows needs no iOS workload for it.
+    like MAUI's "Pair to Mac", and the app comes back. Windows needs no iOS workload for it. ⚠️ From Git Bash, set
+    `MSYS_NO_PATHCONV=1` when a property holds a path on the Mac (such as `CodesignProvision=/Users/...`), or Git Bash
+    turns it into a Windows path.
   - ⚠️ **Tested .NET for iOS versions only.** The watch app starts .NET for iOS through internal functions (see
     "watchOS runtime" under Design decisions), so the SDK fails the build with `WATCHIOUS003` on a .NET for iOS
     version it hasn't been tested with. Tested: `27.2.10000` (.NET 10, workload set `10.0.404`:
@@ -386,21 +423,22 @@ Versions stay at `0.x.x` until the API is stable.
    `INavigation`, generated `Routes` helpers, native back on both platforms). Still to do: SF Symbols and
    Material icons for `Image`.
 6. **Watch APIs** (`Watchious.Essentials`): the common watch features as unified C# services, with
-   platform C# as the escape hatch. Done so far: haptics, device info, battery, connectivity and preferences.
-   Next: notifications, location, sensors, secure storage, always-on (ambient) mode and app lifecycle events.
+   platform C# as the escape hatch. ✅ Haptics, device info, battery, connectivity, preferences, secure storage,
+   app lifecycle, always-on (ambient) mode, local notifications, location and sensors. The ones added last (secure
+   storage to sensors) work on an Apple Watch SE 3 and on the Wear OS emulator.
 7. ✅ **Messaging** between phone and watch (`Watchious.Messaging`, optional,
    https://github.com/Kebechet/Watchious/issues/4). ✅ A Galaxy Watch7 and a Pixel 6 running the plugin exchange
-   messages, answers and the application context both ways. An iPhone still needs the watch app installed from
-   inside the iPhone app (see "Companion apps").
+   messages, answers and the application context both ways, and so do an Apple Watch SE 3 and an iPhone SE, with the
+   watch app installed from inside the iPhone app (see "Companion apps").
 8. ✅ **Preview host:** the same screens on the desktop, for debugging in Visual Studio (`Watchious.Preview`,
    see "Preview and inspector").
 9. ✅ **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
-   it events (https://github.com/Kebechet/Watchious/issues/5). Works with a real Galaxy Watch7. The app's side uses
-   plain HTTP requests, which a real Apple Watch allows (it refused the earlier WebSocket); trying it there is still
-   to do.
+   it events (https://github.com/Kebechet/Watchious/issues/5). Works with a real Galaxy Watch7 and a real Apple Watch
+   SE 3. The app's side uses plain HTTP requests, which a real Apple Watch allows (it refused the earlier WebSocket).
 10. ✅ **Health and workouts** (`Watchious.Health`, optional). A run with live heart rate from the wrist, pause,
     resume and a summary works on a Galaxy Watch7 and an Apple Watch SE 3, and on the Wear OS emulator with Health
-    Services' synthetic data.
+    Services' synthetic data. A workout keeps running when the user leaves the app, and on an Apple Watch SE 3 it
+    comes back after the app was killed.
 11. **Live mode:** the app's C# runs on the computer, under the debugger, and a host app without .NET draws it
     in the watchOS simulator or the Wear OS emulator, connected like the inspector. Unlike the preview, the
     screens are the real SwiftUI and Compose controls. From Windows, the simulator on the Mac connects to the
@@ -408,7 +446,8 @@ Versions stay at `0.x.x` until the API is stable.
     SwiftDotNet's live mode.
 12. ✅ **Crown input for values:** the Digital Crown and the Wear OS rotary input change a value, such as a weight
     or a number of reps, not only scroll a list or turn a `Picker`: `DigitalCrownRotation`, on SwiftUI's
-    `digitalCrownRotation` and Compose's `onRotaryScrollEvent`, one crown step per value step, clockwise up.
+    `digitalCrownRotation` and Compose's `onRotaryScrollEvent`, one crown step per value step, clockwise up. Works on
+    an Apple Watch SE 3 and on the Wear OS emulator.
 
 ## Prior art
 

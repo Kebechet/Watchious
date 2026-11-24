@@ -6,5 +6,9 @@
     <string>The Workout page shows your heart rate during a run.</string>
     <key>NSHealthUpdateUsageDescription</key>
     <string>The Workout page saves your runs as workouts.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>The Watch APIs page shows where you are.</string>
+    <key>NSMotionUsageDescription</key>
+    <string>The Watch APIs page shows the air pressure.</string>
 </dict>
 </plist>

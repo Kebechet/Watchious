@@ -10,6 +10,7 @@ public abstract class WatchiousActivity : Activity
 {
     private WatchiousApp? _app;
     private ComposeWatchiousHost? _host;
+    private WearOSPermissions? _permissions;
 
     protected abstract WatchiousApp CreateWatchiousApp();
 
@@ -17,7 +18,9 @@ public abstract class WatchiousActivity : Activity
     {
         base.OnCreate(savedInstanceState);
 
-        using (WatchiousPlatform.ConfigureServices(WearOSEssentials.AddTo))
+        var permissions = new WearOSPermissions(this);
+        _permissions = permissions;
+        using (WatchiousPlatform.ConfigureServices(services => WearOSEssentials.AddTo(services, this, permissions)))
         {
             _app = CreateWatchiousApp();
         }
@@ -53,8 +56,17 @@ public abstract class WatchiousActivity : Activity
     }
 #pragma warning restore CS0672, CA1422
 
+    // The answers to the permissions Watchious.Essentials asked for (location, notifications).
+    public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
+    {
+        _permissions?.OnRequestPermissionsResult(requestCode, grantResults);
+        base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
     protected override void OnDestroy()
     {
+        _permissions?.CancelPending();
+        _permissions = null;
         if (_host is not null)
         {
             _host.Dispose();

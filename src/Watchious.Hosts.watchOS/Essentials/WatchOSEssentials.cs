@@ -7,11 +7,23 @@ internal static class WatchOSEssentials
 {
     public static void AddTo(IServiceCollection services)
     {
+        WatchOSCallbacks.Register();
         services.AddSingleton<IHaptics, WatchOSHaptics>();
         services.AddSingleton<IDeviceInfo, WatchOSDeviceInfo>();
         services.AddSingleton<IBattery, WatchOSBattery>();
         services.AddSingleton<IConnectivity, WatchOSConnectivity>();
         services.AddSingleton<IPreferences, WatchOSPreferences>();
+        services.AddSingleton<ISecureStorage, WatchOSSecureStorage>();
+        services.AddSingleton<IAppLifecycle, WatchOSAppLifecycle>();
+        services.AddSingleton<IAmbientMode, WatchOSAmbientMode>();
+        services.AddSingleton<ILocalNotifications, WatchOSLocalNotifications>();
+        services.AddSingleton<IGeolocation, WatchOSGeolocation>();
+        services.AddSingleton<IAccelerometer, WatchOSAccelerometer>();
+        services.AddSingleton<IGyroscope, WatchOSGyroscope>();
+        services.AddSingleton<IMagnetometer, WatchOSMagnetometer>();
+        services.AddSingleton<ICompass, WatchOSCompass>();
+        services.AddSingleton<IBarometer, WatchOSBarometer>();
+        services.AddSingleton<IOrientationSensor, WatchOSOrientationSensor>();
     }
 }
 
