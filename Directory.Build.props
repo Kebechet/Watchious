@@ -13,7 +13,8 @@
   </PropertyGroup>
 
   <!-- Only the projects that ship as packages opt in, each with its Kebechet.Watchious.* PackageId. Nothing is
-       published yet: .github/scripts/pack.sh puts the packages in artifacts/packages. -->
+       published yet: .github/scripts/pack.sh puts the packages in artifacts/packages. Version is the one all 10
+       packages are published at, by .github/workflows/publish.yml (README, "Publishing"). -->
   <PropertyGroup Label="Packages">
     <Version>0.1.0-preview.1</Version>
     <Authors>Kebechet</Authors>
