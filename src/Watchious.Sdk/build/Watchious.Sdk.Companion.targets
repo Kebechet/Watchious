@@ -1,0 +1,55 @@
+<!--
+  Until .NET for iOS's AdditionalWatchOSApp item ships (https://github.com/dotnet/macios/pull/27284), this embeds a
+  Watchious watch app in a .NET iPhone app (a MAUI app, for example) as its companion. WatchConnectivity, which
+  Watchious.Messaging uses on watchOS, connects a watch app only with the iPhone app it came inside. The iPhone project
+  imports this file and names the watch project:
+
+    <Import Project="<Watchious.Sdk>/build/Watchious.Sdk.Companion.targets" />
+    <ItemGroup>
+      <WatchiousWatchApp Include="..\MyWatch\MyWatch.csproj" CodesignProvision="<the watch app's profile>" />
+    </ItemGroup>
+
+  The iPhone build builds that project for watchOS (its own configuration, a device or a simulator to match its own
+  runtime identifier, signed with its own CodesignKey) as the companion of $(ApplicationId), and puts the watch app into
+  Watch/ before .NET for iOS signs the iPhone app. It needs a Mac. Item metadata:
+    CodesignProvision  the watch app's provisioning profile (a path or an installed profile's UUID), for a device
+    TargetFramework    the watch project's watchOS target framework (default: net<the iPhone app's .NET version>-watchos)
+  Once AdditionalWatchOSApp ships, it replaces this file.
+-->
+<Project>
+
+  <Target Name="_WatchiousEmbedWatchApps"
+          BeforeTargets="_CodesignAppBundle"
+          DependsOnTargets="_GenerateBundleName"
+          Condition="'@(WatchiousWatchApp)' != '' And '$(_CanOutputAppBundle)' == 'true'">
+    <Error Condition="!$([MSBuild]::IsOSPlatform('OSX'))" Text="Watchious: embedding a watch app in an iPhone app needs a Mac." />
+    <ItemGroup>
+      <_WatchiousWatchProject Include="@(WatchiousWatchApp)">
+        <TargetFramework Condition="'%(WatchiousWatchApp.TargetFramework)' == ''">net$(TargetFrameworkVersion.TrimStart('v'))-watchos</TargetFramework>
+      </_WatchiousWatchProject>
+      <!-- Restored without TargetFramework, which would reach the libraries it references, and in an evaluation of its
+           own, as dotnet build does, so that the build sees what the restore wrote. -->
+      <_WatchiousWatchRestore Include="@(WatchiousWatchApp)">
+        <AdditionalProperties>RuntimeIdentifier=$(RuntimeIdentifier);Configuration=$(Configuration)</AdditionalProperties>
+      </_WatchiousWatchRestore>
+      <_WatchiousWatchProject>
+        <AdditionalProperties>TargetFramework=%(TargetFramework);RuntimeIdentifier=$(RuntimeIdentifier);Configuration=$(Configuration);CodesignKey=$([MSBuild]::Escape('$(CodesignKey)'));CodesignProvision=$([MSBuild]::Escape('%(CodesignProvision)'));WatchiousCompanionAppBundleIdentifier=$(ApplicationId)</AdditionalProperties>
+      </_WatchiousWatchProject>
+    </ItemGroup>
+    <MSBuild Projects="@(_WatchiousWatchRestore)" Targets="Restore" RemoveProperties="TargetFramework"
+             Properties="MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" />
+    <MSBuild Projects="@(_WatchiousWatchProject)" Targets="Build" />
+    <MSBuild Projects="@(_WatchiousWatchProject)" Targets="WatchiousGetWatchApp">
+      <Output TaskParameter="TargetOutputs" ItemName="_WatchiousBuiltWatchApp" />
+    </MSBuild>
+    <PropertyGroup>
+      <_WatchiousWatchDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(AppBundleDir)', 'Watch'))</_WatchiousWatchDirectory>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_WatchiousWatchDirectory)" />
+    <MakeDir Directories="$(_WatchiousWatchDirectory)" />
+    <!-- ditto keeps the watch app's signature intact; the iPhone app's signature then seals it. -->
+    <Exec Command="ditto &quot;%(_WatchiousBuiltWatchApp.Identity)&quot; &quot;$(_WatchiousWatchDirectory)%(_WatchiousBuiltWatchApp.Filename)%(_WatchiousBuiltWatchApp.Extension)&quot;" />
+    <Message Importance="high" Text="Watchious: embedded @(_WatchiousBuiltWatchApp->'%(Filename)%(Extension)') as the companion of $(ApplicationId)" />
+  </Target>
+
+</Project>
