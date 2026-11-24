@@ -1,0 +1,178 @@
+name: Publish
+
+# Publishes the 10 Kebechet.Watchious.* packages at the version in Directory.Build.props: to nuget.org with Trusted
+# Publishing (no API key: nuget.org trusts this workflow file of this repository), to GitHub Packages, and as the GitHub
+# release v<version>. Only by hand ("Run workflow" on main), after the version was bumped and merged. The packages are
+# packed and tested by the same reusable workflow as every pull request, and nothing is pushed unless all of it passes.
+#
+# ⚠️ A package id and a version on nuget.org are permanent: a version can only be unlisted, never deleted or replaced.
+#
+# The packages go out libraries first, then the SDK that references them at its exact version, then the template that
+# names the SDK, so nothing visible references a package that isn't there yet. Every push skips a version that is
+# already there, so "Re-run failed jobs" on a run that stopped halfway pushes the rest. A new run of a version whose
+# tag or Kebechet.Watchious.Sdk already exists is refused: bump the version.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency: publish
+
+jobs:
+  refuse-branch:
+    name: Refuse a branch other than main
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Refuse
+        run: |
+          echo "::error::Publish runs only on main, not on $GITHUB_REF. Choose main under 'Use workflow from'."
+          exit 1
+
+  version:
+    name: Version
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read the version from Directory.Build.props
+        id: version
+        run: |
+          set -euo pipefail
+          versions="$(sed -n 's|.*<Version>\(.*\)</Version>.*|\1|p' Directory.Build.props)"
+          if [ "$(printf '%s\n' "$versions" | sed '/^$/d' | wc -l)" -ne 1 ]; then
+            echo "::error::Directory.Build.props must set <Version> exactly once; found: $versions"
+            exit 1
+          fi
+          if ! [[ "$versions" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$versions' in Directory.Build.props is not a version like 1.2.3 or 1.2.3-preview.1."
+            exit 1
+          fi
+          echo "version=$versions" >> "$GITHUB_OUTPUT"
+          echo "Version: $versions"
+
+      - name: Refuse a version that is already published
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null; then
+            echo "::error::The tag v$VERSION exists: $VERSION was published. Bump <Version> in Directory.Build.props."
+            exit 1
+          fi
+          # The flat container lists every version of an id, unlisted ones too, in lower case; an unknown id is a 404.
+          version_lower="$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]')"
+          status="$(curl -sS -o "$RUNNER_TEMP/versions.json" -w '%{http_code}' https://api.nuget.org/v3-flatcontainer/kebechet.watchious.sdk/index.json)"
+          case "$status" in
+            404) ;;
+            200)
+              if grep -qF "\"$version_lower\"" "$RUNNER_TEMP/versions.json"; then
+                echo "::error::nuget.org has Kebechet.Watchious.Sdk $VERSION. Bump <Version> in Directory.Build.props, or, to finish a run that stopped halfway, use 'Re-run failed jobs' on that run."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::nuget.org answered $status for the versions of Kebechet.Watchious.Sdk."
+              exit 1
+              ;;
+          esac
+          echo "Neither the tag v$VERSION nor Kebechet.Watchious.Sdk $VERSION exists."
+
+  packages:
+    name: Packages
+    needs: version
+    uses: ./.github/workflows/packages.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  publish:
+    name: Publish
+    needs: [version, packages]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write   # the release and its tag
+      packages: write   # GitHub Packages
+      id-token: write   # the OIDC token NuGet/login trades for a nuget.org API key
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      # Libraries first, then Sdk, then Templates (see the top).
+      PACKAGES: Core Controls Essentials Preview Hosts.watchOS Hosts.WearOS Messaging Health Sdk Templates
+    steps:
+      - name: Download the packages
+        uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: packages
+
+      - name: Check that these are the 10 packages
+        run: |
+          set -euo pipefail
+          for package in $PACKAGES; do
+            test -f "packages/Kebechet.Watchious.$package.$VERSION.nupkg" || { echo "::error::No Kebechet.Watchious.$package.$VERSION.nupkg."; exit 1; }
+          done
+          count="$(find packages -name '*.nupkg' | wc -l)"
+          [ "$count" -eq 10 ] || { echo "::error::Expected 10 packages, found $count."; exit 1; }
+
+      # Directly before the push: the API key it returns is valid for 1 hour. The nuget.org policy names this file,
+      # publish.yml, so the login must stay in this workflow, not in the reusable one.
+      - name: Log in to nuget.org (Trusted Publishing)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: Kebechet
+
+      # dotnet nuget push also pushes the .snupkg next to a package, if there is one.
+      - name: Push to nuget.org
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          for package in $PACKAGES; do
+            dotnet nuget push "packages/Kebechet.Watchious.$package.$VERSION.nupkg" \
+              --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done
+
+      # GitHub Packages has no symbol server.
+      - name: Push to GitHub Packages
+        env:
+          PACKAGES_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for package in $PACKAGES; do
+            dotnet nuget push "packages/Kebechet.Watchious.$package.$VERSION.nupkg" \
+              --api-key "$PACKAGES_TOKEN" --source "https://nuget.pkg.github.com/$GITHUB_REPOSITORY_OWNER/index.json" \
+              --skip-duplicate --no-symbols
+          done
+
+      - name: Create the GitHub release v${{ env.VERSION }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          prerelease=()
+          case "$VERSION" in *-*) prerelease=(--prerelease) ;; esac
+          notes="$(cat <<EOF
+          All 10 Kebechet.Watchious.* packages at $VERSION, on [nuget.org](https://www.nuget.org/packages/Kebechet.Watchious.Sdk/$VERSION).
+
+          \`\`\`bash
+          dotnet new install Kebechet.Watchious.Templates::$VERSION
+          dotnet new watchious
+          \`\`\`
+
+          An app names the SDK: \`<Project Sdk="Kebechet.Watchious.Sdk/$VERSION">\`.
+          EOF
+          )"
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "v$VERSION" packages/*.nupkg --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "v$VERSION" packages/*.nupkg --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "v$VERSION" --notes "$notes" --generate-notes "${prerelease[@]}"
+          fi
