@@ -33,6 +33,8 @@ kotlin {
 dependencies {
     implementation("androidx.wear.compose:compose-material3:1.7.1")
     implementation("androidx.wear.compose:compose-foundation:1.7.1")
+    // Image's icons. The .NET app gets the same version from Xamarin.AndroidX.Compose.Material.Icons.Extended.
+    implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.lifecycle:lifecycle-runtime:2.9.4")
     implementation("androidx.savedstate:savedstate:1.3.3")
 }

@@ -35,6 +35,26 @@
     <None Include="@(WatchiousImage)" Link="Resources\Images\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- R8 (on in release builds, see Watchious.Sdk.props) keeps only the Material icons that code names.
+       Image's MaterialIcon finds its icon by name at run time, so the app lists each one it uses:
+       <WatchiousMaterialIcon Include="Hiking" />. -->
+  <Target Name="_WatchiousKeepMaterialIcons" BeforeTargets="_CalculateProguardConfigurationFiles"
+          Condition="'$(WatchiousTargetPlatform)' == 'android' And '@(WatchiousMaterialIcon)' != ''">
+    <PropertyGroup>
+      <_WatchiousMaterialIconRules>$(IntermediateOutputPath)watchious-material-icons.cfg</_WatchiousMaterialIconRules>
+    </PropertyGroup>
+    <ItemGroup>
+      <_WatchiousMaterialIconRule Include="@(WatchiousMaterialIcon->'-keep class androidx.compose.material.icons.rounded.%(Identity)Kt { *%3B }')" />
+      <_WatchiousMaterialIconRule Include="@(WatchiousMaterialIcon->'-keep class androidx.compose.material.icons.automirrored.rounded.%(Identity)Kt { *%3B }')" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_WatchiousMaterialIconRules)" Lines="@(_WatchiousMaterialIconRule)" Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <ProguardConfiguration Include="$(_WatchiousMaterialIconRules)" />
+      <FileWrites Include="$(_WatchiousMaterialIconRules)" />
+    </ItemGroup>
+  </Target>
+
   <!-- Android's rule for resource names, checked on both platforms so an image that works on one works on both. -->
   <Target Name="_WatchiousCheckImageNames" BeforeTargets="BeforeBuild" Condition="'@(WatchiousImage)' != ''">
     <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('%(WatchiousImage.Filename)', '^[a-z][a-z0-9_]*$'))"

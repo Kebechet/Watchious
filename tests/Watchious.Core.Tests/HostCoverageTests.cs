@@ -14,6 +14,13 @@ public partial class HostCoverageTests
     // Read by the C# side only: tests find navigation pages by their route.
     private static readonly string[] CSharpOnlyAttributes = ["Route"];
 
+    // Read by one watch host only, and by the preview, which draws both platforms.
+    private static readonly Dictionary<string, string> PlatformOnlyAttributes = new()
+    {
+        [nameof(Image.AppleSymbol)] = "watchOS",
+        [nameof(Image.MaterialIcon)] = "WearOS",
+    };
+
     private static readonly string Root = FindRepositoryRoot();
 
     private static readonly Dictionary<string, string[]> HostSources = new()
@@ -53,6 +60,7 @@ public partial class HostCoverageTests
         var source = HostSource(host);
         var attributes = ControlsSource(AddAttribute())
             .Except(CSharpOnlyAttributes)
+            .Where(attribute => !PlatformOnlyAttributes.TryGetValue(attribute, out var platform) || platform == host || host == "Preview")
             .Select(attribute => attribute.StartsWith("on", StringComparison.Ordinal) ? attribute[2..] : attribute)
             .ToList();
 
@@ -82,6 +90,29 @@ public partial class HostCoverageTests
         // Assert
         values.ShouldContain($"{nameof(TextStyle)}.{nameof(TextStyle.Body)}");
         missing.ShouldBeEmpty($"{host} doesn't know these values");
+    }
+
+    // Each host's own table of the shared icons. EveryEnumValue_IsKnownToTheHost can't see a missing one when its name
+    // is also a control's, such as List.
+    [Fact]
+    public void EveryIcon_IsInEachHostsIconTable()
+    {
+        // Arrange
+        var swift = File.ReadAllText(Path.Combine(Root, "platforms", "watchOS", "Host", "ControlViews.swift"));
+        var kotlin = File.ReadAllText(Path.Combine(Root, "platforms", "WearOS", "host", "src", "main", "kotlin", "com", "kebechet", "watchious", "host", "Icons.kt"));
+        var preview = File.ReadAllText(Path.Combine(Root, "src", "Watchious.Preview", "wwwroot", "preview.js"));
+        var icons = Enum.GetNames<Icon>();
+
+        // Act
+        var missingOnWatchOS = icons.Where(icon => !swift.Contains($"\"{icon}\": \"", StringComparison.Ordinal)).ToList();
+        var missingOnWearOS = icons.Where(icon => !kotlin.Contains($"\"{icon}\" -> Icons.", StringComparison.Ordinal)).ToList();
+        var missingInPreview = icons.Where(icon => !Regex.IsMatch(preview, $@"\b{icon}: """)).ToList();
+
+        // Assert
+        icons.ShouldContain(nameof(Icon.List));
+        missingOnWatchOS.ShouldBeEmpty("watchOS has no SF Symbol for these icons");
+        missingOnWearOS.ShouldBeEmpty("Wear OS has no Material icon for these icons");
+        missingInPreview.ShouldBeEmpty("the preview has no Material Symbol for these icons");
     }
 
     private static string HostSource(string host)

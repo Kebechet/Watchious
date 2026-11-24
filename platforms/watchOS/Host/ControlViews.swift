@@ -102,22 +102,152 @@ struct TextFieldNode: View {
     }
 }
 
-// An app image, which Watchious.Sdk copies into the app bundle under its file name.
+// A system icon, or an app image, which Watchious.Sdk copies into the app bundle under its file name.
 struct ImageNode: View {
     let node: UiNode
 
     var body: some View {
+        if let symbolName {
+            SymbolImage(name: symbolName, node: node)
         // UIImage(named:) finds a PNG by its name alone; a JPEG needs its extension.
-        if let source = node.attribute("Source"), let image = UIImage(named: source) ?? UIImage(named: source + ".jpg") {
+        } else if let source = node.attribute("Source"), let image = UIImage(named: source) ?? UIImage(named: source + ".jpg") {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
                 .frame(width: dimension("Width"), height: dimension("Height"))
-                .accessibilityLabel(node.attribute("Description") ?? "")
+                .accessibilityLabel(ifSet: node.attribute("Description"))
         }
+    }
+
+    // AppleSymbol names any SF Symbol and wins over Icon, the shared set, which stands in when this watchOS doesn't have
+    // that symbol (one of a newer watchOS, say). An Icon value this host doesn't map shows as a missing symbol.
+    private var symbolName: String? {
+        let own = node.attribute("AppleSymbol").flatMap { $0.isEmpty ? nil : $0 }
+        let shared = node.attribute("Icon").flatMap { $0.isEmpty ? nil : (watchiousSymbols[$0] ?? $0) }
+        if let own, UIImage(systemName: own) != nil || shared == nil {
+            return own
+        }
+        return shared
     }
 
     private func dimension(_ name: String) -> CGFloat? {
         node.attribute(name).flatMap(Double.init).map { CGFloat($0) }
     }
 }
+
+// An SF Symbol, sized to the text around it, or to Width and Height. A name watchOS doesn't have is logged, and shows
+// as a warning in a debug build.
+private struct SymbolImage: View {
+    let name: String
+    let node: UiNode
+
+    var body: some View {
+        if UIImage(systemName: name) != nil {
+            symbol
+                .accessibilityLabel(ifSet: node.attribute("Description"))
+        } else {
+            missing
+        }
+    }
+
+    @ViewBuilder
+    private var symbol: some View {
+        let width = dimension("Width")
+        let height = dimension("Height")
+        if width != nil || height != nil {
+            Image(systemName: name)
+                .resizable()
+                .scaledToFit()
+                .frame(width: width, height: height)
+        } else {
+            Image(systemName: name)
+        }
+    }
+
+    // Logged when it appears, not on each redraw.
+    @ViewBuilder
+    private var missing: some View {
+        #if DEBUG
+        Text("⚠️ \(name)")
+            .font(.caption2)
+            .foregroundStyle(.red)
+            .onAppear(perform: logMissing)
+        #else
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear(perform: logMissing)
+        #endif
+    }
+
+    private func logMissing() {
+        NSLog("[Watchious] Unknown SF Symbol %@", name)
+    }
+
+    private func dimension(_ name: String) -> CGFloat? {
+        node.attribute(name).flatMap(Double.init).map { CGFloat($0) }
+    }
+}
+
+extension View {
+    // Without a description, VoiceOver keeps reading what it reads for the image itself, such as an SF Symbol's name.
+    @ViewBuilder
+    func accessibilityLabel(ifSet text: String?) -> some View {
+        if let text, !text.isEmpty {
+            accessibilityLabel(text)
+        } else {
+            self
+        }
+    }
+}
+
+// Watchious's shared icons (Watchious.Controls.Icon) as SF Symbols.
+private let watchiousSymbols: [String: String] = [
+    "Heart": "heart.fill",
+    "Star": "star.fill",
+    "Bell": "bell.fill",
+    "Home": "house.fill",
+    "Person": "person.fill",
+    "Settings": "gearshape.fill",
+    "Info": "info.circle.fill",
+    "Warning": "exclamationmark.triangle.fill",
+    "Search": "magnifyingglass",
+    "Lock": "lock.fill",
+    "Plus": "plus",
+    "Minus": "minus",
+    "Checkmark": "checkmark",
+    "Close": "xmark",
+    "Edit": "pencil",
+    "Delete": "trash.fill",
+    "Refresh": "arrow.clockwise",
+    "Share": "square.and.arrow.up",
+    "ChevronLeft": "chevron.left",
+    "ChevronRight": "chevron.right",
+    "ChevronUp": "chevron.up",
+    "ChevronDown": "chevron.down",
+    "Play": "play.fill",
+    "Pause": "pause.fill",
+    "Stop": "stop.fill",
+    "Microphone": "mic.fill",
+    "Speaker": "speaker.wave.2.fill",
+    "Music": "music.note",
+    "Phone": "phone.fill",
+    "Message": "message.fill",
+    "Location": "mappin.and.ellipse",
+    "Calendar": "calendar",
+    "Clock": "clock.fill",
+    "Timer": "timer",
+    "Alarm": "alarm.fill",
+    "Run": "figure.run",
+    "Walk": "figure.walk",
+    "Bike": "figure.outdoor.cycle",
+    "Swim": "figure.pool.swim",
+    "Dumbbell": "dumbbell.fill",
+    "Flame": "flame.fill",
+    "Bolt": "bolt.fill",
+    "Drop": "drop.fill",
+    "Moon": "moon.fill",
+    "Sun": "sun.max.fill",
+    "Battery": "battery.100",
+    "Wifi": "wifi",
+    "List": "list.bullet",
+]
