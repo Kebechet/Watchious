@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -141,9 +142,10 @@ internal sealed class InspectorRelay
             {
                 page.Enqueue(ResetMessage, WebSocketMessageType.Text);
             }
+
+            app.Touch();
         }
 
-        app.Touch();
         return app.Id;
     }
 
@@ -181,10 +183,12 @@ internal sealed class InspectorRelay
     // one.
     public async Task<byte[]?> TakeEventsAsync(string session, CancellationToken cancellationToken)
     {
+        // Touched under the lock: ending an app disposes its timer, also under the lock.
         AppSession? app;
         lock (_lock)
         {
             app = CurrentApp(session);
+            app?.Touch();
         }
 
         if (app is null)
@@ -192,7 +196,6 @@ internal sealed class InspectorRelay
             return null;
         }
 
-        app.Touch();
         return await app.TakeEventsAsync(EventsPollTimeout, cancellationToken);
     }
 
@@ -226,14 +229,9 @@ internal sealed class InspectorRelay
         {
             await foreach (var (bytes, type) in Page.ReceiveAsync(socket, cancellationToken))
             {
-                if (type != WebSocketMessageType.Text)
+                if (type == WebSocketMessageType.Text)
                 {
-                    continue;
-                }
-
-                lock (_lock)
-                {
-                    _app?.Enqueue(bytes);
+                    EnqueueFromPage(bytes);
                 }
             }
         }
@@ -246,6 +244,34 @@ internal sealed class InspectorRelay
 
             page.Complete();
             await sending;
+        }
+    }
+
+    // The app reads its events as one JSON array of the page's messages, so a message that isn't a JSON object would
+    // spoil the others in that array.
+    internal void EnqueueFromPage(byte[] pageEvent)
+    {
+        if (!IsJsonObject(pageEvent))
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            _app?.Enqueue(pageEvent);
+        }
+    }
+
+    private static bool IsJsonObject(byte[] bytes)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(bytes);
+            return document.RootElement.ValueKind == JsonValueKind.Object;
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 
