@@ -48,8 +48,12 @@ internal interface IHealthBackend
 // HealthService picks it up again from what the store kept (https://github.com/Kebechet/Watchious/issues/13).
 internal sealed class HealthService : IHealthService, IHealthWorkoutService, IDisposable
 {
+    // How often a running workout's heart rate summary is saved: a crash loses at most this much of it.
+    private static readonly TimeSpan SaveInterval = TimeSpan.FromSeconds(30);
+
     private readonly IHealthBackend _backend;
     private readonly IWorkoutStore? _store;
+    private readonly TimeProvider _timeProvider;
     private readonly Task _recovery;
     private readonly Lock _lock = new();
     private WorkoutSession? _session;
@@ -59,11 +63,13 @@ internal sealed class HealthService : IHealthService, IHealthWorkoutService, IDi
     private double _heartRateSum;
     private double? _maxHeartRate;
     private double? _minHeartRate;
+    private DateTimeOffset _lastSave;
 
-    public HealthService(IHealthBackend backend, IWorkoutStore? store = null)
+    public HealthService(IHealthBackend backend, IWorkoutStore? store = null, TimeProvider? timeProvider = null)
     {
         _backend = backend;
         _store = store;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _recovery = store is null ? Task.CompletedTask : RecoverAsync(store);
     }
 
@@ -254,6 +260,8 @@ internal sealed class HealthService : IHealthService, IHealthWorkoutService, IDi
     {
         try
         {
+            // A recovery still under way attaches the backend when it finishes, so it is detached after that.
+            await _recovery;
             if (endWorkout)
             {
                 await _backend.EndWorkoutAsync();
@@ -329,6 +337,7 @@ internal sealed class HealthService : IHealthService, IHealthWorkoutService, IDi
         SavedWorkout? saved;
         lock (_lock)
         {
+            _lastSave = _timeProvider.GetUtcNow();
             var session = _session;
             saved = session is null
                 ? null
@@ -381,6 +390,7 @@ internal sealed class HealthService : IHealthService, IHealthWorkoutService, IDi
 
     private void OnHeartRate(double beatsPerMinute, DateTimeOffset timestamp)
     {
+        bool isSaveDue;
         lock (_lock)
         {
             if (_session is null)
@@ -392,6 +402,13 @@ internal sealed class HealthService : IHealthService, IHealthWorkoutService, IDi
             _heartRateSum += beatsPerMinute;
             _maxHeartRate = Math.Max(_maxHeartRate ?? beatsPerMinute, beatsPerMinute);
             _minHeartRate = Math.Min(_minHeartRate ?? beatsPerMinute, beatsPerMinute);
+            isSaveDue = _timeProvider.GetUtcNow() - _lastSave >= SaveInterval;
+        }
+
+        // watchOS never disposes the app, and a crash skips Dispose: the summary so far is saved as it grows.
+        if (isSaveDue)
+        {
+            Save();
         }
 
         HeartRateReceived?.Invoke(this, new HeartRateDto

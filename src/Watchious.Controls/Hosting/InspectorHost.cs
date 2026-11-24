@@ -236,7 +236,8 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
         }
     }
 
-    // A malformed message is skipped: one bad message must not end the inspector's clicks.
+    // The inspector sends only JSON objects; a batch that still can't be read is skipped, so that it doesn't end the
+    // inspector's clicks.
     private static InspectorEvent[] ReadEvents(byte[] json)
     {
         try
