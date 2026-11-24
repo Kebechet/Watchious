@@ -4,6 +4,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <IsPackable>true</IsPackable>
+    <PackageId>Kebechet.Watchious.Templates</PackageId>
     <ImplicitUsings>disable</ImplicitUsings>
     <PackageType>Template</PackageType>
     <Description>Project template for Watchious watch apps: dotnet new watchious.</Description>

@@ -1,5 +1,5 @@
 <!-- The Counter sample as one project for both watches. Outside this repository the project starts with
-     <Project Sdk="Watchious.Sdk"> and the two Import lines go away. -->
+     <Project Sdk="Kebechet.Watchious.Sdk/<version>"> and the two Import lines go away. -->
 <Project>
 
   <Import Project="..\..\src\Watchious.Sdk\Sdk\Sdk.props" />
@@ -26,8 +26,8 @@
     <ProjectReference Include="..\Watchious.Samples.Counter\Watchious.Samples.Counter.csproj" />
   </ItemGroup>
 
-  <!-- The Watchious.Messaging and Watchious.Health packages add their Swift files to the watchOS host themselves;
-       from source they are listed here. -->
+  <!-- The Kebechet.Watchious.Messaging and Kebechet.Watchious.Health packages add their Swift files to the watchOS
+       host themselves; from source they are listed here. -->
   <ItemGroup>
     <WatchiousWatchOSHostSource Include="..\..\src\Watchious.Messaging\watchOS\*.swift;..\..\src\Watchious.Health\watchOS\*.swift" />
   </ItemGroup>

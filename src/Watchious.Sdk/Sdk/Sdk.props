@@ -1,5 +1,5 @@
 <!--
-  Entry point of the Watchious MSBuild SDK: <Project Sdk="Watchious.Sdk">.
+  Entry point of the Watchious MSBuild SDK: <Project Sdk="Kebechet.Watchious.Sdk/<version>">.
   It is an MSBuild SDK rather than a PackageReference because the watchOS target framework has to be set up
   before NuGet restore runs, which a PackageReference's props can't do on the first restore.
 -->

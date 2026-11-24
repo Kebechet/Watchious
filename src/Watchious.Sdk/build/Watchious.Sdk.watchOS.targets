@@ -25,8 +25,8 @@
   <ItemGroup Condition="'$(OutputType)' == 'Exe'">
     <Compile Include="$(MSBuildThisFileDirectory)WatchiousWatchOSEntryPoints.cs" Link="Watchious\WatchiousWatchOSEntryPoints.cs" Visible="false" />
     <_WatchiousHostSource Include="$(WatchiousWatchOSHostDirectory)*.swift;$(WatchiousWatchOSHostDirectory)*.c;$(WatchiousWatchOSHostDirectory)*.h" />
-    <!-- Optional packages (Watchious.Messaging, Watchious.Health) add their Swift and C files to the host with
-         WatchiousWatchOSHostSource items. -->
+    <!-- Optional packages (Kebechet.Watchious.Messaging, Kebechet.Watchious.Health) add their Swift and C files to
+         the host with WatchiousWatchOSHostSource items. -->
     <_WatchiousHostSource Include="@(WatchiousWatchOSHostSource)" />
   </ItemGroup>
 
@@ -61,9 +61,9 @@
       <_WatchiousIOSSdkTested Condition="$([System.String]::Copy(';$(WatchiousTestedIOSSdkVersions.Replace(' ', ''));').Contains(';$(_WatchiousIOSSdkVersion);'))">true</_WatchiousIOSSdkTested>
     </PropertyGroup>
     <Error Condition="'$(_WatchiousIOSSdkTested)' != 'true' And '$(WatchiousAllowUntestedIOSSdk)' != 'true'" Code="WATCHIOUS003"
-           Text="Watchious: this Watchious.Sdk hasn't been tested with .NET for iOS $(_WatchiousIOSSdkVersion) (tested: $(WatchiousTestedIOSSdkVersions)). A watch app starts .NET for iOS through internal functions that a new version can change, so an untested version can crash at start-up on the watch. Use a tested version (see the Watchious README), or set WatchiousAllowUntestedIOSSdk=true to build anyway." />
+           Text="Watchious: this Kebechet.Watchious.Sdk hasn't been tested with .NET for iOS $(_WatchiousIOSSdkVersion) (tested: $(WatchiousTestedIOSSdkVersions)). A watch app starts .NET for iOS through internal functions that a new version can change, so an untested version can crash at start-up on the watch. Use a tested version (see the Watchious README), or set WatchiousAllowUntestedIOSSdk=true to build anyway." />
     <Warning Condition="'$(_WatchiousIOSSdkTested)' != 'true' And '$(WatchiousAllowUntestedIOSSdk)' == 'true'" Code="WATCHIOUS003"
-             Text="Watchious: building with .NET for iOS $(_WatchiousIOSSdkVersion), which this Watchious.Sdk hasn't been tested with (tested: $(WatchiousTestedIOSSdkVersions)), because WatchiousAllowUntestedIOSSdk is true. The app can crash at start-up on the watch." />
+             Text="Watchious: building with .NET for iOS $(_WatchiousIOSSdkVersion), which this Kebechet.Watchious.Sdk hasn't been tested with (tested: $(WatchiousTestedIOSSdkVersions)), because WatchiousAllowUntestedIOSSdk is true. The app can crash at start-up on the watch." />
   </Target>
 
   <!-- iPhone debug settings (Settings.bundle, MonoTouchDebugConfiguration.txt) have no use in a watch app. -->

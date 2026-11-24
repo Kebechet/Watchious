@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Watchious.Preview</RootNamespace>
     <IsPackable>true</IsPackable>
+    <PackageId>Kebechet.Watchious.Preview</PackageId>
     <Description>Watchious's desktop preview: runs a watch app's screens on the desktop, rendered in a browser page, so they can be debugged with a .NET debugger.</Description>
   </PropertyGroup>
 

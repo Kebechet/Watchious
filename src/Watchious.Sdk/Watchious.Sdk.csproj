@@ -1,18 +1,21 @@
-<!-- Packs the Watchious MSBuild SDK (<Project Sdk="Watchious.Sdk">). Nothing is compiled: the package is the
-     MSBuild files, the build tools and the sources of the native watchOS host. -->
+<!-- Packs the Watchious MSBuild SDK, Kebechet.Watchious.Sdk (<Project Sdk="Kebechet.Watchious.Sdk/<version>">).
+     Nothing is compiled: the package is the MSBuild files, the build tools and the sources of the native watchOS host. -->
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <IsPackable>true</IsPackable>
+    <PackageId>Kebechet.Watchious.Sdk</PackageId>
     <ImplicitUsings>disable</ImplicitUsings>
     <PackageType>MSBuildSdk</PackageType>
     <Description>The Watchious MSBuild SDK: one project for Wear OS and watchOS watch apps written in Razor.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <EnableDefaultItems>false</EnableDefaultItems>
-    <!-- NU5128: an SDK package has no lib/ assembly on purpose. -->
-    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <!-- NU5128: an SDK package has no lib/ assembly on purpose. NU5129: NuGet looks for build/<package id>.props and
+         .targets, but an SDK package is never a PackageReference: Sdk/Sdk.props and Sdk.targets import the build/
+         files by path. -->
+    <NoWarn>$(NoWarn);NU5128;NU5129</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

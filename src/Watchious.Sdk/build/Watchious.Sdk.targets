@@ -66,11 +66,11 @@
            Text="Watchious: the image name '%(WatchiousImage.Filename)' must be lowercase letters, digits and _, starting with a letter, as Android requires of resource names." />
   </Target>
 
-  <!-- Inside the Watchious repository the SDK references the source projects; a published SDK will reference the
-       packages of its own version instead. -->
+  <!-- Inside the Watchious repository the SDK references the source projects; a packed SDK references the packages
+       of its own version instead. -->
   <ItemGroup Condition="'$(WatchiousUseProjectReferences)' == 'true' And '$(TargetFramework)' != ''">
     <ProjectReference Include="$(WatchiousRepositoryRoot)src/Watchious.Controls/Watchious.Controls.csproj" />
-    <!-- The Watchious.Controls package carries this source generator itself. -->
+    <!-- The Kebechet.Watchious.Controls package carries this source generator itself. -->
     <ProjectReference Include="$(WatchiousRepositoryRoot)src/Watchious.SourceGenerators/Watchious.SourceGenerators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(WatchiousRepositoryRoot)src/Watchious.Hosts.WearOS/Watchious.Hosts.WearOS.csproj"
@@ -81,13 +81,16 @@
                       Condition="'$(WatchiousIsPreview)' == 'true'" />
   </ItemGroup>
 
+  <!-- Exactly the SDK's version: the SDK ships the SwiftUI host and Kebechet.Watchious.Hosts.watchOS its C# side, so
+       an app must not raise one without the other. Implicitly defined, like the .NET SDK's own implicit references,
+       so that an app with Central Package Management (Directory.Packages.props) can restore (NU1008 otherwise). -->
   <ItemGroup Condition="'$(WatchiousUseProjectReferences)' != 'true' And '$(TargetFramework)' != ''">
-    <PackageReference Include="Watchious.Controls" Version="$(WatchiousVersion)" />
-    <PackageReference Include="Watchious.Hosts.WearOS" Version="$(WatchiousVersion)"
+    <PackageReference Include="Kebechet.Watchious.Controls" Version="[$(WatchiousVersion)]" IsImplicitlyDefined="true" />
+    <PackageReference Include="Kebechet.Watchious.Hosts.WearOS" Version="[$(WatchiousVersion)]" IsImplicitlyDefined="true"
                       Condition="'$(WatchiousTargetPlatform)' == 'android'" />
-    <PackageReference Include="Watchious.Hosts.watchOS" Version="$(WatchiousVersion)"
+    <PackageReference Include="Kebechet.Watchious.Hosts.watchOS" Version="[$(WatchiousVersion)]" IsImplicitlyDefined="true"
                       Condition="'$(WatchiousTargetPlatform)' == 'watchos'" />
-    <PackageReference Include="Watchious.Preview" Version="$(WatchiousVersion)"
+    <PackageReference Include="Kebechet.Watchious.Preview" Version="[$(WatchiousVersion)]" IsImplicitlyDefined="true"
                       Condition="'$(WatchiousIsPreview)' == 'true'" />
   </ItemGroup>
 
