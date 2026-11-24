@@ -33,6 +33,11 @@
   </ItemGroup>
   <ItemGroup Condition="'$(WatchiousIsPreview)' == 'true'">
     <None Include="@(WatchiousImage)" Link="Resources\Images\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The preview's IAppInfo reads the app's name and version from these, as a watch reads them from its app. -->
+    <AssemblyMetadata Include="WatchiousApplicationTitle" Value="$(ApplicationTitle)" />
+    <AssemblyMetadata Include="WatchiousApplicationId" Value="$(ApplicationId)" />
+    <AssemblyMetadata Include="WatchiousApplicationDisplayVersion" Value="$(ApplicationDisplayVersion)" />
+    <AssemblyMetadata Include="WatchiousApplicationVersion" Value="$(ApplicationVersion)" />
   </ItemGroup>
 
   <!-- R8 (on in release builds, see Watchious.Sdk.BeforeCommon.targets) keeps only the Material icons that code names.

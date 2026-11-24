@@ -1,0 +1,107 @@
+@page "/more-apis"
+@implements IDisposable
+@inject IAppInfo AppInfo
+@inject IFileSystem FileSystem
+@inject IDeviceDisplay DeviceDisplay
+@inject IPedometer Pedometer
+@inject ITextToSpeech TextToSpeech
+
+<List>
+    <Label Style="TextStyle.Headline">More APIs</Label>
+    <Label>@AppInfo.Name @AppInfo.VersionString (@AppInfo.BuildString)</Label>
+    <Label Style="TextStyle.Caption">@AppInfo.PackageName</Label>
+    <Label Style="TextStyle.Caption">Data: @FileSystem.AppDataDirectory</Label>
+    <Label Style="TextStyle.Caption">Cache: @FileSystem.CacheDirectory</Label>
+    <Toggle Text="Keep screen on" IsOn="isKeptOn" IsOnChanged="KeepScreenOn" />
+    <Label Style="TextStyle.Caption">@displayText</Label>
+    <Toggle Text="Count steps" IsOn="isCounting" IsOnChanged="CountStepsAsync" />
+    <Label>Steps: @steps</Label>
+    <Label Style="TextStyle.Caption">@stepsText</Label>
+    <Button Text="Speak" OnClick="SpeakAsync" />
+    <Label Style="TextStyle.Caption">@speechText</Label>
+</List>
+
+@code {
+    private bool isKeptOn;
+    private string displayText = "";
+    private bool isCounting;
+    private long steps;
+    private string stepsText = "";
+    private string speechText = "";
+
+    protected override void OnInitialized()
+    {
+        Pedometer.ReadingChanged += OnSteps;
+    }
+
+    public void Dispose()
+    {
+        Pedometer.ReadingChanged -= OnSteps;
+        Pedometer.Stop();
+        if (isKeptOn)
+        {
+            DeviceDisplay.KeepScreenOn = false;
+        }
+    }
+
+    private void KeepScreenOn(bool isOn)
+    {
+        try
+        {
+            DeviceDisplay.KeepScreenOn = isOn;
+            isKeptOn = isOn;
+            displayText = isOn ? "The screen stays on" : "";
+        }
+        catch (FeatureNotSupportedException exception)
+        {
+            displayText = exception.Message;
+        }
+    }
+
+    private async Task CountStepsAsync(bool isOn)
+    {
+        if (!isOn)
+        {
+            Pedometer.Stop();
+            isCounting = false;
+            stepsText = "";
+            return;
+        }
+
+        try
+        {
+            await Pedometer.StartAsync();
+            isCounting = true;
+            steps = 0;
+            stepsText = "Counting";
+        }
+        catch (Exception exception) when (exception is PermissionException or FeatureNotSupportedException)
+        {
+            stepsText = exception.Message;
+        }
+    }
+
+    private void OnSteps(object? sender, PedometerChangedEventArgs e)
+    {
+        _ = InvokeAsync(() =>
+        {
+            steps = e.Reading.NumberOfSteps;
+            StateHasChanged();
+        });
+    }
+
+    private async Task SpeakAsync()
+    {
+        speechText = "Speaking...";
+        try
+        {
+            var locales = await TextToSpeech.GetLocalesAsync();
+            await TextToSpeech.SpeakAsync($"You walked {steps} steps.");
+            speechText = $"Spoken ({locales.Count()} voices)";
+        }
+        catch (Exception exception) when (exception is FeatureNotSupportedException or InvalidOperationException)
+        {
+            speechText = exception.Message;
+        }
+    }
+}

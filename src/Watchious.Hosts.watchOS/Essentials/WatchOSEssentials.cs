@@ -24,6 +24,11 @@ internal static class WatchOSEssentials
         services.AddSingleton<ICompass, WatchOSCompass>();
         services.AddSingleton<IBarometer, WatchOSBarometer>();
         services.AddSingleton<IOrientationSensor, WatchOSOrientationSensor>();
+        services.AddSingleton<IPedometer, WatchOSPedometer>();
+        services.AddSingleton<IDeviceDisplay, WatchOSDeviceDisplay>();
+        services.AddSingleton<IAppInfo, WatchOSAppInfo>();
+        services.AddSingleton<IFileSystem, WatchOSFileSystem>();
+        services.AddSingleton<ITextToSpeech, WatchOSTextToSpeech>();
     }
 }
 

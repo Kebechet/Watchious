@@ -280,19 +280,31 @@ font size. There is no CSS.
 | `IMagnetometer` | not on Apple Watch (`IsSupported` is false) | `SensorManager` |
 | `ICompass` | Core Location's heading | the rotation vector's azimuth |
 | `IBarometer` | `CMAltimeter` | the pressure sensor |
+| `IPedometer` | `CMPedometer` | the step counter |
+| `IDeviceDisplay` | `KeepScreenOn`: an extended runtime session | `KeepScreenOn`: `FLAG_KEEP_SCREEN_ON` |
+| `IAppInfo` | the app's Info.plist | `PackageManager` |
+| `IFileSystem` | `Library` and `Library/Caches` | the app's files and cache folders |
+| `ITextToSpeech` | `AVSpeechSynthesizer` | `TextToSpeech` |
 
 The names and shapes are MAUI Essentials' where it has the API (`IGeolocation`, `ISecureStorage`, `IAccelerometer`,
 `SensorSpeed`...). A sensor or service a watch doesn't have says so in `IsSupported`, and using it anyway throws
 `FeatureNotSupportedException`. Location and notifications ask for their permission on first use and throw
-`PermissionException` when it's denied. The app declares what each platform needs:
-`NSLocationWhenInUseUsageDescription` and, for the barometer, `NSMotionUsageDescription` in
-`Platforms/watchOS/Info.plist`; `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` in the Wear OS manifest. ⚠️ The
-watchOS host builds its location and compass code only when `NSLocationWhenInUseUsageDescription` is there, and its
-barometer only with `NSMotionUsageDescription`: App Store Connect refuses an app whose code uses them without the text
+`PermissionException` when it's denied, and so does `IPedometer.StartAsync`. The app declares what each platform needs:
+`NSLocationWhenInUseUsageDescription` and, for the barometer and the pedometer, `NSMotionUsageDescription` in
+`Platforms/watchOS/Info.plist`; `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, and `ACTIVITY_RECOGNITION` for the
+pedometer, in the Wear OS manifest. ⚠️ The watchOS host builds its location and compass code only when
+`NSLocationWhenInUseUsageDescription` is there, and its barometer and pedometer only with `NSMotionUsageDescription`: App Store Connect refuses an app whose code uses them without the text
 (ITMS-90683). Without the key, `IsSupported` is false and using the API throws `FeatureNotSupportedException` naming
 it. Events
 come on the platform's thread, often many times a second for a sensor: a page updates itself through `InvokeAsync`,
 and unsubscribes in `Dispose`.
+
+⚠️ **`KeepScreenOn` works differently on watchOS.** Wear OS keeps the screen on. watchOS can't stop the screen from
+dimming when the wrist goes down; there `KeepScreenOn` keeps the app running and on screen in an extended runtime
+session, of the kind the app declares in `Platforms/watchOS/Info.plist` (`WKBackgroundModes`: `self-care`, which lasts
+10 minutes, or `mindfulness` or `physical-therapy`, an hour). Without one, setting it throws
+`FeatureNotSupportedException`. App Store review checks that the app is that kind of app; a workout keeps its app
+running anyway (`Watchious.Health`).
 
 Each host registers its platform's implementations before the app's `CreateWatchiousApp` runs, so an app (or a
 test) can replace any of them with its own registration. WatchKit, which .NET for iOS has no bindings for,
@@ -525,7 +537,9 @@ Versions stay at `0.x.x` until the API is stable.
 6. **Watch APIs** (`Watchious.Essentials`): the common watch features as unified C# services, with
    platform C# as the escape hatch. ✅ Haptics, device info, battery, connectivity, preferences, secure storage,
    app lifecycle, always-on (ambient) mode, local notifications, location and sensors. The ones added last (secure
-   storage to sensors) work on an Apple Watch SE 3 and on the Wear OS emulator.
+   storage to sensors) work on an Apple Watch SE 3 and on the Wear OS emulator. ✅ Keeping the screen on, app info, the
+   file system, the pedometer and text to speech, so far tried in the watchOS simulator and the Wear OS emulator (which
+   have no step counter, and the emulator no speech engine).
 7. ✅ **Messaging** between phone and watch (`Watchious.Messaging`, optional,
    https://github.com/Kebechet/Watchious/issues/4). ✅ A Galaxy Watch7 and a Pixel 6 running the plugin exchange
    messages, answers and the application context both ways, and so do an Apple Watch SE 3 and an iPhone SE, with the
