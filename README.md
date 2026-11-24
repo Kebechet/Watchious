@@ -263,6 +263,10 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
   and starts it in the watchOS simulator. `-r ios-arm64 -p:WatchiousDevice=<UDID>` installs it on a watch,
   signed with MAUI's `CodesignKey` and `CodesignProvision`. `-f net11.0-android` works as for any .NET for
   Android app.
+  - An Apple Watch is reached over a Wi-Fi tunnel that drops while the watch sleeps. Run waits for the watch,
+    keeps the tunnel up during the install, and tries install and launch again while the watch can't be reached
+    (up to 5 times, 10 s apart), so a dozing watch only needs a wake-up. Signing and provisioning errors fail at
+    once.
   - .NET has no watchOS target, so the SDK builds a `net*-watchos` project with .NET for iOS (NativeAOT),
     relabels the native code for watchOS and links it into the SwiftUI host. C# gets Microsoft's bindings for
     Apple's frameworks that way, while NuGet still treats the project as `net*-watchos`.
