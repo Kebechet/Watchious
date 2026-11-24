@@ -205,16 +205,16 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
   simulator or emulator, next to its live UI tree and a log of patches, events and errors. Clicks on the mirror
   happen in the app on the watch. The app connects when it is started with the inspector's address:
   - Wear OS (debuggable builds only): `adb reverse tcp:5292 tcp:5292`, then
-    `adb shell am start -S -n <package>/<activity> --es watchious_inspector ws://localhost:5292/inspector/app`
+    `adb shell am start -S -n <package>/<activity> --es watchious_inspector http://localhost:5292/inspector/app`
     (`-S` restarts the app if it is open, since it reads the address when it starts).
-  - watchOS: the launch argument `--watchious-inspector=ws://<computer>:5292/inspector/app`, for example
-    `dotnet build -t:Run -f net10.0-watchos -p:WatchiousLaunchArguments=...`. A simulator on another computer
-    (the Mac of a remote build) needs the inspector started with `--urls=http://0.0.0.0:5292`.
-  - ⚠️ A real Apple Watch can't connect (tried on an Apple Watch SE 3: "Unable to connect to the remote server",
-    logged by the app, which runs on). watchOS gives apps HTTP(S) requests through URLSession, but sockets never,
-    and WebSockets only while an app streams audio or runs a call
-    (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos). The simulator
-    allows both, and a real Wear OS watch works through `adb reverse`.
+  - watchOS: the launch argument `--watchious-inspector=http://<computer>:5292/inspector/app`, for example
+    `dotnet build -t:Run -f net10.0-watchos -p:WatchiousLaunchArguments=...`. A watch, or a simulator on another
+    computer (the Mac of a remote build), needs the inspector started with `--urls=http://0.0.0.0:5292`.
+  - The app talks to the inspector with plain HTTP requests, because a real Apple Watch gives apps URLSession's
+    HTTP(S) but no sockets, and WebSockets only while an app streams audio or runs a call
+    (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos); an earlier
+    WebSocket version was refused on an Apple Watch SE 3. Debug watch builds allow plain HTTP on the local network
+    (`NSAllowsLocalNetworking`).
 
 ## Project and packaging
 
@@ -368,9 +368,9 @@ Versions stay at `0.x.x` until the API is stable.
 8. ✅ **Preview host:** the same screens on the desktop, for debugging in Visual Studio (`Watchious.Preview`,
    see "Preview and inspector").
 9. ✅ **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
-   it events (https://github.com/Kebechet/Watchious/issues/5). Works with a real Galaxy Watch7. A real Apple Watch
-   can't connect, so it needs the app's side of it as HTTPS requests instead of a WebSocket (see "Preview and
-   inspector").
+   it events (https://github.com/Kebechet/Watchious/issues/5). Works with a real Galaxy Watch7. The app's side uses
+   plain HTTP requests, which a real Apple Watch allows (it refused the earlier WebSocket); trying it there is still
+   to do.
 10. ✅ **Health and workouts** (`Watchious.Health`, optional). A run with live heart rate from the wrist, pause,
     resume and a summary works on a Galaxy Watch7 and an Apple Watch SE 3, and on the Wear OS emulator with Health
     Services' synthetic data.

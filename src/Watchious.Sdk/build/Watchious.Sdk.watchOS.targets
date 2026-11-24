@@ -112,7 +112,7 @@
     <!-- Before complete-watch-app.sh, which signs the bundle. SwiftUI loads them with UIImage(named:). -->
     <Copy SourceFiles="@(WatchiousImage)" DestinationFolder="$(MSBuildProjectDirectory)/$(_AppBundlePath)" SkipUnchangedFiles="true" />
     <Exec Command="bash &quot;$(WatchiousToolsDirectory)complete-watch-app.sh&quot;"
-          EnvironmentVariables="WATCHIOUS_APP=$(MSBuildProjectDirectory)/$(_AppBundlePath);WATCHIOUS_SDK_NAME=$(_WatchiousSdkName);WATCHIOUS_MIN_OS=$(WatchiousMinimumWatchOSVersion);WATCHIOUS_BUNDLE_ID=$(WatchiousBundleIdentifier);WATCHIOUS_INFO_PLIST=$(_WatchiousInfoPlist);WATCHIOUS_ASSETS=$(_WatchiousAssets);WATCHIOUS_WORK_DIR=$(_WatchiousWorkDirectory);WATCHIOUS_SIGN_IDENTITY=$(CodesignKey);WATCHIOUS_PROFILE=$(_WatchiousProfile);WATCHIOUS_ENTITLEMENTS=$(_WatchiousEntitlements);WATCHIOUS_COMPANION_ID=$(WatchiousCompanionAppBundleIdentifier)" />
+          EnvironmentVariables="WATCHIOUS_APP=$(MSBuildProjectDirectory)/$(_AppBundlePath);WATCHIOUS_SDK_NAME=$(_WatchiousSdkName);WATCHIOUS_MIN_OS=$(WatchiousMinimumWatchOSVersion);WATCHIOUS_BUNDLE_ID=$(WatchiousBundleIdentifier);WATCHIOUS_INFO_PLIST=$(_WatchiousInfoPlist);WATCHIOUS_ASSETS=$(_WatchiousAssets);WATCHIOUS_WORK_DIR=$(_WatchiousWorkDirectory);WATCHIOUS_SIGN_IDENTITY=$(CodesignKey);WATCHIOUS_PROFILE=$(_WatchiousProfile);WATCHIOUS_ENTITLEMENTS=$(_WatchiousEntitlements);WATCHIOUS_COMPANION_ID=$(WatchiousCompanionAppBundleIdentifier);WATCHIOUS_CONFIGURATION=$(Configuration)" />
   </Target>
 
   <!-- The built watch app, for an iPhone project that embeds it (Watchious.Sdk.Companion.targets). -->

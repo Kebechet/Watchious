@@ -12,6 +12,7 @@
 #   WATCHIOUS_PROFILE       provisioning profile (.mobileprovision path) for a real watch
 #   WATCHIOUS_ENTITLEMENTS  the app's entitlements plist, if any (on the simulator they are in the executable)
 #   WATCHIOUS_COMPANION_ID  the bundle identifier of the iPhone app whose companion this watch app is, if any
+#   WATCHIOUS_CONFIGURATION the build configuration (Debug lets the app reach the inspector over plain HTTP)
 set -euo pipefail
 
 APP="${WATCHIOUS_APP%/}"
@@ -81,6 +82,13 @@ if [ -n "${WATCHIOUS_ASSETS:-}" ] && [ -d "$WATCHIOUS_ASSETS" ]; then
         --minimum-deployment-target "$WATCHIOUS_MIN_OS" --app-icon AppIcon --output-partial-info-plist "$WORK/icon.plist" \
         --output-format human-readable-text --errors --warnings > "$WORK/actool.log" || { cat "$WORK/actool.log"; exit 1; }
     /usr/libexec/PlistBuddy -c "Merge '$WORK/icon.plist'" "$PLIST" > /dev/null
+fi
+# A Debug build mirrors itself to the Watchious inspector on the developer's computer, over plain HTTP on the local
+# network, which App Transport Security otherwise refuses.
+if [ "${WATCHIOUS_CONFIGURATION:-}" = "Debug" ]; then
+    plutil -insert NSAppTransportSecurity -json '{}' "$PLIST" 2>/dev/null || true
+    plutil -replace NSAppTransportSecurity.NSAllowsLocalNetworking -bool YES "$PLIST"
+    plutil -insert NSLocalNetworkUsageDescription -string "Debug builds mirror the app to the Watchious inspector on your computer." "$PLIST" 2>/dev/null || true
 fi
 plutil -convert binary1 "$PLIST"
 touch "$STAMP"

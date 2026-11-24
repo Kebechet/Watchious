@@ -1,5 +1,5 @@
-using System.Net.WebSockets;
-using System.Text;
+using System.Buffers;
+using System.Buffers.Binary;
 using System.Text.Json;
 using System.Threading.Channels;
 
@@ -8,17 +8,33 @@ namespace Watchious.Hosting;
 // Mirrors a running app to the Watchious inspector (dotnet run -f net10.0 -- --inspector on the developer's
 // machine): every patch batch the native host gets, the events the watch dispatches and the errors, and it
 // dispatches the events the inspector page sends. The native host keeps working if the inspector is unreachable.
+//
+// Plain HTTP requests, because a real Apple Watch gives apps no sockets, and WebSockets only while they stream audio
+// (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos); URLSession's HTTP is what
+// it allows. POST <url>/start opens a session, POST <url>/messages?session=... sends what is queued, as frames of a
+// kind byte (1 a patch batch, 2 JSON), a little-endian length and the payload, GET <url>/events?session=... waits for
+// the page's clicks, and POST <url>/stop?session=... ends the session.
 internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
 {
+    public const byte BatchFrame = 1;
+    public const byte JsonFrame = 2;
+
     // Batches wait here until the connection is up; past this many unsent messages the inspector is given up, since
     // a mirror with a batch missing would show a wrong tree.
     private const int MaxPendingMessages = 10_000;
 
+    private const int MaxRequestBytes = 256 * 1024;
+
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
+
+    // Longer than the inspector holds a GET for the page's events open (20 s).
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(40);
+
+    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(2);
 
     private readonly IWatchiousHost _host;
     private readonly Func<ulong, string, string?, Task> _dispatchEventAsync;
-    private readonly ClientWebSocket _socket = new();
+    private readonly HttpClient _http = CreateHttpClient();
     private readonly CancellationTokenSource _stopping = new();
     private readonly Channel<OutgoingMessage> _outgoing = Channel.CreateBounded<OutgoingMessage>(
         new BoundedChannelOptions(MaxPendingMessages) { SingleReader = true });
@@ -38,7 +54,7 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
         var applied = _host.ApplyPatches(patches);
         if (!_isStopped)
         {
-            Enqueue(new OutgoingMessage(patches.ToArray(), WebSocketMessageType.Binary));
+            Enqueue(new OutgoingMessage(BatchFrame, patches.ToArray()));
         }
 
         return applied;
@@ -67,8 +83,17 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
         {
         }
 
-        _socket.Dispose();
+        _http.Dispose();
         _stopping.Dispose();
+    }
+
+    // Android's own HTTP stack refuses plain http:// (cleartext traffic) unless the app allows it, so there .NET's
+    // sockets handler talks to the inspector, which adb reverse makes localhost. Elsewhere the platform's handler: on
+    // watchOS URLSession, the only way out of a real watch.
+    private static HttpClient CreateHttpClient()
+    {
+        HttpMessageHandler handler = OperatingSystem.IsAndroid() ? new SocketsHttpHandler() : new HttpClientHandler();
+        return new HttpClient(handler) { Timeout = RequestTimeout };
     }
 
     private void WriteJson<T>(T message)
@@ -79,7 +104,7 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
         }
 
         var json = JsonSerializer.SerializeToUtf8Bytes(message, InspectorJsonContext.Default.GetTypeInfo(typeof(T))!);
-        Enqueue(new OutgoingMessage(json, WebSocketMessageType.Text));
+        Enqueue(new OutgoingMessage(JsonFrame, json));
     }
 
     private void Enqueue(OutgoingMessage message)
@@ -99,67 +124,89 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
 
     private async Task RunAsync(Uri inspectorUrl, CancellationToken cancellationToken)
     {
+        string session;
         try
         {
             using var connectTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             connectTimeout.CancelAfter(ConnectTimeout);
-            await _socket.ConnectAsync(inspectorUrl, connectTimeout.Token);
+            using var response = await _http.PostAsync(Endpoint(inspectorUrl, "start"), content: null, connectTimeout.Token);
+            response.EnsureSuccessStatusCode();
+            session = await response.Content.ReadAsStringAsync(connectTimeout.Token);
         }
         catch (Exception exception)
         {
-            // No inspector listening, an address that isn't ws:// or wss://, or a real Apple Watch, which allows apps no
-            // WebSockets (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos):
-            // the app runs on without it.
+            // No inspector listening, or an address that isn't http:// or https://: the app runs on without it.
             Console.Error.WriteLine($"Watchious: the inspector at {inspectorUrl} can't be reached ({exception.Message}); the app runs without it.");
             StopMirroring();
             return;
         }
 
-        var receiving = ReceiveEventsAsync(cancellationToken);
+        var query = "?session=" + Uri.EscapeDataString(session);
+        var receiving = ReceiveEventsAsync(Endpoint(inspectorUrl, "events" + query), cancellationToken);
         try
         {
-            await foreach (var message in _outgoing.Reader.ReadAllAsync(cancellationToken))
-            {
-                await _socket.SendAsync(message.Bytes, message.Type, endOfMessage: true, cancellationToken);
-            }
-
-            // Given up: the page must not go on clicking in an app it no longer mirrors.
-            await _socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
-        }
-        catch (Exception exception) when (exception is WebSocketException or OperationCanceledException)
-        {
+            await SendAsync(Endpoint(inspectorUrl, "messages" + query), cancellationToken);
         }
         finally
         {
             StopMirroring();
+            // Given up or disposed: the page must not go on clicking in an app it no longer mirrors.
+            await TellStoppedAsync(Endpoint(inspectorUrl, "stop" + query));
         }
 
         await receiving;
     }
 
-    private async Task ReceiveEventsAsync(CancellationToken cancellationToken)
+    private async Task SendAsync(Uri messagesUrl, CancellationToken cancellationToken)
     {
-        var buffer = new byte[4096];
-        using var message = new MemoryStream();
+        var request = new ArrayBufferWriter<byte>();
         try
         {
-            while (_socket.State == WebSocketState.Open)
+            while (await _outgoing.Reader.WaitToReadAsync(cancellationToken))
             {
-                var result = await _socket.ReceiveAsync(buffer, cancellationToken);
-                if (result.MessageType == WebSocketMessageType.Close)
+                request.ResetWrittenCount();
+                while (request.WrittenCount < MaxRequestBytes && _outgoing.Reader.TryRead(out var message))
+                {
+                    WriteFrame(request, message);
+                }
+
+                using var content = new ByteArrayContent(request.WrittenSpan.ToArray());
+                using var response = await _http.PostAsync(messagesUrl, content, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    // Another app started since, or the inspector forgot this one.
+                    return;
+                }
+            }
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        {
+        }
+    }
+
+    private static void WriteFrame(ArrayBufferWriter<byte> request, OutgoingMessage message)
+    {
+        var header = request.GetSpan(5);
+        header[0] = message.Kind;
+        BinaryPrimitives.WriteInt32LittleEndian(header[1..], message.Payload.Length);
+        request.Advance(5);
+        request.Write(message.Payload);
+    }
+
+    private async Task ReceiveEventsAsync(Uri eventsUrl, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!_isStopped)
+            {
+                using var response = await _http.GetAsync(eventsUrl, cancellationToken);
+                if (!response.IsSuccessStatusCode)
                 {
                     return;
                 }
 
-                message.Write(buffer, 0, result.Count);
-                if (!result.EndOfMessage)
-                {
-                    continue;
-                }
-
-                var pageEvent = ReadEvent(message.ToArray());
-                message.SetLength(0);
-                if (pageEvent is not null)
+                var json = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                foreach (var pageEvent in ReadEvents(json))
                 {
                     // Not awaited, as on the watch hosts: a handler that waits for a later click must not hold that click
                     // up.
@@ -167,7 +214,7 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
                 }
             }
         }
-        catch (Exception exception) when (exception is WebSocketException or OperationCanceledException)
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
         {
         }
         finally
@@ -176,16 +223,29 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
         }
     }
 
-    // A malformed message is skipped: one bad message must not end the inspector's clicks.
-    private static InspectorEvent? ReadEvent(byte[] json)
+    private async Task TellStoppedAsync(Uri stopUrl)
     {
         try
         {
-            return JsonSerializer.Deserialize(json, InspectorJsonContext.Default.InspectorEvent);
+            using var timeout = new CancellationTokenSource(StopTimeout);
+            using var response = await _http.PostAsync(stopUrl, content: null, timeout.Token);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        {
+            // The inspector notices on its own when the app stops asking for events.
+        }
+    }
+
+    // A malformed message is skipped: one bad message must not end the inspector's clicks.
+    private static InspectorEvent[] ReadEvents(byte[] json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize(json, InspectorJsonContext.Default.InspectorEventArray) ?? [];
         }
         catch (JsonException)
         {
-            return null;
+            return [];
         }
     }
 
@@ -204,7 +264,12 @@ internal sealed class InspectorHost : IWatchiousHost, IAsyncDisposable
         }
     }
 
-    private readonly record struct OutgoingMessage(byte[] Bytes, WebSocketMessageType Type);
+    private static Uri Endpoint(Uri inspectorUrl, string relative)
+    {
+        return new Uri(inspectorUrl.AbsoluteUri.TrimEnd('/') + "/" + relative);
+    }
+
+    private readonly record struct OutgoingMessage(byte Kind, byte[] Payload);
 }
 
 // The inspector's event message, in both directions: {"id": 1, "name": "click", "value": null}.

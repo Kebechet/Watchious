@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Text;
@@ -22,16 +23,17 @@ public sealed class WatchiousInspectorOptions
     public string ImagesDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory, "Resources", "Images");
 }
 
-// The live inspector: a running watch app (started with --watchious-inspector=ws://<this>/inspector/app) mirrors
+// The live inspector: a running watch app (started with --watchious-inspector=http://<this>/inspector/app) mirrors
 // its patches, events and errors here, and the page shows them next to the screen they build. Clicks on that
-// screen are dispatched in the app on the watch.
+// screen are dispatched in the app on the watch. The app talks plain HTTP (see InspectorHost in Watchious.Controls),
+// because that is all a real Apple Watch allows; the pages, on this computer, use a WebSocket.
 public static class WatchiousInspector
 {
     public static async Task RunAsync(WatchiousInspectorOptions options, CancellationToken cancellationToken = default)
     {
         await using var server = Start(options);
         await server.StartAsync(cancellationToken);
-        var appUrl = options.Url.Replace("http://", "ws://", StringComparison.Ordinal).Replace("0.0.0.0", "<this computer>", StringComparison.Ordinal);
+        var appUrl = options.Url.Replace("0.0.0.0", "<this computer>", StringComparison.Ordinal);
         Console.WriteLine($"Watchious inspector: {options.Url}");
         Console.WriteLine($"Start the watch app with --watchious-inspector={appUrl}/inspector/app");
         if (options.OpenBrowser)
@@ -57,47 +59,82 @@ public static class WatchiousInspector
         web.MapGet("/inspector.js", () => Results.Content(PageResources.Read("inspector.js"), "text/javascript"));
         web.MapGet("/preview.css", () => Results.Content(PageResources.Read("preview.css"), "text/css"));
         web.MapGet("/images/{name}", (string name) => PreviewImages.Find(options.ImagesDirectory, name));
-        web.Map("/inspector/app", context => AcceptAsync(context, relay.RunAppAsync));
-        web.Map("/inspector/page", context => AcceptAsync(context, relay.RunPageAsync));
+        web.MapPost("/inspector/app/start", () => Results.Text(relay.StartApp()));
+        web.MapPost("/inspector/app/messages", async (HttpContext context) =>
+        {
+            using var body = new MemoryStream();
+            await context.Request.Body.CopyToAsync(body, context.RequestAborted);
+            var isCurrent = relay.ReceiveFromApp(Session(context), body.ToArray());
+            return isCurrent ? Results.Ok() : Results.StatusCode(StatusCodes.Status410Gone);
+        });
+        web.MapGet("/inspector/app/events", async (HttpContext context) =>
+        {
+            using var stopping = Stopping(context);
+            var events = await relay.TakeEventsAsync(Session(context), stopping.Token);
+            return events is null ? Results.StatusCode(StatusCodes.Status410Gone) : Results.Bytes(events, "application/json");
+        });
+        web.MapPost("/inspector/app/stop", (HttpContext context) =>
+        {
+            relay.StopApp(Session(context));
+            return Results.Ok();
+        });
+        web.Map("/inspector/page", AcceptPageAsync);
         return web;
+
+        async Task AcceptPageAsync(HttpContext context)
+        {
+            if (!context.WebSockets.IsWebSocketRequest)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            using var stopping = Stopping(context);
+            using var socket = await context.WebSockets.AcceptWebSocketAsync();
+            await relay.RunPageAsync(socket, stopping.Token);
+        }
     }
 
-    private static async Task AcceptAsync(HttpContext context, Func<WebSocket, CancellationToken, Task> run)
+    private static string Session(HttpContext context)
     {
-        if (!context.WebSockets.IsWebSocketRequest)
-        {
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-            return;
-        }
+        return context.Request.Query["session"].ToString();
+    }
 
-        // Stopping the server ends the sockets; on its own it would wait for each page to close them.
+    // Stopping the server ends the long requests; on its own it would wait for each of them.
+    private static CancellationTokenSource Stopping(HttpContext context)
+    {
         var lifetime = context.RequestServices.GetRequiredService<IHostApplicationLifetime>();
-        using var stopping = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, lifetime.ApplicationStopping);
-        using var socket = await context.WebSockets.AcceptWebSocketAsync();
-        await run(socket, stopping.Token);
+        return CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, lifetime.ApplicationStopping);
     }
 }
 
-// Keeps every batch of the connected app, so a page opened later replays them and builds the same tree. Batches,
-// events and errors reach each page in the order the app sent them: every peer has its own queue, filled under one
+// Keeps every batch of the current app, so a page opened later replays them and builds the same tree. Batches,
+// events and errors reach each page in the order the app sent them: every page has its own queue, filled under one
 // lock.
 internal sealed class InspectorRelay
 {
+    private const byte BatchFrame = 1;
+
+    // How long a request for the page's events stays open when there are none, and how long an app may go without a
+    // request before it counts as gone; it asks again as soon as a request returns.
+    private static readonly TimeSpan EventsPollTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan AppTimeout = TimeSpan.FromSeconds(30);
+
     private static readonly byte[] ResetMessage = Encoding.UTF8.GetBytes("""{"status":"reset"}""");
     private static readonly byte[] ConnectedMessage = Encoding.UTF8.GetBytes("""{"status":"connected"}""");
     private static readonly byte[] WaitingMessage = Encoding.UTF8.GetBytes("""{"status":"waiting"}""");
 
     private readonly Lock _lock = new();
-    private readonly List<Peer> _pages = [];
+    private readonly List<Page> _pages = [];
     private readonly List<byte[]> _batches = [];
-    private Peer? _app;
+    private AppSession? _app;
 
-    public async Task RunAppAsync(WebSocket socket, CancellationToken cancellationToken)
+    public string StartApp()
     {
-        using var app = new Peer(socket);
+        var app = new AppSession(Guid.NewGuid().ToString("N"), OnAppTimedOut);
         lock (_lock)
         {
-            _app?.Stop();
+            _app?.End();
             _app = app;
             _batches.Clear();
             foreach (var page in _pages)
@@ -106,54 +143,73 @@ internal sealed class InspectorRelay
             }
         }
 
-        using var receiving = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, app.Stopping);
-        var sending = app.SendQueuedAsync(cancellationToken);
-        try
+        app.Touch();
+        return app.Id;
+    }
+
+    // False when another app started since: this one's node ids would mix with the new app's tree.
+    public bool ReceiveFromApp(string session, byte[] frames)
+    {
+        lock (_lock)
         {
-            await foreach (var (bytes, type) in Peer.ReceiveAsync(socket, receiving.Token))
+            var app = CurrentApp(session);
+            if (app is null)
             {
-                lock (_lock)
+                return false;
+            }
+
+            app.Touch();
+            foreach (var (kind, payload) in ReadFrames(frames))
+            {
+                var type = kind == BatchFrame ? WebSocketMessageType.Binary : WebSocketMessageType.Text;
+                if (type == WebSocketMessageType.Binary)
                 {
-                    // Another app connected since: this one's node ids would mix with the new app's tree.
-                    if (_app != app)
-                    {
-                        break;
-                    }
+                    _batches.Add(payload);
+                }
 
-                    if (type == WebSocketMessageType.Binary)
-                    {
-                        _batches.Add(bytes);
-                    }
-
-                    foreach (var page in _pages)
-                    {
-                        page.Enqueue(bytes, type);
-                    }
+                foreach (var page in _pages)
+                {
+                    page.Enqueue(payload, type);
                 }
             }
+
+            return true;
         }
-        finally
-        {
-            lock (_lock)
-            {
-                if (_app == app)
-                {
-                    _app = null;
-                    foreach (var page in _pages)
-                    {
-                        page.Enqueue(WaitingMessage, WebSocketMessageType.Text);
-                    }
-                }
-            }
+    }
 
-            app.Complete();
-            await sending;
+    // The page's events as a JSON array, empty after a while without any; null when the app is no longer the current
+    // one.
+    public async Task<byte[]?> TakeEventsAsync(string session, CancellationToken cancellationToken)
+    {
+        AppSession? app;
+        lock (_lock)
+        {
+            app = CurrentApp(session);
+        }
+
+        if (app is null)
+        {
+            return null;
+        }
+
+        app.Touch();
+        return await app.TakeEventsAsync(EventsPollTimeout, cancellationToken);
+    }
+
+    public void StopApp(string session)
+    {
+        lock (_lock)
+        {
+            if (CurrentApp(session) is not null)
+            {
+                EndApp();
+            }
         }
     }
 
     public async Task RunPageAsync(WebSocket socket, CancellationToken cancellationToken)
     {
-        using var page = new Peer(socket);
+        var page = new Page(socket);
         lock (_lock)
         {
             page.Enqueue(_app is null ? WaitingMessage : ConnectedMessage, WebSocketMessageType.Text);
@@ -168,7 +224,7 @@ internal sealed class InspectorRelay
         var sending = page.SendQueuedAsync(cancellationToken);
         try
         {
-            await foreach (var (bytes, type) in Peer.ReceiveAsync(socket, cancellationToken))
+            await foreach (var (bytes, type) in Page.ReceiveAsync(socket, cancellationToken))
             {
                 if (type != WebSocketMessageType.Text)
                 {
@@ -177,7 +233,7 @@ internal sealed class InspectorRelay
 
                 lock (_lock)
                 {
-                    _app?.Enqueue(bytes, WebSocketMessageType.Text);
+                    _app?.Enqueue(bytes);
                 }
             }
         }
@@ -193,14 +249,131 @@ internal sealed class InspectorRelay
         }
     }
 
-    private sealed class Peer(WebSocket socket) : IDisposable
+    private AppSession? CurrentApp(string session)
+    {
+        return _app is not null && _app.Id == session ? _app : null;
+    }
+
+    private void OnAppTimedOut(AppSession app)
+    {
+        lock (_lock)
+        {
+            if (_app == app)
+            {
+                EndApp();
+            }
+        }
+    }
+
+    // Under the lock.
+    private void EndApp()
+    {
+        _app?.End();
+        _app = null;
+        foreach (var page in _pages)
+        {
+            page.Enqueue(WaitingMessage, WebSocketMessageType.Text);
+        }
+    }
+
+    // InspectorHost's frames: a kind byte, a little-endian length and the payload. A truncated frame ends the list.
+    private static List<(byte Kind, byte[] Payload)> ReadFrames(byte[] frames)
+    {
+        var result = new List<(byte Kind, byte[] Payload)>();
+        var position = 0;
+        while (frames.Length - position >= 5)
+        {
+            var kind = frames[position];
+            var length = BinaryPrimitives.ReadInt32LittleEndian(frames.AsSpan(position + 1, 4));
+            if (length < 0 || length > frames.Length - position - 5)
+            {
+                break;
+            }
+
+            result.Add((kind, frames.AsSpan(position + 5, length).ToArray()));
+            position += 5 + length;
+        }
+
+        return result;
+    }
+
+    private sealed class AppSession
+    {
+        private static readonly byte[] NoEvents = "[]"u8.ToArray();
+
+        private readonly Channel<byte[]> _events = Channel.CreateUnbounded<byte[]>();
+        private readonly CancellationTokenSource _ended = new();
+        private readonly Timer _timeout;
+
+        public AppSession(string id, Action<AppSession> timedOut)
+        {
+            Id = id;
+            _timeout = new Timer(_ => timedOut(this));
+        }
+
+        public string Id { get; }
+
+        public void Touch()
+        {
+            _timeout.Change(AppTimeout, Timeout.InfiniteTimeSpan);
+        }
+
+        public void Enqueue(byte[] pageEvent)
+        {
+            _events.Writer.TryWrite(pageEvent);
+        }
+
+        public void End()
+        {
+            _events.Writer.TryComplete();
+            _ended.Cancel();
+            _timeout.Dispose();
+        }
+
+        public async Task<byte[]?> TakeEventsAsync(TimeSpan wait, CancellationToken cancellationToken)
+        {
+            using var waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _ended.Token);
+            waiting.CancelAfter(wait);
+            try
+            {
+                var hasEvents = await _events.Reader.WaitToReadAsync(waiting.Token);
+                if (!hasEvents)
+                {
+                    return null;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return _ended.IsCancellationRequested ? null : NoEvents;
+            }
+
+            var events = new List<byte[]>();
+            while (_events.Reader.TryRead(out var pageEvent))
+            {
+                events.Add(pageEvent);
+            }
+
+            using var json = new MemoryStream();
+            json.WriteByte((byte)'[');
+            for (var index = 0; index < events.Count; index++)
+            {
+                if (index > 0)
+                {
+                    json.WriteByte((byte)',');
+                }
+
+                json.Write(events[index]);
+            }
+
+            json.WriteByte((byte)']');
+            return json.ToArray();
+        }
+    }
+
+    private sealed class Page(WebSocket socket)
     {
         private readonly Channel<(byte[] Bytes, WebSocketMessageType Type)> _queue =
             Channel.CreateUnbounded<(byte[] Bytes, WebSocketMessageType Type)>(new UnboundedChannelOptions { SingleReader = true });
-
-        private readonly CancellationTokenSource _stopping = new();
-
-        public CancellationToken Stopping => _stopping.Token;
 
         public void Enqueue(byte[] bytes, WebSocketMessageType type)
         {
@@ -210,18 +383,6 @@ internal sealed class InspectorRelay
         public void Complete()
         {
             _queue.Writer.TryComplete();
-        }
-
-        // A newer app replaced this one: nothing more is sent or received, and the connection ends.
-        public void Stop()
-        {
-            Complete();
-            _stopping.Cancel();
-        }
-
-        public void Dispose()
-        {
-            _stopping.Dispose();
         }
 
         public async Task SendQueuedAsync(CancellationToken cancellationToken)
@@ -235,7 +396,7 @@ internal sealed class InspectorRelay
             }
             catch (Exception exception) when (exception is WebSocketException or OperationCanceledException)
             {
-                // The other side went away.
+                // The page went away.
             }
         }
 

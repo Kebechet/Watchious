@@ -133,7 +133,7 @@ public func watchiousNetworkStatus() -> Int32 {
     NetworkStatus.shared.current
 }
 
-// The Watchious inspector to mirror the app to: --watchious-inspector=ws://host:5292/inspector/app. The caller frees
+// The Watchious inspector to mirror the app to: --watchious-inspector=http://host:5292/inspector/app. The caller frees
 // the string.
 @_cdecl("watchious_inspector_url")
 public func watchiousInspectorUrl() -> UnsafeMutablePointer<CChar>? {
