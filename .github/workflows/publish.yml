@@ -10,9 +10,10 @@ name: Publish
 # The packages go out libraries first, then the SDK that references them at its exact version, then the template that
 # names the SDK, so nothing visible references a package that isn't there yet. Every push skips a version that is
 # already there, so a re-run of a run that stopped halfway ("Re-run failed jobs", or "Re-run all jobs") pushes the rest
-# from the same commit. ⚠️ A new run of a version whose tag or any Kebechet.Watchious.* package already exists is
-# refused, since it would pack the current main next to the packages already pushed: re-run the run that stopped, or
-# bump the version.
+# from the same commit. ⚠️ A new run of a version is refused once its tag v<version> exists or nuget.org lists any
+# Kebechet.Watchious.* package at it, since it would pack the current main next to the packages already pushed: re-run
+# the run that stopped, or bump the version. The publish job creates the tag right before its first push, because
+# nuget.org lists a pushed package only minutes later, once it has validated and indexed it.
 
 on:
   workflow_dispatch:
@@ -85,12 +86,13 @@ jobs:
             fi
           fi
           if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null; then
-            echo "::error::The tag v$VERSION exists: $VERSION was published. Bump <Version> in Directory.Build.props."
+            echo "::error::The tag v$VERSION exists: a Publish run of $VERSION reached its first push. To finish that run, re-run it (Re-run failed jobs); otherwise bump <Version> in Directory.Build.props."
             exit 1
           fi
-          # Every id, not only the SDK: a run that stopped halfway leaves some of them at the version, and a new run would
-          # pack the current main next to them for good. The flat container lists every version of an id, unlisted ones
-          # too, in lower case; an unknown id is a 404.
+          # The tag is the check that counts: nuget.org lists a pushed package only once it has validated and indexed
+          # it, minutes after the push. This one covers packages pushed without the tag (a tag deleted by hand, a push
+          # from elsewhere), for every id, not only the SDK. The flat container lists every version of an id, unlisted
+          # ones too, in lower case; an unknown id is a 404.
           version_lower="$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]')"
           published=()
           for package in $PACKAGES; do
@@ -158,6 +160,28 @@ jobs:
         with:
           user: Kebechet
 
+      # Before the first push, after the login, so that a failed login (no Trusted Publishing policy yet) leaves no tag.
+      # The Version job refuses a new run of this version as soon as the tag exists, while nuget.org shows it the pushed
+      # packages only minutes later. A re-run finds the tag at its own commit and goes on.
+      - name: Tag the commit v${{ env.VERSION }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          existing="$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v$VERSION" \
+            --jq '.[] | select(.ref == "refs/tags/v" + env.VERSION) | .ref')"
+          if [ -z "$existing" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$VERSION" -f sha="$GITHUB_SHA" > /dev/null
+            echo "Tagged $GITHUB_SHA v$VERSION."
+            exit 0
+          fi
+          tagged="$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/v$VERSION" --jq .sha)"
+          if [ "$tagged" != "$GITHUB_SHA" ]; then
+            echo "::error::The tag v$VERSION is at $tagged, not at this run's commit $GITHUB_SHA. Nothing was pushed; bump <Version> in Directory.Build.props."
+            exit 1
+          fi
+          echo "The tag v$VERSION is already at $GITHUB_SHA: this re-run finishes that publish."
+
       # dotnet nuget push also pushes the .snupkg next to a package, if there is one.
       - name: Push to nuget.org
         env:
@@ -202,6 +226,6 @@ jobs:
           if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release upload "v$VERSION" packages/*.nupkg --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "v$VERSION" packages/*.nupkg --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            gh release create "v$VERSION" packages/*.nupkg --repo "$GITHUB_REPOSITORY" --verify-tag \
               --title "v$VERSION" --notes "$notes" --generate-notes "${prerelease[@]}"
           fi
