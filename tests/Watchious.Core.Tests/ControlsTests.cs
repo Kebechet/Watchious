@@ -124,6 +124,78 @@ public class ControlsTests
         image.Attribute("Description").ShouldBe("Logo");
     }
 
+    [Fact]
+    public async Task DigitalCrownRotation_SendsItsRangeAndContent()
+    {
+        // Arrange
+        var (app, host) = await StartAsync();
+        await using var disposeApp = app;
+
+        // Act
+        var crown = host.LastTree.Single("DigitalCrownRotation");
+
+        // Assert
+        crown.Attribute("Value").ShouldBe("2.5");
+        crown.Attribute("From").ShouldBe("0");
+        crown.Attribute("Through").ShouldBe("20");
+        crown.Attribute("By").ShouldBe("0.5");
+        crown.VisibleChildren.ShouldHaveSingleItem().Content.ShouldBe("Speed: 2.5");
+    }
+
+    [Theory]
+    [InlineData("3.5", "3.5")]
+    [InlineData("1.0E1", "10")]
+    [InlineData("25", "20")]
+    [InlineData("-1", "0")]
+    public async Task DigitalCrownRotation_Changed_UpdatesTheBoundValueWithinTheRange(string turnedTo, string expected)
+    {
+        // Arrange
+        var (app, host) = await StartAsync();
+        await using var disposeApp = app;
+        var crown = host.LastTree.Single("DigitalCrownRotation");
+
+        // Act
+        await app.DispatchEventAsync(crown.Events["changed"], "changed", turnedTo);
+
+        // Assert
+        crown.Attribute("Value").ShouldBe(expected);
+        host.LastTree.Descendants().ShouldContain(node => node.Content == $"Speed: {expected}");
+    }
+
+    [Theory]
+    [InlineData("fast")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    public async Task DigitalCrownRotation_ChangedToANonNumber_IsIgnored(string turnedTo)
+    {
+        // Arrange
+        var (app, host) = await StartAsync();
+        await using var disposeApp = app;
+        var crown = host.LastTree.Single("DigitalCrownRotation");
+
+        // Act
+        await app.DispatchEventAsync(crown.Events["changed"], "changed", turnedTo);
+
+        // Assert
+        crown.Attribute("Value").ShouldBe("2.5");
+        host.Errors.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DigitalCrownRotation_WithAZeroStep_ReportsTheError()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        var app = WatchiousApp.CreateBuilder().UseWatchiousApp<ZeroStepCrownPage>().Build();
+        await using var disposeApp = app;
+
+        // Act
+        await app.StartAsync(host);
+
+        // Assert
+        host.Errors.ShouldHaveSingleItem().ShouldBeOfType<ArgumentOutOfRangeException>().ParamName.ShouldBe("By");
+    }
+
     private static async Task<(WatchiousApp App, RecordingHost Host)> StartAsync()
     {
         var host = new RecordingHost();

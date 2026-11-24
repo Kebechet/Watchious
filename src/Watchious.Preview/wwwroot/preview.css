@@ -410,3 +410,9 @@ main.inspector {
     color: #ff9f0a;
     font-size: 12px;
 }
+
+.crown-rotation:focus {
+    outline: 2px solid #30d158;
+    outline-offset: 2px;
+    border-radius: 8px;
+}

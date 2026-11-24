@@ -39,6 +39,8 @@ struct NodeView: View {
             PickerNode(node: node, store: store)
         case "TextField":
             TextFieldNode(node: node, store: store)
+        case "DigitalCrownRotation":
+            DigitalCrownRotationNode(node: node, store: store)
         case "Toggle":
             if let text = node.attribute("Text"), !text.isEmpty {
                 Toggle(text, isOn: isOnBinding)

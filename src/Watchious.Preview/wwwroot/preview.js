@@ -307,6 +307,24 @@ function createElement(node) {
         }
         case "Image":
             return element("img", "image");
+        case "DigitalCrownRotation": {
+            // The mouse wheel stands in for the crown: down turns the value up, as the crown scrolls a list down.
+            const crown = element("div", "vstack crown-rotation");
+            crown.tabIndex = 0;
+            crown.partialStep = 0;
+            crown.onwheel = (event) => {
+                event.preventDefault();
+                // One notch is one step, whether the browser reports it as about 100 pixels or as 3 lines.
+                const notches = event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? event.deltaY / 100
+                    : event.deltaMode === WheelEvent.DOM_DELTA_LINE ? event.deltaY / 3
+                    : event.deltaY;
+                crown.partialStep += notches;
+                const steps = Math.trunc(crown.partialStep);
+                crown.partialStep -= steps;
+                turnCrown(node, crown, steps);
+            };
+            return crown;
+        }
         default: {
             // A control this page has no element for (https://github.com/Kebechet/Watchious/issues/3): shown as a
             // warning, with its children, instead of dropped.
@@ -315,6 +333,24 @@ function createElement(node) {
             unknown.dataset.type = node.type;
             return unknown;
         }
+    }
+}
+
+// The value on By's grid from From, within the range, as the watch hosts step it. Like them, it steps from its own value
+// while the wheel turns, since C#'s answers to earlier steps arrive after newer steps, and follows C# again after a
+// 0.5 s rest.
+function turnCrown(node, crown, steps) {
+    const from = Number(attribute(node, "From") ?? 0);
+    const through = Math.max(Number(attribute(node, "Through") ?? from), from);
+    const by = Number(attribute(node, "By") ?? 1) || 1;
+    const isTurning = crown.lastTurn !== undefined && performance.now() - crown.lastTurn < 500;
+    const value = isTurning ? crown.value : Number(attribute(node, "Value") ?? from);
+    const index = Math.round((value - from) / by) + steps;
+    const next = Math.round(Math.min(through, Math.max(from, from + index * by)) * 1e9) / 1e9;
+    if (steps !== 0 && next !== value) {
+        crown.value = next;
+        crown.lastTurn = performance.now();
+        send(node, "changed", String(next));
     }
 }
 

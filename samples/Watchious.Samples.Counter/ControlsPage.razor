@@ -12,6 +12,10 @@
     <Label>Reps: @reps[selectedReps]</Label>
     <TextField Placeholder="Name" @bind-Text="name" />
     <Label>Name: @name</Label>
+    <DigitalCrownRotation @bind-Value="speed" From="0" Through="20" By="0.5">
+        <Label Style="TextStyle.Title">@speed.ToString("0.0") km/h</Label>
+        <Label Style="TextStyle.Caption">Touch, then turn the crown</Label>
+    </DigitalCrownRotation>
 </List>
 
 @code {
@@ -19,6 +23,7 @@
     private int selectedReps = 9;
     private string? name;
     private double progress = 0.25;
+    private double speed = 8;
 
     private void AddProgress()
     {

@@ -127,6 +127,7 @@ the back button on Wear OS. Pages below the top one keep their state.
 | ✅ `Image` (app images; SF Symbols and Material icons later) | `Image` | `Image` |
 | ✅ `ProgressView` | `ProgressView` | `CircularProgressIndicator` / `LinearProgressIndicator` |
 | ✅ `Picker` | `Picker` | `Picker`, which the crown turns once it is touched |
+| ✅ `DigitalCrownRotation` (the crown turns a value) | `.digitalCrownRotation` on its content | its content with `onRotaryScrollEvent` |
 | ✅ `TextField` | `TextField` | `BasicTextField` with the system keyboard |
 
 > ⚠️ **SwiftUI's `Text` is `Label` in Watchious.** Razor reserves the `<text>` tag, in any casing, inside `@if`
@@ -138,6 +139,17 @@ A test (`HostCoverageTests`) fails when a control, attribute, event or enum valu
 in the SwiftUI host, the Compose host or the browser preview. It reads each host's sources as text, so it catches a
 name a host lacks altogether, not one that is read on another control only. An element a host doesn't know, such as a misspelled
 tag in the markup, is logged, and in a Debug build it shows a ⚠️ with its name in its place.
+
+`DigitalCrownRotation` is SwiftUI's `digitalCrownRotation` modifier as a wrapper: the crown turns `Value` from
+`From` through `Through` in steps of `By` (default 1), clockwise up, and its content shows the value. On Wear OS the
+crown or the rotating bezel turns it, one step per detent. On a screen that scrolls, the crown scrolls until the user
+touches the content, as with a `Picker`:
+
+```razor
+<DigitalCrownRotation @bind-Value="weight" From="0" Through="200" By="2.5">
+    <Label Style="TextStyle.Title">@weight kg</Label>
+</DigitalCrownRotation>
+```
 
 Platform-only controls will be available as platform-specific components (for example
 `<Apple.Gauge>` or `<Wear.CurvedText>`). Styling uses semantic tokens (`TextStyle.Title`,
@@ -390,9 +402,9 @@ Versions stay at `0.x.x` until the API is stable.
     screens are the real SwiftUI and Compose controls. From Windows, the simulator on the Mac connects to the
     computer over the network. Not on a real Apple Watch, which allows no such connection. The idea comes from
     SwiftDotNet's live mode.
-12. **Crown input for values:** the Digital Crown and the Wear OS rotary input change a value, such as a weight
-    or a number of reps, not only scroll a list or turn a `Picker`: SwiftUI's `digitalCrownRotation` and
-    Compose's `onRotaryScrollEvent`, one crown step per value step, clockwise up.
+12. ✅ **Crown input for values:** the Digital Crown and the Wear OS rotary input change a value, such as a weight
+    or a number of reps, not only scroll a list or turn a `Picker`: `DigitalCrownRotation`, on SwiftUI's
+    `digitalCrownRotation` and Compose's `onRotaryScrollEvent`, one crown step per value step, clockwise up.
 
 ## Prior art
 
