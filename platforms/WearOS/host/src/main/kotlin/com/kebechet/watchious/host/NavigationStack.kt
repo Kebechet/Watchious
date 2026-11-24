@@ -1,6 +1,7 @@
 package com.kebechet.watchious.host
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,7 +52,14 @@ internal fun NavigationStack(node: UiNode, dispatch: EventDispatch) {
         if (page != null) {
             key(page.id) {
                 pageStates.SaveableStateProvider(page.id) {
-                    RenderNodes(page.children, dispatch)
+                    val edges = page.screenEdges()
+                    CompositionLocalProvider(LocalScreenEdges provides edges) {
+                        if (!edges.isEmpty && !page.hasScreenScaffold()) {
+                            EdgesPage(dispatch) { RenderNodes(page.children, dispatch) }
+                        } else {
+                            RenderNodes(page.children, dispatch)
+                        }
+                    }
                 }
             }
         }

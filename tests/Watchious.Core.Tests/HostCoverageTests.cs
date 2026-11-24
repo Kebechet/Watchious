@@ -14,6 +14,12 @@ public partial class HostCoverageTests
     // Read by the C# side only: tests find navigation pages by their route.
     private static readonly string[] CSharpOnlyAttributes = ["Route"];
 
+    // Enums of one platform's controls that live outside its namespace (see GaugeStyle.cs).
+    private static readonly Dictionary<string, string> PlatformOnlyEnums = new()
+    {
+        [nameof(GaugeStyle)] = "watchOS",
+    };
+
     // Read by one watch host only, and by the preview, which draws both platforms.
     private static readonly Dictionary<string, string> PlatformOnlyAttributes = new()
     {
@@ -41,7 +47,7 @@ public partial class HostCoverageTests
     {
         // Arrange
         var source = HostSource(host);
-        var controls = ControlsSource(OpenElement());
+        var controls = ControlsSource(OpenElement(), host);
 
         // Act
         var missing = controls.Where(control => !IsMatchedAsType(source, control)).ToList();
@@ -58,7 +64,7 @@ public partial class HostCoverageTests
     {
         // Arrange
         var source = HostSource(host);
-        var attributes = ControlsSource(AddAttribute())
+        var attributes = ControlsSource(AddAttribute(), host)
             .Except(CSharpOnlyAttributes)
             .Where(attribute => !PlatformOnlyAttributes.TryGetValue(attribute, out var platform) || platform == host || host == "Preview")
             .Select(attribute => attribute.StartsWith("on", StringComparison.Ordinal) ? attribute[2..] : attribute)
@@ -80,7 +86,7 @@ public partial class HostCoverageTests
         // Arrange
         var source = HostSource(host);
         var values = typeof(Label).Assembly.GetExportedTypes()
-            .Where(type => type.IsEnum)
+            .Where(type => type.IsEnum && IsForHost(type, host))
             .SelectMany(type => Enum.GetNames(type).Select(name => $"{type.Name}.{name}"))
             .ToList();
 
@@ -120,23 +126,48 @@ public partial class HostCoverageTests
         return string.Join('\n', HostSources[host].Select(File.ReadAllText));
     }
 
-    // Each control's element name and attribute names, as RenderTreeBuilder calls in Watchious.Controls write them.
-    private static List<string> ControlsSource(Regex call)
+    // Each control's element name and attribute names, as RenderTreeBuilder calls in Watchious.Controls write them,
+    // that the host must know. The controls in Controls/Apple and Controls/Wear are for one platform: that watch host
+    // and the preview must know their names, while the other host shows nothing for them.
+    private static List<string> ControlsSource(Regex call, string host)
     {
         var files = Directory.GetFiles(Path.Combine(Root, "src", "Watchious.Controls"), "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
         return files
-            .SelectMany(file => call.Matches(File.ReadAllText(file)))
-            .Select(match => match.Groups["name"].Value)
-            .Distinct()
+            .SelectMany(file => call.Matches(File.ReadAllText(file)).Select(match => (Name: match.Groups["name"].Value, Platform: PlatformOfFile(file))))
+            .GroupBy(found => found.Name)
+            .Where(group => host == "Preview" || group.Any(found => found.Platform is null || found.Platform == host))
+            .Select(group => group.Key)
             .ToList();
+    }
+
+    private static bool IsForHost(Type enumType, string host)
+    {
+        var platform = PlatformOfNamespace(enumType.Namespace) ?? PlatformOnlyEnums.GetValueOrDefault(enumType.Name);
+        return platform is null || platform == host;
+    }
+
+    private static string? PlatformOfFile(string file)
+    {
+        var folder = Path.GetFileName(Path.GetDirectoryName(file));
+        return PlatformOfNamespace(folder);
+    }
+
+    private static string? PlatformOfNamespace(string? name)
+    {
+        return name switch
+        {
+            "Apple" => "watchOS",
+            "Wear" => "WearOS",
+            _ => null,
+        };
     }
 
     // A case of a switch on the node type in Swift and JavaScript, a branch of a Kotlin when, or a comparison.
     private static bool IsMatchedAsType(string source, string control)
     {
         var name = Regex.Escape($"\"{control}\"");
-        return Regex.IsMatch(source, $@"case\s+(""\w+""\s*,\s*)*{name}|{name}(\s*,\s*""\w+"")*\s*->|==+\s*{name}");
+        return Regex.IsMatch(source, $@"case\s+(""[\w.]+""\s*,\s*)*{name}|{name}(\s*,\s*""[\w.]+"")*\s*->|==+\s*{name}");
     }
 
     private static string FindRepositoryRoot()
@@ -150,7 +181,7 @@ public partial class HostCoverageTests
         return directory?.FullName ?? throw new DirectoryNotFoundException("The repository root wasn't found above the test output.");
     }
 
-    [GeneratedRegex(@"OpenElement\(\d+,\s*(nameof\((?<name>\w+)\)|""(?<name>\w+)"")\)")]
+    [GeneratedRegex(@"OpenElement\(\d+,\s*(nameof\((?<name>\w+)\)|""(?<name>[\w.]+)"")\)")]
     private static partial Regex OpenElement();
 
     [GeneratedRegex(@"AddAttribute\(\d+,\s*(nameof\((?<name>\w+)\)|""(?<name>\w+)"")")]

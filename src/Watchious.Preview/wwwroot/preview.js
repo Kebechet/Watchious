@@ -307,6 +307,17 @@ function createElement(node) {
         }
         case "Image":
             return element("span", "image");
+        case "Apple.Gauge":
+            return element("div", "gauge");
+        case "Wear.TimeText":
+            return element("div", "time-text");
+        case "Wear.CurvedText":
+            return element("div", "curved-text");
+        case "Wear.EdgeButton": {
+            const button = element("button", "edge-button");
+            button.onclick = () => send(node, "click");
+            return button;
+        }
         case "DigitalCrownRotation": {
             // The mouse wheel stands in for the crown: down turns the value up, as the crown scrolls a list down.
             const crown = element("div", "vstack crown-rotation");
@@ -381,6 +392,10 @@ function render(node) {
         }
         case "List":
             target.replaceChildren(...visibleChildren(node).map((child) => {
+                // A control of the other platform, or one on the screen's edges, takes no row.
+                if (child.type.startsWith("Wear.") || (platform === "wearos" && child.type.startsWith("Apple."))) {
+                    return child.element;
+                }
                 const row = element("div", "row");
                 row.append(child.element);
                 return row;
@@ -423,6 +438,35 @@ function render(node) {
         case "Image":
             renderImage(node, target);
             return;
+        case "Apple.Gauge":
+            target.hidden = platform !== "watchos";
+            renderGauge(node, target);
+            return;
+        case "Wear.TimeText": {
+            target.hidden = platform !== "wearos";
+            const text = attribute(node, "Text");
+            const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            target.textContent = text ? `${text} · ${time}` : time;
+            return;
+        }
+        case "Wear.CurvedText":
+            target.hidden = platform !== "wearos";
+            renderCurvedText(node.id, attribute(node, "Text") ?? "", target);
+            return;
+        case "Wear.EdgeButton": {
+            target.hidden = platform !== "wearos";
+            target.disabled = attribute(node, "IsEnabled") === "false";
+            const icon = attribute(node, "Icon");
+            if (icon) {
+                const glyph = element("span", "icon material-symbols-rounded");
+                glyph.textContent = materialSymbols[icon] ?? icon;
+                target.replaceChildren(glyph);
+                target.title = attribute(node, "Text") ?? "";
+            } else {
+                target.textContent = attribute(node, "Text") ?? "";
+            }
+            return;
+        }
         default:
             target.replaceChildren(...node.children.map((child) => child.element));
     }
@@ -481,6 +525,54 @@ function renderImage(node, target) {
     image.style.width = width ? `${width}px` : "";
     image.style.height = height ? `${height}px` : "";
     target.replaceChildren(image);
+}
+
+// SwiftUI's gauge styles: a ring with the current value inside, or a bar with the range under it.
+function renderGauge(node, target) {
+    const from = Number(attribute(node, "From") ?? 0);
+    const through = Number(attribute(node, "Through") ?? 1);
+    const value = Number(attribute(node, "Value") ?? from);
+    const fraction = through > from ? (value - from) / (through - from) : 0;
+    const style = attribute(node, "Style") ?? "Automatic";
+    const isRing = style === "Circular" || style === "CircularCapacity";
+    target.className = isRing ? "gauge ring" : "gauge bar";
+    target.style.setProperty("--fraction", fraction);
+    const current = element("span", "gauge-value");
+    current.textContent = attribute(node, "CurrentValueText") ?? "";
+    const label = element("span", "label caption");
+    label.textContent = attribute(node, "Text") ?? "";
+    if (isRing) {
+        target.replaceChildren(current);
+        return;
+    }
+    const track = element("div", "gauge-track");
+    const range = element("div", "gauge-range");
+    const minimum = element("span");
+    minimum.textContent = attribute(node, "MinimumText") ?? "";
+    const maximum = element("span");
+    maximum.textContent = attribute(node, "MaximumText") ?? "";
+    range.append(minimum, current, maximum);
+    target.replaceChildren(label, track, range);
+}
+
+// Text along the bottom of the round screen, read from left to right. Its path's id is the node's, as a page under the
+// shown one keeps its own curved text in the document.
+function renderCurvedText(id, text, target) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 227 227");
+    const path = document.createElementNS(svg.namespaceURI, "path");
+    path.setAttribute("id", `curved-text-path-${id}`);
+    path.setAttribute("d", "M 14 113.5 A 99.5 99.5 0 0 0 213 113.5");
+    path.setAttribute("fill", "none");
+    const textElement = document.createElementNS(svg.namespaceURI, "text");
+    const textPath = document.createElementNS(svg.namespaceURI, "textPath");
+    textPath.setAttribute("href", `#curved-text-path-${id}`);
+    textPath.setAttribute("startOffset", "50%");
+    textPath.setAttribute("text-anchor", "middle");
+    textPath.textContent = text;
+    textElement.append(textPath);
+    svg.append(path, textElement);
+    target.replaceChildren(svg);
 }
 
 // Blank text is the whitespace between controls in the Razor markup.

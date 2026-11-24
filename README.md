@@ -129,6 +129,10 @@ the back button on Wear OS. Pages below the top one keep their state.
 | ✅ `Picker` | `Picker` | `Picker`, which the crown turns once it is touched |
 | ✅ `DigitalCrownRotation` (the crown turns a value) | `.digitalCrownRotation` on its content | its content with `onRotaryScrollEvent` |
 | ✅ `TextField` | `TextField` | `BasicTextField` with the system keyboard |
+| ✅ `Apple.Gauge` (watchOS only) | `Gauge` | nothing |
+| ✅ `Wear.TimeText` (Wear OS only) | nothing | `TimeText` on the screen's top edge |
+| ✅ `Wear.CurvedText` (Wear OS only) | nothing | `curvedText` along the screen's bottom edge |
+| ✅ `Wear.EdgeButton` (Wear OS only) | nothing | `EdgeButton` in the screen's `ScreenScaffold` |
 
 > ⚠️ **SwiftUI's `Text` is `Label` in Watchious.** Razor reserves the `<text>` tag, in any casing, inside `@if`
 > and `@foreach` blocks: there a `<Text>` component would fail to compile or quietly turn into plain markup, which
@@ -221,9 +225,35 @@ Release builds run R8 (`AndroidLinkTool=r8`, which Watchious.Sdk turns on), and 
 names: a `MaterialIcon` is found by its name at run time, so without the item it works in a debug build and is gone in
 a release build.
 
-Platform-only controls will be available as platform-specific components (for example
-`<Apple.Gauge>` or `<Wear.CurvedText>`). Styling uses semantic tokens (`TextStyle.Title`,
-`Tint.Accent`) plus a few explicit values such as colour, padding and font size. There is no CSS.
+Each platform's own controls are in the namespaces `Apple` and `Wear`, so the markup says which platform a control is
+for, and on the other platform it shows nothing (and takes no row in a `List`). The Wear OS ones sit on the edges of the
+round screen while their page is shown, wherever the page puts them:
+
+```razor
+<List>
+    <Apple.Gauge Value="@heartRate" From="40" Through="180" CurrentValueText="@heartRate.ToString()"
+                 Style="GaugeStyle.Circular" />
+    <Wear.TimeText Text="Run" />                        @* "Run · 10:09" along the top *@
+    <Wear.EdgeButton Icon="Icon.Plus" Text="Lap" OnClick="Lap" />
+</List>
+```
+
+- `Apple.Gauge`: SwiftUI's `Gauge`, `Value` from `From` through `Through` (C# keeps it in the range), with `Text`,
+  `CurrentValueText`, `MinimumText` and `MaximumText`, and a `Style` (`Circular`, `CircularCapacity`, `Linear`,
+  `LinearCapacity` or SwiftUI's `Automatic`).
+- `Wear.TimeText`: every Watchious screen on Wear OS shows the clock along its top edge; `Text` goes before the time on
+  this page.
+- `Wear.CurvedText`: text along the bottom edge. It shares the bottom with `Wear.EdgeButton`, so a page has one or the
+  other.
+- `Wear.EdgeButton`: the screen's main action, hugging the bottom edge, with the page's list scrolling above it. It
+  shows its `Icon`, or else its `Text`.
+
+⚠️ **A platform-only control is not there on the other platform.** When an action matters on both watches, show it there
+the platform's own way too: `samples/Watchious.Samples.Counter/PlatformPage.razor` puts a `Button` on watchOS
+(`IDeviceInfo.Platform`) for what the edge button does on Wear OS.
+
+Styling uses semantic tokens (`TextStyle.Title`, `Tint.Accent`) plus a few explicit values such as colour, padding and
+font size. There is no CSS.
 
 ## Watch APIs
 

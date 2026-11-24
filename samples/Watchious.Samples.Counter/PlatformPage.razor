@@ -1,0 +1,38 @@
+@page "/platform"
+@inject IDeviceInfo DeviceInfo
+
+@* Each platform's own controls: Apple's show on watchOS only, Wear OS's on Wear OS only. *@
+<List>
+    <Label Style="TextStyle.Headline">Platform</Label>
+    <Apple.Gauge Value="heartRate" From="40" Through="180" Text="Heart rate" CurrentValueText="@heartRate.ToString()"
+                 MinimumText="40" MaximumText="180" Style="GaugeStyle.Circular" />
+    <Apple.Gauge Value="0.6" Text="Battery" MinimumText="0%" MaximumText="100%" Style="GaugeStyle.LinearCapacity" />
+    <Label>Taps: @taps</Label>
+    @if (DeviceInfo.Platform == WatchPlatform.watchOS)
+    {
+        @* What the edge button does on Wear OS. *@
+        <Button Text="Tap" OnClick="Tap" />
+    }
+    <Toggle Text="Curved text" @bind-IsOn="isCurvedText" />
+    <Wear.TimeText Text="@($"Taps {taps}")" />
+    @if (isCurvedText)
+    {
+        <Wear.CurvedText Text="Swipe right to go back" />
+    }
+    else
+    {
+        <Wear.EdgeButton Icon="Icon.Plus" Text="Tap" OnClick="Tap" />
+    }
+</List>
+
+@code {
+    private int heartRate = 72;
+    private int taps;
+    private bool isCurvedText;
+
+    private void Tap()
+    {
+        taps++;
+        heartRate = Math.Min(180, heartRate + 10);
+    }
+}

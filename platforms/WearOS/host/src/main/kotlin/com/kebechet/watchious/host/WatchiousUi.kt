@@ -26,7 +26,6 @@ import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.MaterialTheme
-import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SwitchButton
 import androidx.wear.compose.material3.Text
 
@@ -100,9 +99,13 @@ internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
                 label = { if (!text.isNullOrEmpty()) Text(text) },
             )
         }
+        // Shown on the screen's edges by the page's ScreenScaffold (ScreenEdges.kt), not in the layout.
+        "Wear.TimeText", "Wear.CurvedText", "Wear.EdgeButton" -> {}
         // Blank text is the whitespace between controls in the Razor markup.
         UiNode.TEXT_TYPE -> node.text?.takeIf { it.isNotBlank() }?.let { Text(it) }
-        else -> UnknownNode(node, dispatch, isInRow)
+        else -> if (!node.isAppleOnly()) {
+            UnknownNode(node, dispatch, isInRow)
+        }
     }
 }
 
@@ -128,7 +131,7 @@ private fun UnknownNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
 private fun WatchScrollView(node: UiNode, dispatch: EventDispatch) {
     val scrollState = rememberScrollState()
     val crown = rememberScreenCrown()
-    ScreenScaffold(scrollState = scrollState) { contentPadding: PaddingValues ->
+    EdgesScreenScaffold(scrollState, crown, dispatch) { contentPadding: PaddingValues ->
         CompositionLocalProvider(LocalScreenCrown provides crown) {
             Column(
                 modifier = Modifier
