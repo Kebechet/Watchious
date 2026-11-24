@@ -77,9 +77,18 @@ internal fun WatchProgressView(node: UiNode, fillWidth: Modifier) {
         if (!text.isNullOrEmpty()) {
             Text(text, style = MaterialTheme.typography.bodySmall)
         }
+        val isLinear = when (val style = node.attribute("Style")) {
+            "Linear" -> true
+            // Automatic is the platform's own, a ring on Wear OS.
+            "Circular", "Automatic", null -> false
+            else -> {
+                reportUnknownValue(style, "Style", node.type)
+                false
+            }
+        }
         when {
             value == null -> CircularProgressIndicator(modifier = Modifier.size(32.dp))
-            node.attribute("Style") == "Linear" -> LinearProgressIndicator(progress = { value }, modifier = fillWidth)
+            isLinear -> LinearProgressIndicator(progress = { value }, modifier = fillWidth)
             else -> CircularProgressIndicator(progress = { value }, modifier = Modifier.size(48.dp))
         }
     }

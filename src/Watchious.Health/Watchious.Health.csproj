@@ -48,6 +48,7 @@
     <PackageReference Include="Xamarin.AndroidX.Annotation" Version="1.11.0" />
     <PackageReference Include="Xamarin.AndroidX.Concurrent.Futures.Ktx" Version="1.3.0.4" />
     <PackageReference Include="Xamarin.AndroidX.Core.Core.Ktx" Version="1.19.1" />
+    <PackageReference Include="Xamarin.AndroidX.Wear.Ongoing" Version="1.1.0.3" />
     <PackageReference Include="Xamarin.Google.Guava" Version="33.8.0" />
     <!-- Guava contains ListenableFuture itself, so, as on Maven, it brings the empty 9999 version of
          Xamarin.Google.Guava.ListenableFuture, which the verification doesn't accept for version 1.0. -->

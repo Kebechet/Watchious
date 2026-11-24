@@ -23,7 +23,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.flow.first
 
-private const val LOG_TAG = "Watchious"
+internal const val LOG_TAG = "Watchious"
 
 internal class ComposeHost(activity: Activity) {
     private val mainHandler = Handler(Looper.getMainLooper())

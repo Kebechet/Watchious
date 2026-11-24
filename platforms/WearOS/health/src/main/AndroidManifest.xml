@@ -5,6 +5,11 @@
     <uses-permission android:name="android.permission.BODY_SENSORS" android:maxSdkVersion="35" />
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- A running workout keeps the app alive through a foreground service with an ongoing activity
+         (WatchiousWorkoutService). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
         <package android:name="com.google.android.wearable.healthservices" />
@@ -16,5 +21,9 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <service
+            android:name=".WatchiousWorkoutService"
+            android:exported="false"
+            android:foregroundServiceType="health" />
     </application>
 </manifest>

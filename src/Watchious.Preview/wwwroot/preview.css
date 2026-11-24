@@ -404,3 +404,9 @@ main.inspector {
 .log .error {
     color: #ff8a80;
 }
+
+.unknown::before {
+    content: "⚠️ " attr(data-type);
+    color: #ff9f0a;
+    font-size: 12px;
+}

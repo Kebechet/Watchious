@@ -11,7 +11,11 @@ public static class HealthServiceCollectionExtensions
     // Platforms/watchOS/Info.plist.
     public static IServiceCollection AddWatchiousHealth(this IServiceCollection services)
     {
-        services.AddSingleton<IHealthService>(_ => new HealthService(CreateBackend()));
+        services.AddSingleton<IHealthService>(_ =>
+        {
+            var backend = CreateBackend();
+            return new HealthService(backend, backend.IsSupported ? FileWorkoutStore.InAppData() : null);
+        });
         return services;
     }
 
@@ -62,5 +66,14 @@ internal sealed class UnavailableHealthBackend : IHealthBackend
     public Task EndWorkoutAsync()
     {
         throw new PlatformNotSupportedException("Workouts need a watch's health sensors.");
+    }
+
+    public Task<bool> RecoverWorkoutAsync()
+    {
+        return Task.FromResult(false);
+    }
+
+    public void Detach()
+    {
     }
 }

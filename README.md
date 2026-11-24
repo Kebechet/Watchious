@@ -134,6 +134,11 @@ the back button on Wear OS. Pages below the top one keep their state.
 > the Razor team keeps by design (https://github.com/dotnet/razor/issues/12620). So the text control keeps MAUI's
 > name. Its content is the text, as in SwiftUI: `<Label>Count: @count</Label>`.
 
+A test (`HostCoverageTests`) fails when a control, attribute, event or enum value of the C# controls appears nowhere
+in the SwiftUI host, the Compose host or the browser preview. It reads each host's sources as text, so it catches a
+name a host lacks altogether, not one that is read on another control only. An element a host doesn't know, such as a misspelled
+tag in the markup, is logged, and in a Debug build it shows a ⚠️ with its name in its place.
+
 Platform-only controls will be available as platform-specific components (for example
 `<Apple.Gauge>` or `<Wear.CurvedText>`). Styling uses semantic tokens (`TextStyle.Title`,
 `Tint.Accent`) plus a few explicit values such as colour, padding and font size. There is no CSS.
@@ -187,8 +192,12 @@ builder.Services.AddWatchiousHealth();  // Watchious.Health: inject IHealthServi
   phone app that uses Maui.Health as the same type. Wear OS uses Health Services, and asks for its permissions
   itself; watchOS uses HealthKit (`HKWorkoutSession` with `HKLiveWorkoutBuilder`) and needs the HealthKit
   entitlement and `NSHealthShareUsageDescription` / `NSHealthUpdateUsageDescription` in `Platforms/watchOS`.
-  A workout ends when the app closes, on Wear OS when the user leaves it; keeping it running in the background is
-  https://github.com/Kebechet/Watchious/issues/13.
+  A workout keeps running when the user leaves the app: on watchOS its `HKWorkoutSession` keeps the app running, and
+  on Wear OS a foreground service does, with an ongoing activity on the watch face that brings the user back. When the
+  app starts again, `Activity.GetActive()` returns the running workout, with its title and pauses; its heart rate
+  summary counts what the app saw while it was open. After a crash, watchOS hands the app its running session back
+  (`recoverActiveWorkoutSession`); Wear OS's Health Services ends an exercise when its app's process dies (seen on the
+  emulator), so there the workout is over.
 
 Each package brings its native part: a Java module on Wear OS, built with Gradle next to the host, and a Swift file
 that Watchious.Sdk compiles into the watchOS host (`WatchiousWatchOSHostSource`).
@@ -343,7 +352,7 @@ Versions stay at `0.x.x` until the API is stable.
 1. ✅ **Wear OS proof of concept:** the renderer plus a Compose host with `Label`, `Button` and a list,
    running a counter app on the Wear OS emulator and a Galaxy Watch7. The list came later, with step 5.
 2. ✅ **SwiftUI host** with the same controls as Wear OS. From now on, each new control is added to both
-   hosts together.
+   hosts together, which `HostCoverageTests` checks.
 3. ✅ **Project model:** `Watchious.Sdk`, `dotnet new watchious` and `dotnet build -f net11.0-watchos` on top
    of .NET for iOS, App Store packaging, and remote builds from Windows on a Mac. `dotnet build -t:Run` from
    Windows builds, installs and starts the app on a real Apple Watch SE 3, and `HttpClient` works there: a real

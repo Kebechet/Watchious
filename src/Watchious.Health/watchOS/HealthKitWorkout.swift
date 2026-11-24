@@ -82,6 +82,35 @@ private final class WatchiousWorkout: NSObject, HKWorkoutSessionDelegate, HKLive
         }
     }
 
+    // Whether a workout session runs: one started here, or one recovered after the app was relaunched.
+    var hasSession: Bool {
+        session != nil
+    }
+
+    // After a crash or relaunch: the workout session HealthKit still runs for this app, with its builder, which go on
+    // collecting into the same workout.
+    func recover(token: Int64) {
+        guard session == nil else {
+            complete(token, nil)
+            return
+        }
+        store.recoverActiveWorkoutSession { recovered, error in
+            DispatchQueue.main.async {
+                if let recovered, self.session == nil {
+                    let builder = recovered.associatedWorkoutBuilder()
+                    if builder.dataSource == nil {
+                        builder.dataSource = HKLiveWorkoutDataSource(healthStore: self.store, workoutConfiguration: recovered.workoutConfiguration)
+                    }
+                    recovered.delegate = self
+                    builder.delegate = self
+                    self.session = recovered
+                    self.builder = builder
+                }
+                self.complete(token, error)
+            }
+        }
+    }
+
     func pause() {
         session?.pause()
     }
@@ -252,6 +281,19 @@ public func watchiousHealthResumeWorkout() {
     DispatchQueue.main.async {
         WatchiousWorkout.shared.resume()
     }
+}
+
+@_cdecl("watchious_health_recover_workout")
+public func watchiousHealthRecoverWorkout(_ token: Int64) {
+    DispatchQueue.main.async {
+        WatchiousWorkout.shared.recover(token: token)
+    }
+}
+
+// Read after watchious_health_recover_workout completed, which sets it on the main queue.
+@_cdecl("watchious_health_has_workout")
+public func watchiousHealthHasWorkout() -> Int32 {
+    WatchiousWorkout.shared.hasSession ? 1 : 0
 }
 
 @_cdecl("watchious_health_end_workout")

@@ -196,7 +196,7 @@ public class HealthTests
     }
 
     [Fact]
-    public async Task Dispose_EndsARunningWorkout()
+    public async Task Dispose_WithoutAStore_EndsARunningWorkout()
     {
         // Arrange
         var backend = new FakeBackend();
@@ -211,6 +211,232 @@ public class HealthTests
         backend.WorkoutEnded.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task Dispose_WithAStore_LeavesTheWorkoutRunning()
+    {
+        // Arrange
+        var backend = new FakeBackend();
+        var store = new MemoryStore();
+        var health = new HealthService(backend, store);
+        await health.Activity.Start(ActivityType.Running, "Evening run");
+        backend.SendHeartRate(150);
+
+        // Act
+        health.Dispose();
+
+        // Assert
+        backend.Calls.ShouldBe(["start Running", "detach"]);
+        store.Saved.ShouldNotBeNull();
+        store.Saved.Title.ShouldBe("Evening run");
+        store.Saved.HeartRateCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task NewService_WhenThePlatformStillRunsTheWorkout_PicksItUp()
+    {
+        // Arrange
+        var start = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var store = new MemoryStore
+        {
+            Saved = new SavedWorkout(
+                "workout-1",
+                ActivityType.Running,
+                "Evening run",
+                start,
+                WorkoutSessionState.Paused,
+                [new SavedPause(start.AddMinutes(10), null)],
+                HeartRateCount: 2,
+                HeartRateSum: 300,
+                MaxHeartRate: 160,
+                MinHeartRate: 140),
+        };
+        var backend = new FakeBackend { IsStillRunning = true };
+
+        // Act
+        var health = new HealthService(backend, store);
+        var active = await health.Activity.GetActive();
+        await health.Activity.Resume();
+        backend.SendHeartRate(180);
+        var workout = await health.Activity.End();
+
+        // Assert
+        active.ShouldNotBeNull();
+        active.Id.ShouldBe("workout-1");
+        active.Title.ShouldBe("Evening run");
+        backend.Calls.ShouldBe(["recover", "resume", "end"]);
+        workout.ShouldNotBeNull();
+        workout.AverageHeartRate.ShouldBe(160);
+        workout.MaxHeartRate.ShouldBe(180);
+        store.Saved.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task NewService_WhenTheWorkoutEndedMeanwhile_ForgetsIt()
+    {
+        // Arrange
+        var store = new MemoryStore
+        {
+            Saved = new SavedWorkout("workout-1", ActivityType.Running, null, DateTimeOffset.UtcNow, WorkoutSessionState.Running, [], 0, 0, null, null),
+        };
+        var backend = new FakeBackend { IsStillRunning = false };
+
+        // Act
+        var health = new HealthService(backend, store);
+        var active = await health.Activity.GetActive();
+
+        // Assert
+        active.ShouldBeNull();
+        store.Saved.ShouldBeNull();
+        backend.HeartRateReceived.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Workout_EndedByThePlatform_ClearsTheStore()
+    {
+        // Arrange
+        var backend = new FakeBackend();
+        var store = new MemoryStore();
+        var health = new HealthService(backend, store);
+        await health.Activity.Start(ActivityType.Running);
+
+        // Act
+        backend.EndFromThePlatform();
+
+        // Assert
+        store.Saved.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task HeartRate_SavesTheSummaryAtMostEvery30Seconds()
+    {
+        // Arrange
+        var backend = new FakeBackend();
+        var store = new MemoryStore();
+        var clock = new ManualClock();
+        var health = new HealthService(backend, store, clock);
+        await health.Activity.Start(ActivityType.Running);
+
+        // Act
+        clock.Advance(TimeSpan.FromSeconds(10));
+        backend.SendHeartRate(120);
+        var countAfter10Seconds = store.Saved!.HeartRateCount;
+        clock.Advance(TimeSpan.FromSeconds(21));
+        backend.SendHeartRate(130);
+
+        // Assert
+        countAfter10Seconds.ShouldBe(0);
+        store.Saved.HeartRateCount.ShouldBe(2);
+        store.Saved.HeartRateSum.ShouldBe(250);
+    }
+
+    [Fact]
+    public async Task Dispose_WhileARecoveryRuns_DetachesAfterIt()
+    {
+        // Arrange
+        var store = new MemoryStore
+        {
+            Saved = new SavedWorkout("workout-1", ActivityType.Running, null, DateTimeOffset.UtcNow, WorkoutSessionState.Running, [], 0, 0, null, null),
+        };
+        var recovery = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var backend = new FakeBackend { Recovery = recovery };
+        var health = new HealthService(backend, store);
+
+        // Act
+        health.Dispose();
+        var callsWhileRecovering = backend.Calls.ToList();
+        recovery.SetResult(true);
+        await backend.Detached.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        // Assert
+        callsWhileRecovering.ShouldBe(["recover"]);
+        backend.Calls.ShouldBe(["recover", "detach"]);
+        backend.HeartRateReceived.ShouldBeNull();
+        store.Saved.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void FileWorkoutStore_KeepsAWorkoutAcrossInstances()
+    {
+        // Arrange
+        var folder = Path.Combine(Path.GetTempPath(), "watchious-tests-" + Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(folder, "workout.json");
+        var start = new DateTimeOffset(2026, 11, 24, 18, 0, 0, TimeSpan.FromHours(1));
+        var workout = new SavedWorkout("workout-1", ActivityType.Running, "Evening run", start, WorkoutSessionState.Paused,
+            [new SavedPause(start.AddMinutes(10), null)], 2, 300, 160, 140);
+        try
+        {
+            // Act
+            new FileWorkoutStore(path).Save(workout);
+            var loaded = new FileWorkoutStore(path).Load();
+
+            // Assert
+            loaded.ShouldNotBeNull();
+            loaded.ShouldBe(workout with { Pauses = loaded.Pauses });
+            loaded.Pauses.ShouldBe([new SavedPause(start.AddMinutes(10), null)]);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FileWorkoutStore_WithACorruptFile_LoadsNoWorkout()
+    {
+        // Arrange
+        var folder = Path.Combine(Path.GetTempPath(), "watchious-tests-" + Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(folder, "workout.json");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(path, "{\"Id\":\"workout-1\",\"Activity");
+        try
+        {
+            // Act
+            var loaded = new FileWorkoutStore(path).Load();
+
+            // Assert
+            loaded.ShouldBeNull();
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    private sealed class ManualClock : TimeProvider
+    {
+        private DateTimeOffset _now = new(2026, 11, 24, 18, 0, 0, TimeSpan.Zero);
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            return _now;
+        }
+
+        public void Advance(TimeSpan time)
+        {
+            _now += time;
+        }
+    }
+
+    private sealed class MemoryStore : IWorkoutStore
+    {
+        public SavedWorkout? Saved { get; set; }
+
+        public SavedWorkout? Load()
+        {
+            return Saved;
+        }
+
+        public void Save(SavedWorkout workout)
+        {
+            Saved = workout;
+        }
+
+        public void Clear()
+        {
+            Saved = null;
+        }
+    }
+
     private sealed class FakeBackend : IHealthBackend
     {
         public List<string> Calls { get; } = [];
@@ -218,6 +444,12 @@ public class HealthTests
         public IList<string> Denied { get; init; } = [];
 
         public Exception? StartError { get; init; }
+
+        public bool IsStillRunning { get; init; }
+
+        public TaskCompletionSource<bool>? Recovery { get; init; }
+
+        public TaskCompletionSource Detached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public bool IsSupported => true;
 
@@ -266,6 +498,18 @@ public class HealthTests
         {
             Calls.Add("end");
             return Task.CompletedTask;
+        }
+
+        public Task<bool> RecoverWorkoutAsync()
+        {
+            Calls.Add("recover");
+            return Recovery is null ? Task.FromResult(IsStillRunning) : Recovery.Task;
+        }
+
+        public void Detach()
+        {
+            Calls.Add("detach");
+            Detached.TrySetResult();
         }
     }
 }

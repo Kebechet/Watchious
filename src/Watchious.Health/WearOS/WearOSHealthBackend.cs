@@ -54,6 +54,18 @@ internal sealed class WearOSHealthBackend : Java.Lang.Object, IHealthBackend, Wa
         return Run(_healthServices.EndExercise);
     }
 
+    public Task<bool> RecoverWorkoutAsync()
+    {
+        var result = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _healthServices.RecoverExercise(this, new RecoveryCallback(result));
+        return result.Task;
+    }
+
+    public void Detach()
+    {
+        _healthServices.Detach();
+    }
+
     public void OnHeartRate(double beatsPerMinute, long epochMilliseconds)
     {
         HeartRateReceived?.Invoke(beatsPerMinute, DateTimeOffset.FromUnixTimeMilliseconds(epochMilliseconds));
@@ -70,6 +82,10 @@ internal sealed class WearOSHealthBackend : Java.Lang.Object, IHealthBackend, Wa
         return permission.HealthDataType switch
         {
             HealthDataType.HeartRate => [heartRate],
+            // A running workout shows an ongoing notification, which needs this permission from Android 13. The workout
+            // runs without it too, so PermissionCallback doesn't count it as denied.
+            HealthDataType.ExerciseSession when OperatingSystem.IsAndroidVersionAtLeast(33) =>
+                [Manifest.Permission.ActivityRecognition, heartRate, Manifest.Permission.PostNotifications],
             HealthDataType.ExerciseSession => [Manifest.Permission.ActivityRecognition, heartRate],
             _ => [],
         };
@@ -96,12 +112,21 @@ internal sealed class WearOSHealthBackend : Java.Lang.Object, IHealthBackend, Wa
         }
     }
 
+    private sealed class RecoveryCallback(TaskCompletionSource<bool> result)
+        : Java.Lang.Object, WatchiousHealthServices.IRecoveryCallback
+    {
+        public void OnRecovered(bool isRunning)
+        {
+            result.TrySetResult(isRunning);
+        }
+    }
+
     private sealed class PermissionCallback(TaskCompletionSource<IList<string>> result)
         : Java.Lang.Object, WatchiousPermissionActivity.ICallback
     {
         public void OnResult(string[] deniedPermissions)
         {
-            result.TrySetResult(deniedPermissions);
+            result.TrySetResult([.. deniedPermissions.Where(permission => permission != Manifest.Permission.PostNotifications)]);
         }
     }
 }

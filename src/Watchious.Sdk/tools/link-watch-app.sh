@@ -13,6 +13,7 @@
 #   WATCHIOUS_ENTITLEMENTS    the app's entitlements plist, if any
 #   WATCHIOUS_BUNDLE_ID       the watch app's bundle identifier
 #   WATCHIOUS_EXTRA_SOURCES_FILE Swift and C files optional packages add to the host, one per line
+#   WATCHIOUS_CONFIGURATION   the build configuration (Debug compiles the host with DEBUG)
 set -euo pipefail
 
 SDK_ROOT="$(xcrun --sdk "$WATCHIOUS_SDK_NAME" --show-sdk-path)"
@@ -142,12 +143,20 @@ if [ "$WATCHIOUS_SDK_NAME" = "watchsimulator" ] && [ -n "${WATCHIOUS_ENTITLEMENT
         -Xlinker "$WATCHIOUS_WORK_DIR/simulator.entitlements")
 fi
 
+# A debug build shows what the host doesn't know (an unknown control) in place, not only in the log.
+DEBUG_FLAGS=()
+# Without case, as MSBuild compares the configuration.
+if [ "$(printf '%s' "${WATCHIOUS_CONFIGURATION:-}" | tr '[:upper:]' '[:lower:]')" = "debug" ]; then
+    DEBUG_FLAGS=(-D DEBUG)
+fi
+
 # .NET for iOS's generated main.arm64.o defines an iPhone main(); the SwiftUI host gets its own entry point name.
 mkdir -p "$(dirname "$WATCHIOUS_OUTPUT")"
 xcrun --sdk "$WATCHIOUS_SDK_NAME" swiftc \
     -target "$TARGET_TRIPLE" \
     -parse-as-library \
     -O \
+    "${DEBUG_FLAGS[@]+"${DEBUG_FLAGS[@]}"}" \
     -import-objc-header "$WATCHIOUS_HOST_DIR/Watchious.h" \
     -Xfrontend -entry-point-function-name -Xfrontend watchious_main \
     "$WATCHIOUS_HOST_DIR"/*.swift \

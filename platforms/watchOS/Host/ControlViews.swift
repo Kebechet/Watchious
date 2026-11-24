@@ -21,8 +21,13 @@ struct ProgressViewNode: View {
             progress.progressViewStyle(.linear)
         case "Circular":
             progress.progressViewStyle(.circular)
-        default:
+        case "Automatic", nil:
             progress
+        case let style?:
+            progress
+                .onAppear {
+                    reportUnknownValue(style, of: "Style", on: node.type)
+                }
         }
     }
 

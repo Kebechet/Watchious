@@ -69,6 +69,18 @@ internal sealed partial class HealthKitBackend : IHealthBackend, IDisposable
         return RunAsync(EndWorkout);
     }
 
+    public async Task<bool> RecoverWorkoutAsync()
+    {
+        await RunAsync(RecoverWorkout);
+        return HasWorkout() != 0;
+    }
+
+    // The session runs on in HealthKit, which keeps the app running in the background; its updates reach no one until
+    // the app picks the workout up again.
+    public void Detach()
+    {
+    }
+
     public void Dispose()
     {
         Interlocked.CompareExchange(ref _current, null, this);
@@ -163,6 +175,12 @@ internal sealed partial class HealthKitBackend : IHealthBackend, IDisposable
 
     [LibraryImport("__Internal", EntryPoint = "watchious_health_resume_workout")]
     private static partial void ResumeWorkout();
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_health_recover_workout")]
+    private static partial void RecoverWorkout(long token);
+
+    [LibraryImport("__Internal", EntryPoint = "watchious_health_has_workout")]
+    private static partial int HasWorkout();
 
     [LibraryImport("__Internal", EntryPoint = "watchious_health_end_workout")]
     private static partial void EndWorkout(long token);
