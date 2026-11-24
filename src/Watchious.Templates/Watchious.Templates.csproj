@@ -12,10 +12,39 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <EnableDefaultItems>false</EnableDefaultItems>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <_WatchiousTemplateJson>content\watchious\.template.config\template.json</_WatchiousTemplateJson>
+    <_WatchiousTemplateProject>content\watchious\WatchiousApp1.csproj</_WatchiousTemplateProject>
   </PropertyGroup>
 
+  <!-- template.json is packed from obj/, with the version stamped in (below). -->
   <ItemGroup>
-    <None Include="content\**" Exclude="content\**\bin\**;content\**\obj\**" Pack="true" PackagePath="content\" />
+    <None Include="content\**" Exclude="content\**\bin\**;content\**\obj\**;$(_WatchiousTemplateJson)" Pack="true" PackagePath="content\" />
   </ItemGroup>
+
+  <!-- An app from the template names Kebechet.Watchious.Sdk of this package's version
+       (https://github.com/Kebechet/Watchious/issues/12): the template's sdkVersion parameter replaces
+       WATCHIOUS_SDK_VERSION in the project, and its default, WATCHIOUS_SDK_VERSION_VALUE, becomes $(PackageVersion) in
+       the packed template.json. The SDK stamps the same property for the packages it references (Watchious.Sdk.csproj),
+       so the two always agree.
+       Part of the pack, with no Inputs/Outputs (both tried): run with the build instead, a pack with the no-build option
+       packed no template.json at all; and an up-to-date check skipped a pack that changed only the version, so it packed
+       the previous one. Escape: WriteLinesToFile splits its lines at ';' and unescapes '%xx'. -->
+  <Target Name="_WatchiousStampTemplateVersion" BeforeTargets="_GetPackageFiles">
+    <PropertyGroup>
+      <_WatchiousTemplateJsonText>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)/$(_WatchiousTemplateJson)'))</_WatchiousTemplateJsonText>
+      <_WatchiousTemplateProjectText>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)/$(_WatchiousTemplateProject)'))</_WatchiousTemplateProjectText>
+      <_WatchiousStampedTemplateJson>$(IntermediateOutputPath)template.json</_WatchiousStampedTemplateJson>
+    </PropertyGroup>
+    <Error Condition="'$(_WatchiousTemplateJsonText.Contains(`&quot;WATCHIOUS_SDK_VERSION&quot;`))' != 'true' Or '$(_WatchiousTemplateJsonText.Contains(`&quot;WATCHIOUS_SDK_VERSION_VALUE&quot;`))' != 'true'"
+           Text="$(_WatchiousTemplateJson) has no parameter that replaces &quot;WATCHIOUS_SDK_VERSION&quot; with the default &quot;WATCHIOUS_SDK_VERSION_VALUE&quot;, which the pack sets to the package version. An app from the template would name no version of Kebechet.Watchious.Sdk." />
+    <Error Condition="'$(_WatchiousTemplateProjectText.Contains(`Sdk=&quot;Kebechet.Watchious.Sdk/WATCHIOUS_SDK_VERSION&quot;`))' != 'true'"
+           Text="$(_WatchiousTemplateProject) doesn't name Sdk=&quot;Kebechet.Watchious.Sdk/WATCHIOUS_SDK_VERSION&quot;, the token the template replaces with the SDK version." />
+    <WriteLinesToFile File="$(_WatchiousStampedTemplateJson)" Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Lines="$([MSBuild]::Escape($(_WatchiousTemplateJsonText.Replace(`WATCHIOUS_SDK_VERSION_VALUE`, `$(PackageVersion)`))))" />
+    <ItemGroup>
+      <FileWrites Include="$(_WatchiousStampedTemplateJson)" />
+      <None Include="$(_WatchiousStampedTemplateJson)" Pack="true" PackagePath="content/watchious/.template.config/" />
+    </ItemGroup>
+  </Target>
 
 </Project>

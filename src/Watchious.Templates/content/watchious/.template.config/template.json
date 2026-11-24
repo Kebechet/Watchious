@@ -20,6 +20,13 @@
       "replaces": "com.companyname.watchiousapp1",
       "defaultValue": "com.companyname.watchiousapp1"
     },
+    "sdkVersion": {
+      "type": "parameter",
+      "datatype": "string",
+      "description": "The version of Kebechet.Watchious.Sdk the app is built with. By default the template package's version; installed from its source folder, the template has none, so set it.",
+      "replaces": "WATCHIOUS_SDK_VERSION",
+      "defaultValue": "WATCHIOUS_SDK_VERSION_VALUE"
+    },
     "nameLower": {
       "type": "generated",
       "generator": "casing",
