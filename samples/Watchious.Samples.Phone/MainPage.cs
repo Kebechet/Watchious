@@ -100,8 +100,26 @@ public sealed class MainPage : ContentPage
 
     private async Task SendAsync()
     {
-        await _messaging.SendMessageAsync(new Dictionary<string, string> { ["text"] = "Hello from the phone" });
+        var sending = _messaging.SendMessageAsync(new Dictionary<string, string> { ["text"] = "Hello from the phone" });
+        if (OperatingSystem.IsIOS())
+        {
+            // Temporary workaround: on iOS, Plugin.Maui.WearableMessaging 0.6.5 completes this task only when sending
+            // fails, so awaiting a delivered message never returns. Await it again, as on Android, once the package
+            // contains https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging/pull/6
+            _ = sending.ContinueWith(LogFailedSend, TaskContinuationOptions.OnlyOnFaulted);
+        }
+        else
+        {
+            await sending;
+        }
+
         Log("Sent hello");
+    }
+
+    private void LogFailedSend(Task sending)
+    {
+        var exception = sending.Exception?.GetBaseException();
+        Log($"{exception?.GetType().Name}: {exception?.Message}");
     }
 
     private async Task AskAsync()
