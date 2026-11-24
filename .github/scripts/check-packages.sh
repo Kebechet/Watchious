@@ -41,7 +41,6 @@ error() {
     echo "::error::check packages: $*" >&2
 }
 
-# 1. The projects: each packable one's id is Kebechet.<project name>.
 IDS=()
 for csproj in "$ROOT"/src/*/*.csproj; do
     name="$(basename "$csproj" .csproj)"
@@ -63,7 +62,6 @@ if [ ${#IDS[@]} -ne 10 ]; then
 fi
 [ ${#ERRORS[@]} -ne 0 ] || echo "== ${#IDS[@]} packable projects, each with the id Kebechet.<project name>: ok"
 
-# 2. The folder: exactly these packages at the version.
 expected_files="$(for id in "${IDS[@]}"; do echo "$id.$VERSION.nupkg"; done | sort)"
 found_files="$(cd "$FEED" && for file in *."$VERSION".nupkg; do [ ! -e "$file" ] || echo "$file"; done | sort)"
 missing_files="$(comm -23 <(printf '%s\n' "$expected_files") <(printf '%s\n' "$found_files" | sed '/^$/d'))"
@@ -109,7 +107,6 @@ expect_entries() {
 ANDROID_LIB='lib/net10\.0-android[0-9.]+'
 BACKSLASH=$'\\'
 
-# 3. Each package.
 for id in "${IDS[@]}"; do
     PACKAGE="$FEED/$id.$VERSION.nupkg"
     [ -f "$PACKAGE" ] || continue
@@ -131,7 +128,6 @@ for id in "${IDS[@]}"; do
     printf '%s\n' "$nuspec" | grep -qF "<id>$id</id>" || error "$id: its nuspec doesn't say <id>$id</id>."
     printf '%s\n' "$nuspec" | grep -qF "<version>$VERSION</version>" || error "$id: its nuspec doesn't say <version>$VERSION</version>."
 
-    # The dependencies: no old id, and the other Watchious packages at the version.
     while IFS= read -r dependency; do
         [ -n "$dependency" ] || continue
         dependency_id="$(printf '%s' "$dependency" | sed -n 's/.* id="\([^"]*\)".*/\1/p')"
