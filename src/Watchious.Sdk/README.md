@@ -64,8 +64,8 @@ tested with; the error names the tested ones. Install a tested version, for .NET
 dotnet workload update --version 10.0.404
 ```
 
-or build anyway, with the warning `WATCHIOUS003` instead of the error, knowing that the app can crash at start-up on the
-watch:
+⚠️ **Building anyway can crash the app at start-up on the watch.** To build anyway, with the warning `WATCHIOUS003`
+instead of the error:
 
 ```bash
 dotnet build -f net10.0-watchos -p:WatchiousAllowUntestedIOSSdk=true
