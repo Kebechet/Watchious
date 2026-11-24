@@ -91,7 +91,9 @@
       <!-- MSBuild splits a -p value at ; and , and reads %xx as an escaped character, so the Mac's MSBuild gets
            those escaped. -->
       <_WatchiousRemotePropertyArguments>$(_WatchiousRemotePropertyArguments.Replace('%', '%2525').Replace(';', '%253B').Replace(',', '%252C'))</_WatchiousRemotePropertyArguments>
-      <_WatchiousRemoteBuild>DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 $(WatchiousRemoteDotnet) build '$(MSBuildProjectFile)' -f $(TargetFramework) $(_WatchiousRemoteTargetsArgument) $(_WatchiousRemotePropertyArguments) -nologo -v:m</_WatchiousRemoteBuild>
+      <!-- No MSBuild node reuse: a worker node left by an earlier ssh session can't reach the keychain once that session
+           has ended, and codesign then fails with errSecInternalComponent. -->
+      <_WatchiousRemoteBuild>DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 $(WatchiousRemoteDotnet) build '$(MSBuildProjectFile)' -f $(TargetFramework) $(_WatchiousRemoteTargetsArgument) $(_WatchiousRemotePropertyArguments) -nologo -v:m -nodeReuse:false</_WatchiousRemoteBuild>
       <!-- Unpacks the sources on the Mac. A file that an earlier build sent (.watchious-synced lists them) and that is
            gone here is deleted there; nothing else in the folder is, and bin and obj stay for incremental builds. -->
       <_WatchiousRemoteUnpack>tar -tf .watchious-sources.tar | sed '/\/$/d' | LC_ALL=C sort &gt; .watchious-synced.new; if [ -f .watchious-synced ]; then LC_ALL=C comm -23 .watchious-synced .watchious-synced.new | tr '\n' '\000' | xargs -0 rm -f --; fi; tar -xf .watchious-sources.tar; mv .watchious-synced.new .watchious-synced</_WatchiousRemoteUnpack>

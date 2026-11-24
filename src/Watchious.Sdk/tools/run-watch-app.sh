@@ -45,12 +45,13 @@ devicectl_until_reached() {
     return 1
 }
 
-# The watch drops its tunnel when it dozes off between the steps of a long install; asking it for its details every
-# 15 s keeps the tunnel up.
+# The watch drops its tunnel when it dozes off between the steps of a long install; asking it for its lock state every
+# 15 s keeps the tunnel up. Unlike its details, which devicectl answers from what it knows, the lock state needs the
+# tunnel: it fails with error 4000 while the watch can't be reached.
 keep_watch_awake() {
     while true; do
         sleep 15
-        xcrun devicectl device info details --device "$TARGET" >/dev/null 2>&1 || true
+        xcrun devicectl device info lockState --device "$TARGET" >/dev/null 2>&1 || true
     done
 }
 
@@ -59,10 +60,13 @@ if [ "$MODE" = "device" ]; then
         echo "Set WatchiousDevice to the watch's UDID or name (see 'xcrun devicectl list devices')." >&2
         exit 2
     fi
-    devicectl_until_reached "reach the watch $TARGET" device info details --device "$TARGET" >/dev/null
-    keep_watch_awake &
+    devicectl_until_reached "reach the watch $TARGET" device info lockState --device "$TARGET" >/dev/null
+    # Its output goes nowhere: a sleep left running after the script would otherwise hold MSBuild's pipes open, and
+    # MSBuild waits for them to close.
+    keep_watch_awake >/dev/null 2>&1 &
     KEEP_AWAKE_PID=$!
-    trap 'kill "$KEEP_AWAKE_PID" 2>/dev/null || true' EXIT
+    # Its sleep first, which would otherwise run on for up to 15 s after the script.
+    trap 'pkill -P "$KEEP_AWAKE_PID" 2>/dev/null; kill "$KEEP_AWAKE_PID" 2>/dev/null || true' EXIT
     devicectl_until_reached "install the app on $TARGET" device install app --device "$TARGET" "$APP"
     devicectl_until_reached "launch the app on $TARGET" device process launch --terminate-existing --device "$TARGET" "$BUNDLE_ID" -- ${WATCHIOUS_LAUNCH_ARGUMENTS:-}
     exit 0
