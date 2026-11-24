@@ -12,7 +12,8 @@
     <WatchiousDotNetPackagesVersion>10.0.15</WatchiousDotNetPackagesVersion>
   </PropertyGroup>
 
-  <!-- Only the projects that ship as packages opt in. Nothing is published yet: packages go to artifacts/. -->
+  <!-- Only the projects that ship as packages opt in, each with its Kebechet.Watchious.* PackageId. Nothing is
+       published yet: .github/scripts/pack.sh puts the packages in artifacts/packages. -->
   <PropertyGroup Label="Packages">
     <Version>0.1.0-preview.1</Version>
     <Authors>Kebechet</Authors>
