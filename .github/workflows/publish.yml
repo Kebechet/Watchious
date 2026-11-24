@@ -9,8 +9,10 @@ name: Publish
 #
 # The packages go out libraries first, then the SDK that references them at its exact version, then the template that
 # names the SDK, so nothing visible references a package that isn't there yet. Every push skips a version that is
-# already there, so "Re-run failed jobs" on a run that stopped halfway pushes the rest. A new run of a version whose
-# tag or Kebechet.Watchious.Sdk already exists is refused: bump the version.
+# already there, so a re-run of a run that stopped halfway ("Re-run failed jobs", or "Re-run all jobs") pushes the rest
+# from the same commit. ⚠️ A new run of a version whose tag or any Kebechet.Watchious.* package already exists is
+# refused, since it would pack the current main next to the packages already pushed: re-run the run that stopped, or
+# bump the version.
 
 on:
   workflow_dispatch:
@@ -19,6 +21,10 @@ permissions:
   contents: read
 
 concurrency: publish
+
+env:
+  # In push order: libraries first, then Sdk, then Templates (see the top).
+  PACKAGES: Core Controls Essentials Preview Hosts.watchOS Hosts.WearOS Messaging Health Sdk Templates
 
 jobs:
   refuse-branch:
@@ -36,6 +42,9 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read     # the jobs of this run's earlier attempts (the re-run check below)
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -57,32 +66,54 @@ jobs:
           echo "version=$versions" >> "$GITHUB_OUTPUT"
           echo "Version: $versions"
 
+      # Decided once per run: a re-run, of all jobs or of the failed ones, builds the commit of the run's first attempt,
+      # so once an earlier attempt passed this check, the re-run finishes what that attempt began. Without this, "Re-run
+      # all jobs" after the first package was pushed would be refused here, and every re-run after it too.
       - name: Refuse a version that is already published
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
+            # "Version" is the name of this job.
+            passed="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=all&per_page=100" \
+              --jq '.jobs[] | select(.name == "Version" and .conclusion == "success" and .run_attempt < (env.GITHUB_RUN_ATTEMPT | tonumber)) | .id')"
+            if [ -n "$passed" ]; then
+              echo "An earlier attempt of this run passed this check: this re-run finishes that publish of $VERSION, from the same commit."
+              exit 0
+            fi
+          fi
           if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null; then
             echo "::error::The tag v$VERSION exists: $VERSION was published. Bump <Version> in Directory.Build.props."
             exit 1
           fi
-          # The flat container lists every version of an id, unlisted ones too, in lower case; an unknown id is a 404.
+          # Every id, not only the SDK: a run that stopped halfway leaves some of them at the version, and a new run would
+          # pack the current main next to them for good. The flat container lists every version of an id, unlisted ones
+          # too, in lower case; an unknown id is a 404.
           version_lower="$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]')"
-          status="$(curl -sS -o "$RUNNER_TEMP/versions.json" -w '%{http_code}' https://api.nuget.org/v3-flatcontainer/kebechet.watchious.sdk/index.json)"
-          case "$status" in
-            404) ;;
-            200)
-              if grep -qF "\"$version_lower\"" "$RUNNER_TEMP/versions.json"; then
-                echo "::error::nuget.org has Kebechet.Watchious.Sdk $VERSION. Bump <Version> in Directory.Build.props, or, to finish a run that stopped halfway, use 'Re-run failed jobs' on that run."
+          published=()
+          for package in $PACKAGES; do
+            id_lower="$(printf 'kebechet.watchious.%s' "$package" | tr '[:upper:]' '[:lower:]')"
+            status="$(curl -sS -o "$RUNNER_TEMP/versions.json" -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/$id_lower/index.json")"
+            case "$status" in
+              404) ;;
+              200)
+                if grep -qF "\"$version_lower\"" "$RUNNER_TEMP/versions.json"; then
+                  published+=("Kebechet.Watchious.$package")
+                fi
+                ;;
+              *)
+                echo "::error::nuget.org answered $status for the versions of Kebechet.Watchious.$package."
                 exit 1
-              fi
-              ;;
-            *)
-              echo "::error::nuget.org answered $status for the versions of Kebechet.Watchious.Sdk."
-              exit 1
-              ;;
-          esac
-          echo "Neither the tag v$VERSION nor Kebechet.Watchious.Sdk $VERSION exists."
+                ;;
+            esac
+          done
+          if [ "${#published[@]}" -gt 0 ]; then
+            echo "::error::nuget.org has $VERSION of ${published[*]}. A new run would pack the current main next to them. To finish the run that pushed them, re-run that run (Re-run failed jobs); otherwise bump <Version> in Directory.Build.props."
+            exit 1
+          fi
+          echo "Neither the tag v$VERSION nor any Kebechet.Watchious.* package at $VERSION exists."
 
   packages:
     name: Packages
@@ -103,8 +134,6 @@ jobs:
       id-token: write   # the OIDC token NuGet/login trades for a nuget.org API key
     env:
       VERSION: ${{ needs.version.outputs.version }}
-      # Libraries first, then Sdk, then Templates (see the top).
-      PACKAGES: Core Controls Essentials Preview Hosts.watchOS Hosts.WearOS Messaging Health Sdk Templates
     steps:
       - name: Download the packages
         uses: actions/download-artifact@v8

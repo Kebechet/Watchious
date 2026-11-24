@@ -522,7 +522,7 @@ All 10 packages always go out together, at the one version in `Directory.Build.p
 The workflow then:
 
 - refuses to run from any other branch, and refuses the version when the tag `v<version>` exists or nuget.org already
-  has `Kebechet.Watchious.Sdk` at it;
+  has any `Kebechet.Watchious.*` package at it (a re-run of a run that passed this check skips it, see below);
 - packs and tests the packages with the same reusable workflow (`.github/workflows/packages.yml`) as every pull
   request: `pack.sh`, the tests, `check-packages.sh`, and `package-smoke.sh` on Linux (preview, Wear OS Release) and on
   macOS (watchOS simulator). Nothing is pushed unless all of it passes;
@@ -541,9 +541,11 @@ with repository owner `Kebechet`, repository `Watchious`, workflow file `publish
 allows new packages: the first publish creates all 10 ids. Renaming `publish.yml` breaks publishing until the policy
 names the new file.
 
-⚠️ **If a publish stops halfway** (some packages pushed, then an error), use **Re-run failed jobs** on that run: every
-push skips a version that is already there, so the rerun pushes the rest. A new run of the same version is refused once
-`Kebechet.Watchious.Sdk` of it is on nuget.org.
+⚠️ **If a publish stops halfway** (some packages pushed, then an error), **re-run that run, don't start a new one.**
+**Re-run failed jobs** pushes the rest from the packages the run already tested: every push skips a version that is
+already there. **Re-run all jobs** works too; it packs and tests the same commit again first. A new run of that version
+is refused once any of its packages is on nuget.org, because it would pack the current `main` next to the packages
+already pushed, and those can never be replaced. If a re-run can't get past the error, fix it and bump the version.
 
 `.github/workflows/build.yml` runs the same reusable workflow on every pull request, whatever its base branch, and on
 every push to `main`, with the throwaway version `0.0.0-ci.<run number>`. The run keeps the packages as its `packages`
