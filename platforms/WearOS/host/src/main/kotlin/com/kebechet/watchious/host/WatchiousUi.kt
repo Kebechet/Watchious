@@ -158,7 +158,8 @@ private fun labelStyle(style: String?): TextStyle = when (style) {
 }
 
 // A name or value this host doesn't know means it and the C# controls don't match
-// (https://github.com/Kebechet/Watchious/issues/3). It's logged; a debug build also shows an unknown control in place.
+// (https://github.com/Kebechet/Watchious/issues/3). An unknown value is only logged, and the control uses its default;
+// an unknown control is shown as a warning in a debuggable build (UnknownNode).
 internal fun reportUnknownValue(value: String?, attribute: String, type: String) {
     Log.w(LOG_TAG, "Unknown $attribute value $value on $type")
 }

@@ -154,17 +154,25 @@ public sealed class RoutesGenerator : IIncrementalGenerator
         }
 
         // From .NET 11 the Razor generator's declaration of each page, with its [Route], is in the compilation, so a .razor
-        // page shows up as a class too, and a partial class once per declaration: each page counts once.
-        var razorPageNames = new HashSet<string>(pages.Select(page => page.FullName), StringComparer.Ordinal);
+        // page shows up as a class too, and a partial class once per declaration: each page counts once, with the routes
+        // of its @page directives and of any [Route] in its code-behind.
         var pagesOfClasses = classPages
-            .Where(page => page.Routes.Length > 0 && !razorPageNames.Contains(page.FullName))
+            .Where(page => page.Routes.Length > 0)
             .GroupBy(page => page.FullName, StringComparer.Ordinal);
         foreach (var declarations in pagesOfClasses)
         {
-            var page = declarations.First();
-            var routes = declarations.SelectMany(declaration => declaration.Routes.Split('\n')).Distinct(StringComparer.Ordinal).ToArray();
-            var location = Location.Create(page.Location.Path, default, page.Location.Span);
-            pages.Add(new Page(page.FullName, page.ClassName, routes, location));
+            var routes = declarations.SelectMany(declaration => declaration.Routes.Split('\n'));
+            var razorPage = pages.FindIndex(page => page.FullName == declarations.Key);
+            if (razorPage >= 0)
+            {
+                var page = pages[razorPage];
+                pages[razorPage] = new Page(page.FullName, page.ClassName, page.Routes.Concat(routes).Distinct(StringComparer.Ordinal).ToArray(), page.Location);
+                continue;
+            }
+
+            var classPage = declarations.First();
+            var location = Location.Create(classPage.Location.Path, default, classPage.Location.Span);
+            pages.Add(new Page(classPage.FullName, classPage.ClassName, routes.Distinct(StringComparer.Ordinal).ToArray(), location));
         }
 
         if (pages.Count == 0)
@@ -278,7 +286,6 @@ public sealed class RoutesGenerator : IIncrementalGenerator
         helpers.AppendLine();
     }
 
-    // "/summary/" + RouteValue.Format(count), merging literal segments into one string.
     // What decides which addresses a route matches: its literals, compared without case as navigation does, and the
     // type and optionality of each parameter. With groupNumbers, number types count as one, since they overlap.
     private static string RouteKey(PageRouteTemplate template, bool groupNumbers)
@@ -295,6 +302,7 @@ public sealed class RoutesGenerator : IIncrementalGenerator
         }));
     }
 
+    // "/summary/" + RouteValue.Format(count), merging literal segments into one string.
     private static string Concatenate(IEnumerable<PageRouteTemplate.Segment> segments)
     {
         var pieces = new List<string>();

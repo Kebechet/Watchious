@@ -73,7 +73,26 @@ public class RoutesGeneratorTests
         diagnostics.ShouldBeEmpty();
     }
 
+    [Fact]
+    public void RazorPageWithARouteInItsCodeBehind_GetsBothRoutes()
+    {
+        // Act
+        var (diagnostics, generated) = GenerateWithSource(
+            """[Route("/b/{Id:int}")] public partial class TwoRoutesPage : ComponentBase { }""",
+            new RazorText("TwoRoutesPage.razor", "@page \"/a\"\n<Label>Two</Label>\n"));
+
+        // Assert
+        diagnostics.ShouldBeEmpty();
+        generated.ShouldContain("builder.AddRoute<global::App.TwoRoutesPage>(\"/a\");");
+        generated.ShouldContain("builder.AddRoute<global::App.TwoRoutesPage>(\"/b/{Id:int}\");");
+    }
+
     private static ImmutableArray<Diagnostic> Generate(string pages, params AdditionalText[] razorFiles)
+    {
+        return GenerateWithSource(pages, razorFiles).Diagnostics;
+    }
+
+    private static (ImmutableArray<Diagnostic> Diagnostics, string Generated) GenerateWithSource(string pages, params AdditionalText[] razorFiles)
     {
         var source = "using Microsoft.AspNetCore.Components;\nnamespace App;\n" + pages;
         var references = AppDomain.CurrentDomain.GetAssemblies()
@@ -92,7 +111,8 @@ public class RoutesGeneratorTests
                 razorFiles,
                 optionsProvider: new RootNamespaceOptions("App"))
             .RunGenerators(compilation);
-        return driver.GetRunResult().Diagnostics;
+        var result = driver.GetRunResult();
+        return (result.Diagnostics, string.Join("\n", result.GeneratedTrees.Select(tree => tree.ToString())));
     }
 
     private sealed class RazorText(string path, string text) : AdditionalText

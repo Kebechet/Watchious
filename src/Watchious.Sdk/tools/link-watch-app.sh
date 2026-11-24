@@ -145,7 +145,8 @@ fi
 
 # A debug build shows what the host doesn't know (an unknown control) in place, not only in the log.
 DEBUG_FLAGS=()
-if [ "${WATCHIOUS_CONFIGURATION:-}" = "Debug" ]; then
+# Without case, as MSBuild compares the configuration.
+if [ "$(printf '%s' "${WATCHIOUS_CONFIGURATION:-}" | tr '[:upper:]' '[:lower:]')" = "debug" ]; then
     DEBUG_FLAGS=(-D DEBUG)
 fi
 

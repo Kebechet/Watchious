@@ -290,6 +290,133 @@ public class HealthTests
         backend.HeartRateReceived.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task Workout_EndedByThePlatform_ClearsTheStore()
+    {
+        // Arrange
+        var backend = new FakeBackend();
+        var store = new MemoryStore();
+        var health = new HealthService(backend, store);
+        await health.Activity.Start(ActivityType.Running);
+
+        // Act
+        backend.EndFromThePlatform();
+
+        // Assert
+        store.Saved.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task HeartRate_SavesTheSummaryAtMostEvery30Seconds()
+    {
+        // Arrange
+        var backend = new FakeBackend();
+        var store = new MemoryStore();
+        var clock = new ManualClock();
+        var health = new HealthService(backend, store, clock);
+        await health.Activity.Start(ActivityType.Running);
+
+        // Act
+        clock.Advance(TimeSpan.FromSeconds(10));
+        backend.SendHeartRate(120);
+        var countAfter10Seconds = store.Saved!.HeartRateCount;
+        clock.Advance(TimeSpan.FromSeconds(21));
+        backend.SendHeartRate(130);
+
+        // Assert
+        countAfter10Seconds.ShouldBe(0);
+        store.Saved.HeartRateCount.ShouldBe(2);
+        store.Saved.HeartRateSum.ShouldBe(250);
+    }
+
+    [Fact]
+    public async Task Dispose_WhileARecoveryRuns_DetachesAfterIt()
+    {
+        // Arrange
+        var store = new MemoryStore
+        {
+            Saved = new SavedWorkout("workout-1", ActivityType.Running, null, DateTimeOffset.UtcNow, WorkoutSessionState.Running, [], 0, 0, null, null),
+        };
+        var recovery = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var backend = new FakeBackend { Recovery = recovery };
+        var health = new HealthService(backend, store);
+
+        // Act
+        health.Dispose();
+        var callsWhileRecovering = backend.Calls.ToList();
+        recovery.SetResult(true);
+        await backend.Detached.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        // Assert
+        callsWhileRecovering.ShouldBe(["recover"]);
+        backend.Calls.ShouldBe(["recover", "detach"]);
+        backend.HeartRateReceived.ShouldBeNull();
+        store.Saved.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void FileWorkoutStore_KeepsAWorkoutAcrossInstances()
+    {
+        // Arrange
+        var folder = Path.Combine(Path.GetTempPath(), "watchious-tests-" + Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(folder, "workout.json");
+        var start = new DateTimeOffset(2026, 11, 24, 18, 0, 0, TimeSpan.FromHours(1));
+        var workout = new SavedWorkout("workout-1", ActivityType.Running, "Evening run", start, WorkoutSessionState.Paused,
+            [new SavedPause(start.AddMinutes(10), null)], 2, 300, 160, 140);
+        try
+        {
+            // Act
+            new FileWorkoutStore(path).Save(workout);
+            var loaded = new FileWorkoutStore(path).Load();
+
+            // Assert
+            loaded.ShouldNotBeNull();
+            loaded.ShouldBe(workout with { Pauses = loaded.Pauses });
+            loaded.Pauses.ShouldBe([new SavedPause(start.AddMinutes(10), null)]);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FileWorkoutStore_WithACorruptFile_LoadsNoWorkout()
+    {
+        // Arrange
+        var folder = Path.Combine(Path.GetTempPath(), "watchious-tests-" + Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(folder, "workout.json");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(path, "{\"Id\":\"workout-1\",\"Activity");
+        try
+        {
+            // Act
+            var loaded = new FileWorkoutStore(path).Load();
+
+            // Assert
+            loaded.ShouldBeNull();
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    private sealed class ManualClock : TimeProvider
+    {
+        private DateTimeOffset _now = new(2026, 11, 24, 18, 0, 0, TimeSpan.Zero);
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            return _now;
+        }
+
+        public void Advance(TimeSpan time)
+        {
+            _now += time;
+        }
+    }
+
     private sealed class MemoryStore : IWorkoutStore
     {
         public SavedWorkout? Saved { get; set; }
@@ -319,6 +446,10 @@ public class HealthTests
         public Exception? StartError { get; init; }
 
         public bool IsStillRunning { get; init; }
+
+        public TaskCompletionSource<bool>? Recovery { get; init; }
+
+        public TaskCompletionSource Detached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public bool IsSupported => true;
 
@@ -372,12 +503,13 @@ public class HealthTests
         public Task<bool> RecoverWorkoutAsync()
         {
             Calls.Add("recover");
-            return Task.FromResult(IsStillRunning);
+            return Recovery is null ? Task.FromResult(IsStillRunning) : Recovery.Task;
         }
 
         public void Detach()
         {
             Calls.Add("detach");
+            Detached.TrySetResult();
         }
     }
 }

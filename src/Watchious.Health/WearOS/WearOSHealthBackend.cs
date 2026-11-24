@@ -82,7 +82,8 @@ internal sealed class WearOSHealthBackend : Java.Lang.Object, IHealthBackend, Wa
         return permission.HealthDataType switch
         {
             HealthDataType.HeartRate => [heartRate],
-            // A running workout shows an ongoing notification, which needs this permission from Android 13.
+            // A running workout shows an ongoing notification, which needs this permission from Android 13. The workout
+            // runs without it too, so PermissionCallback doesn't count it as denied.
             HealthDataType.ExerciseSession when OperatingSystem.IsAndroidVersionAtLeast(33) =>
                 [Manifest.Permission.ActivityRecognition, heartRate, Manifest.Permission.PostNotifications],
             HealthDataType.ExerciseSession => [Manifest.Permission.ActivityRecognition, heartRate],
@@ -125,7 +126,7 @@ internal sealed class WearOSHealthBackend : Java.Lang.Object, IHealthBackend, Wa
     {
         public void OnResult(string[] deniedPermissions)
         {
-            result.TrySetResult(deniedPermissions);
+            result.TrySetResult([.. deniedPermissions.Where(permission => permission != Manifest.Permission.PostNotifications)]);
         }
     }
 }

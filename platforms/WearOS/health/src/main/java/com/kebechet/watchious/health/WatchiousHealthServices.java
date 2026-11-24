@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 // Wear OS Health Services workouts for Watchious.Health, which .NET binds. Like WatchiousDataLayer, only platform
 // and Java types appear in its public API; the Health Services callback is a private field.
@@ -49,6 +50,9 @@ public final class WatchiousHealthServices {
     private final ExerciseClient exerciseClient;
     private final Executor executor;
     private final ExerciseUpdateCallback updateCallback;
+    // Bumped by every start, recovery and detach: a recovery that finishes after a later detach or start mustn't attach
+    // its listener, which may be gone by then.
+    private final AtomicInteger attachments = new AtomicInteger();
     @Nullable
     private volatile Listener listener;
 
@@ -83,6 +87,7 @@ public final class WatchiousHealthServices {
 
     // exerciseType is Kebechet.Types.Health.Enums.ActivityType's name.
     public void startExercise(@NonNull String exerciseType, @NonNull Listener listener, @NonNull Callback callback) {
+        attachments.incrementAndGet();
         this.listener = listener;
         exerciseClient.setUpdateCallback(executor, updateCallback);
         ExerciseConfig config = ExerciseConfig.builder(toExerciseType(exerciseType))
@@ -105,6 +110,7 @@ public final class WatchiousHealthServices {
     // After the app was closed or restarted: the exercise this app started, if Health Services still runs it, reports
     // to listener again.
     public void recoverExercise(@NonNull Listener listener, @NonNull RecoveryCallback callback) {
+        int attachment = attachments.incrementAndGet();
         ListenableFuture<ExerciseInfo> future = exerciseClient.getCurrentExerciseInfoAsync();
         future.addListener(() -> {
             boolean isRunning = false;
@@ -115,19 +121,25 @@ public final class WatchiousHealthServices {
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
             }
-            if (isRunning) {
+            if (isRunning && attachments.get() == attachment) {
                 this.listener = listener;
                 exerciseClient.setUpdateCallback(executor, updateCallback);
                 WatchiousWorkoutService.start(context);
+            } else if (!isRunning) {
+                // It ended while the app was away: nothing is left for the foreground service to keep alive.
+                exerciseClient.clearUpdateCallbackAsync(updateCallback);
+                WatchiousWorkoutService.stop(context);
             }
             callback.onRecovered(isRunning);
         }, executor);
     }
 
-    // The app goes away while the exercise runs on: no more updates until recoverExercise.
+    // The app goes away while the exercise runs on: no more updates to the listener until recoverExercise. The update
+    // callback stays registered, since Health Services ends an exercise whose app has none (AUTO_END_MISSING_LISTENER)
+    // and the exercise's end, also while the app is away, has to stop the foreground service.
     public void detach() {
+        attachments.incrementAndGet();
         listener = null;
-        exerciseClient.clearUpdateCallbackAsync(updateCallback);
     }
 
     public void pauseExercise(@NonNull Callback callback) {
@@ -149,20 +161,20 @@ public final class WatchiousHealthServices {
 
     private void deliver(@NonNull ExerciseUpdate update) {
         Listener current = listener;
-        if (current == null) {
-            return;
-        }
-
-        // Data points carry their time since boot.
-        Instant bootInstant = Instant.ofEpochMilli(System.currentTimeMillis() - SystemClock.elapsedRealtime());
-        for (SampleDataPoint<Double> point : update.getLatestMetrics().getData(DataType.HEART_RATE_BPM)) {
-            current.onHeartRate(point.getValue(), point.getTimeInstant(bootInstant).toEpochMilli());
+        if (current != null) {
+            // Data points carry their time since boot.
+            Instant bootInstant = Instant.ofEpochMilli(System.currentTimeMillis() - SystemClock.elapsedRealtime());
+            for (SampleDataPoint<Double> point : update.getLatestMetrics().getData(DataType.HEART_RATE_BPM)) {
+                current.onHeartRate(point.getValue(), point.getTimeInstant(bootInstant).toEpochMilli());
+            }
         }
         if (update.getExerciseStateInfo().getState().isEnded()) {
             listener = null;
             exerciseClient.clearUpdateCallbackAsync(updateCallback);
             WatchiousWorkoutService.stop(context);
-            current.onEnded();
+            if (current != null) {
+                current.onEnded();
+            }
         }
     }
 
