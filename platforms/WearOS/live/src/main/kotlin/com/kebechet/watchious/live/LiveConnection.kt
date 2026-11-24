@@ -15,6 +15,7 @@ import kotlin.concurrent.thread
 private const val LOG_TAG = "WatchiousLive"
 private const val PATCH_BATCH: Int = 1
 private const val JSON: Int = 2
+private const val HEADER_BYTES = 1 + 8 + 4
 private const val RETRY_MILLISECONDS = 2000L
 
 // Watchious.Preview's live protocol (WatchiousLive.cs) over plain HTTP: a session per run of the app, its messages by
@@ -28,6 +29,8 @@ internal class LiveConnection(
     @Volatile private var session: String? = null
     @Volatile private var isStopped = false
     private var hasShownPatches = false
+    // The last message of the session this host got, which the next request confirms.
+    private var lastSequence = 0L
     private var poller: Thread? = null
 
     fun start() {
@@ -62,7 +65,7 @@ internal class LiveConnection(
         while (!isStopped) {
             try {
                 val id = session ?: startSession()
-                val answer = request("GET", "/live/messages?session=$id", null)
+                val answer = request("GET", "/live/messages?session=$id&ack=$lastSequence", null)
                 if (answer == null) {
                     // The computer no longer knows the session: its app was restarted, or this host was away too long.
                     session = null
@@ -83,25 +86,43 @@ internal class LiveConnection(
     private fun startSession(): String {
         val id = request("POST", "/live/start?platform=wearos", null)?.toString(Charsets.UTF_8)
             ?: throw IOException("The computer didn't start a session.")
+        lastSequence = 0
         session = id
         return id
     }
 
-    // Each message is a kind byte, a little-endian length and its bytes.
+    // Each message is a kind byte, its little-endian sequence number and length, and its bytes. The computer sends again
+    // what this host hasn't confirmed, as an answer can be lost on the way, so a message seen before is skipped.
     private fun readMessages(answer: ByteArray) {
         val buffer = ByteBuffer.wrap(answer).order(ByteOrder.LITTLE_ENDIAN)
-        while (buffer.remaining() >= 5) {
+        while (buffer.remaining() >= HEADER_BYTES) {
             val kind = buffer.get().toInt()
-            val bytes = ByteArray(buffer.int)
+            val sequence = buffer.long
+            val length = buffer.int
+            if (length < 0 || length > buffer.remaining()) {
+                Log.e(LOG_TAG, "A message from the computer is cut short; the computer sends it again.")
+                return
+            }
+            val bytes = ByteArray(length)
             buffer.get(bytes)
+            if (sequence <= lastSequence) {
+                continue
+            }
+            lastSequence = sequence
             when (kind) {
                 PATCH_BATCH -> {
                     hasShownPatches = true
                     host.render(bytes)
                 }
-                JSON -> Log.e(LOG_TAG, bytes.toString(Charsets.UTF_8))
+                JSON -> Log.e(LOG_TAG, errorText(bytes))
             }
         }
+    }
+
+    // The app's error, which comes as {"error": "..."}.
+    private fun errorText(bytes: ByteArray): String {
+        val text = bytes.toString(Charsets.UTF_8)
+        return runCatching { JSONObject(text).optString("error", text) }.getOrDefault(text)
     }
 
     private fun send(json: String) {

@@ -10,13 +10,13 @@ internal enum PreviewPlatform
     watchOS,
 }
 
-// One page load: an AppSession whose patches go to the page as binary WebSocket messages and its errors as text,
+// One page load: an AppRun whose patches go to the page as binary WebSocket messages and its errors as text,
 // with the page's events and confirmations ({"applied": true}) coming back as small JSON messages.
 internal sealed class PreviewSession(WebSocket socket, Func<WatchiousApp> createApp, PreviewPlatform platform)
 {
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        await using var session = AppSession.Start(createApp, platform);
+        await using var session = AppRun.Start(createApp, platform);
         var sending = SendAsync(session, cancellationToken);
         try
         {
@@ -33,7 +33,7 @@ internal sealed class PreviewSession(WebSocket socket, Func<WatchiousApp> create
         }
     }
 
-    private async Task ReceiveAsync(AppSession session, CancellationToken cancellationToken)
+    private async Task ReceiveAsync(AppRun session, CancellationToken cancellationToken)
     {
         var buffer = new byte[4096];
         using var message = new MemoryStream();
@@ -56,7 +56,7 @@ internal sealed class PreviewSession(WebSocket socket, Func<WatchiousApp> create
         }
     }
 
-    private async Task SendAsync(AppSession session, CancellationToken cancellationToken)
+    private async Task SendAsync(AppRun session, CancellationToken cancellationToken)
     {
         try
         {

@@ -6,7 +6,7 @@ using Watchious.Hosting;
 
 namespace Watchious.Preview;
 
-// What a session sends its client: a batch of patches (protocol v2, exactly as the watch hosts get them), or JSON
+// What a run of the app sends its client: a batch of patches (protocol v2, exactly as the watch hosts get them), or JSON
 // text such as {"error": "..."}.
 internal readonly record struct SessionMessage(byte[] Bytes, bool IsText);
 
@@ -45,14 +45,14 @@ internal readonly record struct ClientMessage(bool IsBatchApplied, ulong EventHa
 
 // One run of the app for one client (a preview page or a live host): a new instance of the app with the preview's
 // stand-ins for the watch APIs, its messages queued in order for the client, and the client's events dispatched.
-internal sealed class AppSession : IAsyncDisposable
+internal sealed class AppRun : IAsyncDisposable
 {
     private readonly Channel<SessionMessage> _outgoing = Channel.CreateUnbounded<SessionMessage>(
         new UnboundedChannelOptions { SingleReader = true });
     private readonly WatchiousApp _app;
     private readonly SessionHost _host;
 
-    private AppSession(Func<WatchiousApp> createApp, PreviewPlatform platform)
+    private AppRun(Func<WatchiousApp> createApp, PreviewPlatform platform)
     {
         using (WatchiousPlatform.ConfigureServices(services => PreviewEssentials.AddTo(services, platform)))
         {
@@ -66,12 +66,13 @@ internal sealed class AppSession : IAsyncDisposable
 
     // Neither the start nor a handler is awaited, as on the watch hosts: the client's messages are read on, so a page
     // whose OnInitializedAsync keeps running, or a handler that waits for a later click, can't hold up the clicks or
-    // the end of the session, which disposes the app.
-    public static AppSession Start(Func<WatchiousApp> createApp, PreviewPlatform platform)
+    // the end of the run, which disposes the app. The start runs on the thread pool, as the first render runs the
+    // pages' synchronous OnInitialized, which mustn't hold up the request that started the run.
+    public static AppRun Start(Func<WatchiousApp> createApp, PreviewPlatform platform)
     {
-        var session = new AppSession(createApp, platform);
-        _ = session.ObserveAsync(() => session._app.StartAsync(session._host));
-        return session;
+        var run = new AppRun(createApp, platform);
+        _ = run.ObserveAsync(() => Task.Run(() => run._app.StartAsync(run._host)));
+        return run;
     }
 
     public void Receive(ReadOnlySpan<byte> json)

@@ -392,13 +392,16 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
   and SwiftUI controls. Taps go back to the computer, and when the app is started again, the live host starts over by
   itself. The watch APIs are the preview's stand-ins. The live host talks plain HTTP to the computer, like the
   inspector's app side.
-  - Wear OS: `./gradlew :live:assembleDebug` in `platforms/WearOS` builds the live host. Then
-    `adb install platforms/WearOS/live/build/outputs/apk/debug/live-debug.apk`, `adb reverse tcp:5293 tcp:5293` and
+  - Wear OS, in `platforms/WearOS`: `./gradlew :live:assembleDebug` builds the live host, then
+    `adb install live/build/outputs/apk/debug/live-debug.apk`, `adb reverse tcp:5293 tcp:5293` and
     `adb shell am start -n com.kebechet.watchious.live/.LiveActivity --es watchious_live http://localhost:5293`.
-  - watchOS: on the Mac, `platforms/watchOS/Live/live-watch-app.sh <simulator UDID> [http://<computer>:5293]` builds
-    the live host (the SwiftUI host, with `LiveRuntime.swift` instead of .NET), installs it in the simulator and starts
-    it. An app that runs on another computer, such as Windows, is started with `--urls=http://0.0.0.0:5293` and given
-    by its address.
+  - watchOS: on an Apple silicon Mac, `platforms/watchOS/Live/live-watch-app.sh <simulator UDID>
+    [http://<computer>:5293]` builds the live host (the SwiftUI host, with `LiveRuntime.swift` instead of .NET),
+    installs it in the simulator and starts it. Tried with the app on the same Mac. An app that runs on another
+    computer, such as Windows, is started with `--urls=http://0.0.0.0:5293` and given by its address; that way hasn't
+    been tried yet.
+  - ⚠️ **`--urls=http://0.0.0.0:5293` lets every device on the network start the app and tap in it:** use it on a
+    network you trust only. Without `--urls`, live mode listens on this computer only.
   - ⚠️ **From the repository for now:** the live hosts aren't packaged with Watchious.Sdk yet, and they haven't been
     tried on a real watch, which needs a signed build of the live host.
 

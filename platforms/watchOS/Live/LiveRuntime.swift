@@ -9,6 +9,7 @@ final class WatchiousLiveConnection: @unchecked Sendable {
 
     private static let patchBatch: UInt8 = 1
     private static let json: UInt8 = 2
+    private static let headerBytes = 1 + 8 + 4
 
     private let baseURL: URL
     private let urlSession: URLSession
@@ -19,6 +20,8 @@ final class WatchiousLiveConnection: @unchecked Sendable {
     private var applyPatches: watchious_patches_callback?
     private var reportError: watchious_text_callback?
     private var hasShownPatches = false
+    // The last message of the session this host got, which the next request confirms. Read on the polling thread only.
+    private var lastSequence: Int64 = 0
 
     init() {
         let prefix = "--watchious-live="
@@ -55,7 +58,7 @@ final class WatchiousLiveConnection: @unchecked Sendable {
         while true {
             do {
                 let id = try currentSession()
-                guard let answer = try request("GET", "/live/messages?session=\(id)", body: nil) else {
+                guard let answer = try request("GET", "/live/messages?session=\(id)&ack=\(lastSequence)", body: nil) else {
                     // The computer no longer knows the session: its app was restarted, so the screen starts over.
                     lock.withLock { sessionId = nil }
                     if hasShownPatches {
@@ -83,38 +86,60 @@ final class WatchiousLiveConnection: @unchecked Sendable {
             throw URLError(.badServerResponse)
         }
         let id = String(decoding: answer, as: UTF8.self)
+        lastSequence = 0
         lock.withLock { sessionId = id }
         return id
     }
 
-    // Each message is a kind byte, a little-endian length and its bytes.
+    // Each message is a kind byte, its little-endian sequence number and length, and its bytes. The computer sends again
+    // what this host hasn't confirmed, as an answer can be lost on the way, so a message seen before is skipped.
     private func readMessages(_ answer: Data) {
         let bytes = [UInt8](answer)
         var offset = 0
-        while offset + 5 <= bytes.count {
+        while offset + Self.headerBytes <= bytes.count {
             let kind = bytes[offset]
-            let length = Int(UInt32(bytes[offset + 1])
-                | UInt32(bytes[offset + 2]) << 8
-                | UInt32(bytes[offset + 3]) << 16
-                | UInt32(bytes[offset + 4]) << 24)
-            let start = offset + 5
-            guard start + length <= bytes.count else {
+            let sequence = Self.littleEndian(bytes, at: offset + 1, as: Int64.self)
+            let length = Int(Self.littleEndian(bytes, at: offset + 9, as: Int32.self))
+            let start = offset + Self.headerBytes
+            guard length >= 0, start + length <= bytes.count else {
+                NSLog("[Watchious] A message from the computer is cut short; the computer sends it again.")
                 return
             }
             let message = Array(bytes[start..<start + length])
             offset = start + length
-            message.withUnsafeBufferPointer { buffer in
-                switch kind {
-                case Self.patchBatch:
-                    hasShownPatches = true
+            guard sequence > lastSequence else {
+                continue
+            }
+            lastSequence = sequence
+            switch kind {
+            case Self.patchBatch:
+                hasShownPatches = true
+                message.withUnsafeBufferPointer { buffer in
                     applyPatches?(buffer.baseAddress, Int32(buffer.count))
-                case Self.json:
-                    reportError?(buffer.baseAddress, Int32(buffer.count))
-                default:
-                    break
                 }
+            case Self.json:
+                let text = Array(Self.errorText(message).utf8)
+                text.withUnsafeBufferPointer { buffer in
+                    reportError?(buffer.baseAddress, Int32(buffer.count))
+                }
+            default:
+                break
             }
         }
+    }
+
+    private static func littleEndian<T: FixedWidthInteger>(_ bytes: [UInt8], at offset: Int, as type: T.Type) -> T {
+        var value: T = 0
+        for index in 0..<MemoryLayout<T>.size {
+            value |= T(truncatingIfNeeded: bytes[offset + index]) << (8 * index)
+        }
+        return value
+    }
+
+    // The app's error, which comes as {"error": "..."}, as the text .NET would report.
+    private static func errorText(_ message: [UInt8]) -> String {
+        let object = try? JSONSerialization.jsonObject(with: Data(message)) as? [String: Any]
+        return object?["error"] as? String ?? String(decoding: message, as: UTF8.self)
     }
 
     // The response's bytes, or nil when the computer doesn't know the session (404).

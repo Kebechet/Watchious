@@ -17,32 +17,71 @@ public class LiveTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        await using var server = WatchiousLive.Start(CounterApp.CreateWatchiousApp, new WatchiousLiveOptions { Url = "http://127.0.0.1:0" });
-        await server.StartAsync(cancellationToken);
+        await using var server = await StartServerAsync(cancellationToken);
         using var http = new HttpClient { BaseAddress = new Uri(server.Urls.First()) };
-        var mirror = new HostTree();
         var start = await http.PostAsync("/live/start?platform=watchos", content: null, cancellationToken);
-        var session = await start.Content.ReadAsStringAsync(cancellationToken);
-        await ReceiveUntilAsync(http, session, mirror, () => mirror.Root.Descendants().Any(IsPlusOne), cancellationToken);
-        var plusOne = mirror.Root.Descendants().Single(IsPlusOne);
+        var host = new FakeLiveHost(http, await start.Content.ReadAsStringAsync(cancellationToken));
+        await host.ReceiveUntilAsync(() => host.Mirror.Root.Descendants().Any(IsPlusOne), cancellationToken);
 
         // Act
-        var click = await http.PostAsJsonAsync($"/live/events?session={session}", new { id = plusOne.Events["click"], name = "click", value = (string?)null }, cancellationToken);
-        await ReceiveUntilAsync(http, session, mirror, () => mirror.Root.Descendants().Any(node => node.Content == "Count: 1"), cancellationToken);
+        var click = await host.ClickAsync(host.Mirror.Root.Descendants().Single(IsPlusOne), cancellationToken);
+        await host.ReceiveUntilAsync(() => host.Mirror.Root.Descendants().Any(node => node.Content == "Count: 1"), cancellationToken);
 
         // Assert
         start.StatusCode.ShouldBe(HttpStatusCode.OK);
         click.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        mirror.Root.Descendants().ShouldContain(node => node.Content == "Count: 1");
+        host.Mirror.Root.Descendants().ShouldContain(node => node.Content == "Count: 1");
     }
 
     [Fact]
-    public async Task Messages_OfAStoppedOrUnknownSession_AreNotFound()
+    public async Task Messages_TheLiveHostDidntConfirm_AreSentAgain()
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        await using var server = WatchiousLive.Start(CounterApp.CreateWatchiousApp, new WatchiousLiveOptions { Url = "http://127.0.0.1:0" });
-        await server.StartAsync(cancellationToken);
+        await using var server = await StartServerAsync(cancellationToken);
+        using var http = new HttpClient { BaseAddress = new Uri(server.Urls.First()) };
+        var start = await http.PostAsync("/live/start?platform=wearos", content: null, cancellationToken);
+        var session = await start.Content.ReadAsStringAsync(cancellationToken);
+        var lost = await http.GetByteArrayAsync($"/live/messages?session={session}&ack=0", cancellationToken);
+
+        // Act
+        var again = await http.GetByteArrayAsync($"/live/messages?session={session}&ack=0", cancellationToken);
+
+        // Assert
+        lost.ShouldNotBeEmpty();
+        ReadMessages(lost)[0].Sequence.ShouldBe(1);
+        again.Take(lost.Length).ShouldBe(lost);
+    }
+
+    [Fact]
+    public async Task Messages_TheLiveHostConfirmed_AreNotSentAgain()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var server = await StartServerAsync(cancellationToken);
+        using var http = new HttpClient { BaseAddress = new Uri(server.Urls.First()) };
+        var start = await http.PostAsync("/live/start?platform=wearos", content: null, cancellationToken);
+        var session = await start.Content.ReadAsStringAsync(cancellationToken);
+        var host = new FakeLiveHost(http, session);
+        await host.ReceiveUntilAsync(() => host.Mirror.Root.Descendants().Any(IsPlusOne), cancellationToken);
+        var received = host.LastSequence;
+        await host.ClickAsync(host.Mirror.Root.Descendants().Single(IsPlusOne), cancellationToken);
+
+        // Act
+        var answer = await http.GetByteArrayAsync($"/live/messages?session={session}&ack={received}", cancellationToken);
+
+        // Assert
+        var messages = ReadMessages(answer);
+        messages.ShouldNotBeEmpty();
+        messages.ShouldAllBe(message => message.Sequence > received);
+    }
+
+    [Fact]
+    public async Task Requests_OfAStoppedOrUnknownSession_AreNotFound()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var server = await StartServerAsync(cancellationToken);
         using var http = new HttpClient { BaseAddress = new Uri(server.Urls.First()) };
         var start = await http.PostAsync("/live/start?platform=wearos", content: null, cancellationToken);
         var session = await start.Content.ReadAsStringAsync(cancellationToken);
@@ -51,10 +90,19 @@ public class LiveTests
         await http.PostAsync($"/live/stop?session={session}", content: null, cancellationToken);
         var stopped = await http.GetAsync($"/live/messages?session={session}", cancellationToken);
         var unknown = await http.GetAsync("/live/messages?session=unknown", cancellationToken);
+        var unknownEvent = await http.PostAsJsonAsync("/live/events?session=unknown", new { applied = true }, cancellationToken);
 
         // Assert
         stopped.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         unknown.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        unknownEvent.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    private static async Task<Microsoft.AspNetCore.Builder.WebApplication> StartServerAsync(CancellationToken cancellationToken)
+    {
+        var server = WatchiousLive.Start(CounterApp.CreateWatchiousApp, new WatchiousLiveOptions { Url = "http://127.0.0.1:0" });
+        await server.StartAsync(cancellationToken);
+        return server;
     }
 
     private static bool IsPlusOne(UiNode node)
@@ -62,24 +110,50 @@ public class LiveTests
         return node.Type == "Button" && node.Content == "+1";
     }
 
-    // Applies each batch as a live host does, and confirms it.
-    private static async Task ReceiveUntilAsync(HttpClient http, string session, HostTree mirror, Func<bool> isDone, CancellationToken cancellationToken)
+    private static List<LiveMessage> ReadMessages(byte[] answer)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (!isDone())
+        var messages = new List<LiveMessage>();
+        var offset = 0;
+        while (offset < answer.Length)
         {
-            DateTime.UtcNow.ShouldBeLessThan(deadline, "The app's patches didn't arrive.");
-            var answer = await http.GetByteArrayAsync($"/live/messages?session={session}", cancellationToken);
-            var offset = 0;
-            while (offset < answer.Length)
+            var kind = answer[offset];
+            var sequence = BinaryPrimitives.ReadInt64LittleEndian(answer.AsSpan(offset + 1, 8));
+            var length = BinaryPrimitives.ReadInt32LittleEndian(answer.AsSpan(offset + 9, 4));
+            messages.Add(new LiveMessage(kind, sequence, answer.AsSpan(offset + 13, length).ToArray()));
+            offset += 13 + length;
+        }
+
+        return messages;
+    }
+
+    private readonly record struct LiveMessage(byte Kind, long Sequence, byte[] Bytes);
+
+    // Does what the live hosts do: applies each batch once, confirms it, and tells the server what it got.
+    private sealed class FakeLiveHost(HttpClient http, string session)
+    {
+        public HostTree Mirror { get; } = new();
+
+        public long LastSequence { get; private set; }
+
+        public Task<HttpResponseMessage> ClickAsync(UiNode node, CancellationToken cancellationToken)
+        {
+            return http.PostAsJsonAsync($"/live/events?session={session}", new { id = node.Events["click"], name = "click", value = (string?)null }, cancellationToken);
+        }
+
+        public async Task ReceiveUntilAsync(Func<bool> isDone, CancellationToken cancellationToken)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (!isDone())
             {
-                var kind = answer[offset];
-                var length = BinaryPrimitives.ReadInt32LittleEndian(answer.AsSpan(offset + 1, 4));
-                var bytes = answer.AsSpan(offset + 5, length).ToArray();
-                offset += 5 + length;
-                kind.ShouldBe((byte)1, Encoding.UTF8.GetString(bytes));
-                mirror.Apply(Patch.ReadAll(bytes));
-                await http.PostAsJsonAsync($"/live/events?session={session}", new { applied = true }, cancellationToken);
+                DateTime.UtcNow.ShouldBeLessThan(deadline, "The app's patches didn't arrive.");
+                var answer = await http.GetByteArrayAsync($"/live/messages?session={session}&ack={LastSequence}", cancellationToken);
+                foreach (var message in ReadMessages(answer).Where(message => message.Sequence > LastSequence))
+                {
+                    LastSequence = message.Sequence;
+                    message.Kind.ShouldBe((byte)1, Encoding.UTF8.GetString(message.Bytes));
+                    Mirror.Apply(Patch.ReadAll(message.Bytes));
+                    await http.PostAsJsonAsync($"/live/events?session={session}", new { applied = true }, cancellationToken);
+                }
             }
         }
     }

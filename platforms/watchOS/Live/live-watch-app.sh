@@ -3,6 +3,7 @@
 # stands in for it), installs it in a simulator and starts it on the computer that runs dotnet run -- --live.
 #   live-watch-app.sh <simulator UDID> [computer URL, default http://localhost:5293]
 # A computer other than this Mac starts the live server with --urls=http://0.0.0.0:5293 and is given by its address.
+# Apple silicon Macs only: the host is built for the arm64 simulator.
 set -euo pipefail
 SIMULATOR="${1:?usage: live-watch-app.sh <simulator UDID> [computer URL]}"
 URL="${2:-http://localhost:5293}"
@@ -25,6 +26,9 @@ xcrun --sdk watchsimulator swiftc \
 cp "$HERE/Info.plist" "$APP/Info.plist"
 codesign --force --sign - "$APP" > /dev/null
 
-xcrun simctl boot "$SIMULATOR" 2> /dev/null || true
+# Boots the simulator when it isn't, and waits until it is ready to install. Simulator.app shows it where it is
+# installed; the simulator runs without it too.
+xcrun simctl bootstatus "$SIMULATOR" -b > /dev/null
+open -a Simulator 2> /dev/null || echo "Simulator.app isn't installed: the simulator runs without a window." >&2
 xcrun simctl install "$SIMULATOR" "$APP"
 xcrun simctl launch --terminate-running-process "$SIMULATOR" com.kebechet.watchious.live "--watchious-live=$URL"
