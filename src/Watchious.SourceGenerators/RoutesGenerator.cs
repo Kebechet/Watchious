@@ -153,10 +153,18 @@ public sealed class RoutesGenerator : IIncrementalGenerator
             pages.Add(new Page(fullName, className, file.Routes.Split('\n'), location));
         }
 
-        foreach (var page in classPages.Where(page => page.Routes.Length > 0))
+        // From .NET 11 the Razor generator's declaration of each page, with its [Route], is in the compilation, so a .razor
+        // page shows up as a class too, and a partial class once per declaration: each page counts once.
+        var razorPageNames = new HashSet<string>(pages.Select(page => page.FullName), StringComparer.Ordinal);
+        var pagesOfClasses = classPages
+            .Where(page => page.Routes.Length > 0 && !razorPageNames.Contains(page.FullName))
+            .GroupBy(page => page.FullName, StringComparer.Ordinal);
+        foreach (var declarations in pagesOfClasses)
         {
+            var page = declarations.First();
+            var routes = declarations.SelectMany(declaration => declaration.Routes.Split('\n')).Distinct(StringComparer.Ordinal).ToArray();
             var location = Location.Create(page.Location.Path, default, page.Location.Span);
-            pages.Add(new Page(page.FullName, page.ClassName, page.Routes.Split('\n'), location));
+            pages.Add(new Page(page.FullName, page.ClassName, routes, location));
         }
 
         if (pages.Count == 0)
