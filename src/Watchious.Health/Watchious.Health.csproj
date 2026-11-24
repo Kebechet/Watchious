@@ -60,9 +60,10 @@
   </ItemGroup>
 
   <!-- The SwiftUI host compiles the HealthKit file of an app that uses this package. NuGet imports only
-       build/<package id>.targets, so the targets file is named after the package. -->
+       build/<package id>.targets, so the targets file is named after the package. PackagePath host/watchOS/ with
+       forward slashes: packed on Linux, host\watchOS\ gives the entry host/watchOS//HealthKitWorkout.swift. -->
   <ItemGroup>
-    <None Include="watchOS\*.swift" Pack="true" PackagePath="host\watchOS\" />
+    <None Include="watchOS\*.swift" Pack="true" PackagePath="host/watchOS/" />
     <None Include="build\Kebechet.Watchious.Health.targets" Pack="true" PackagePath="build\;buildTransitive\" />
   </ItemGroup>
 
