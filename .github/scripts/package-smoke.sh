@@ -127,7 +127,8 @@ new_app() {
 # Adds lines before the project's closing tag.
 add_to_project() {
     local project="$1" lines="$2"
-    awk -v lines="$lines" '/^<\/Project>/ { print lines } { print }' "$project" > "$project.new"
+    # Through the environment: macOS's awk refuses a newline in a -v value.
+    SMOKE_LINES="$lines" awk '/^<\/Project>/ { print ENVIRON["SMOKE_LINES"] } { print }' "$project" > "$project.new"
     mv "$project.new" "$project"
 }
 
