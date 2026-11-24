@@ -58,17 +58,3 @@ public sealed class Gauge : ComponentBase
         builder.CloseElement();
     }
 }
-
-public enum GaugeStyle
-{
-    // SwiftUI's own choice: a bar with the range under it.
-    Automatic,
-    // A ring that is open at the bottom, with the current value inside.
-    Circular,
-    // A closed ring that fills like a battery.
-    CircularCapacity,
-    // A thin bar with a marker at the value.
-    Linear,
-    // A bar that fills up to the value.
-    LinearCapacity,
-}

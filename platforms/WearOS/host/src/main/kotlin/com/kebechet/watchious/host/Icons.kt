@@ -108,7 +108,8 @@ internal fun watchiousIcon(name: String): ImageVector? = when (name) {
 
 // Any other Material icon of the Rounded style, by its Compose name: each is a getter on Icons.Rounded (or on
 // Icons.AutoMirrored.Rounded for the ones that turn around in right-to-left languages), compiled into a class of its
-// own. ⚠️ R8 drops the ones no code references, so a release app keeps them with the rule in consumer-rules.pro.
+// own. ⚠️ R8 drops the ones no code references, so a release app lists the ones it names as WatchiousMaterialIcon
+// items, which Watchious.Sdk.targets turns into keep rules.
 internal fun materialIcon(name: String): ImageVector? {
     val candidates = listOf(
         Triple("androidx.compose.material.icons.automirrored.rounded", Icons.AutoMirrored.Rounded, Icons.AutoMirrored.Rounded::class.java),

@@ -157,9 +157,11 @@ touches the content, as with a `Picker`:
 
 `Image` also shows system icons in each platform's own style: `<Image Icon="Icon.Heart" />` is the SF Symbol
 `heart.fill` on watchOS and the Material icon `Favorite` (Rounded, the style of Wear OS) on Wear OS. An icon takes the
-colour and size of the text around it, or `Width` and `Height`. `AppleSymbol` and `MaterialIcon` name any other icon
-of one platform, and win over `Icon` there: `<Image Icon="Icon.Walk" AppleSymbol="figure.hiking" MaterialIcon="Hiking" />`.
-A name a platform doesn't have is logged, and a debug build shows a ⚠️ with the name in its place. The preview draws
+colour of the text around it, and on watchOS its size too (Wear OS draws it 24 dp); `Width` or `Height` sizes it, and
+one of them sizes both sides, as icons are square. `AppleSymbol` and `MaterialIcon` name any other icon of one platform,
+and win over `Icon` there: `<Image Icon="Icon.Walk" AppleSymbol="figure.hiking" MaterialIcon="Hiking" />`. When that
+name isn't found, `Icon` stands in. A name a platform doesn't have is logged, and a debug build shows a ⚠️ with the name
+in its place. The preview draws
 the icons with Google's Material Symbols font when it is online, and shows an `AppleSymbol` by its name.
 
 <details>
@@ -230,7 +232,7 @@ round screen while their page is shown, wherever the page puts them:
 ```razor
 <List>
     <Apple.Gauge Value="@heartRate" From="40" Through="180" CurrentValueText="@heartRate.ToString()"
-                 Style="Apple.GaugeStyle.Circular" />
+                 Style="GaugeStyle.Circular" />
     <Wear.TimeText Text="Run" />                        @* "Run · 10:09" along the top *@
     <Wear.EdgeButton Icon="Icon.Plus" Text="Lap" OnClick="Lap" />
 </List>

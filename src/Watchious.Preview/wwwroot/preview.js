@@ -397,7 +397,7 @@ function render(node) {
         case "List":
             target.replaceChildren(...visibleChildren(node).map((child) => {
                 // A control of the other platform, or one on the screen's edges, takes no row.
-                if (child.type.startsWith("Apple.") || child.type.startsWith("Wear.")) {
+                if (child.type.startsWith("Wear.") || (platform === "wearos" && child.type.startsWith("Apple."))) {
                     return child.element;
                 }
                 const row = element("div", "row");
@@ -455,7 +455,7 @@ function render(node) {
         }
         case "Wear.CurvedText":
             target.hidden = platform !== "wearos";
-            renderCurvedText(attribute(node, "Text") ?? "", target);
+            renderCurvedText(node.id, attribute(node, "Text") ?? "", target);
             return;
         case "Wear.EdgeButton": {
             target.hidden = platform !== "wearos";
@@ -490,6 +490,16 @@ const materialSymbols = {
     Moon: "bedtime", Sun: "wb_sunny", Battery: "battery_full", Wifi: "wifi", List: "list",
 };
 
+// Compose's name of a Material icon as the font's: DirectionsRun as directions_run, Battery5Bar as battery_5_bar, and
+// _3dRotation (a Kotlin name can't start with a digit) as 3d_rotation.
+function materialSymbolName(composeName) {
+    return composeName
+        .replace(/([a-z])([A-Z0-9])/g, "$1_$2")
+        .replace(/([0-9])([A-Z])/g, "$1_$2")
+        .replace(/^_/, "")
+        .toLowerCase();
+}
+
 // An icon is a glyph of Google's Material Symbols font, which the page loads when it is online (offline, its name
 // shows). The platform's own name wins over Icon, as on the watch; an SF Symbol can't be drawn here, so its name shows.
 function renderImage(node, target) {
@@ -505,7 +515,7 @@ function renderImage(node, target) {
             glyph.textContent = ownName;
         } else {
             glyph.classList.add("material-symbols-rounded");
-            glyph.textContent = ownName ? ownName.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase() : materialSymbols[icon] ?? icon;
+            glyph.textContent = ownName ? materialSymbolName(ownName) : materialSymbols[icon] ?? icon;
             glyph.style.fontSize = height || width ? `${height || width}px` : "";
         }
         glyph.title = description;
@@ -549,17 +559,18 @@ function renderGauge(node, target) {
     target.replaceChildren(label, track, range);
 }
 
-// Text along the bottom of the round screen, read from left to right.
-function renderCurvedText(text, target) {
+// Text along the bottom of the round screen, read from left to right. Its path's id is the node's, as a page under the
+// shown one keeps its own curved text in the document.
+function renderCurvedText(id, text, target) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 227 227");
     const path = document.createElementNS(svg.namespaceURI, "path");
-    path.setAttribute("id", "curved-text-path");
+    path.setAttribute("id", `curved-text-path-${id}`);
     path.setAttribute("d", "M 14 113.5 A 99.5 99.5 0 0 0 213 113.5");
     path.setAttribute("fill", "none");
     const textElement = document.createElementNS(svg.namespaceURI, "text");
     const textPath = document.createElementNS(svg.namespaceURI, "textPath");
-    textPath.setAttribute("href", "#curved-text-path");
+    textPath.setAttribute("href", `#curved-text-path-${id}`);
     textPath.setAttribute("startOffset", "50%");
     textPath.setAttribute("text-anchor", "middle");
     textPath.textContent = text;
