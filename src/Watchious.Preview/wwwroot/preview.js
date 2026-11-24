@@ -442,6 +442,16 @@ const materialSymbols = {
     Moon: "bedtime", Sun: "wb_sunny", Battery: "battery_full", Wifi: "wifi", List: "list",
 };
 
+// Compose's name of a Material icon as the font's: DirectionsRun as directions_run, Battery5Bar as battery_5_bar, and
+// _3dRotation (a Kotlin name can't start with a digit) as 3d_rotation.
+function materialSymbolName(composeName) {
+    return composeName
+        .replace(/([a-z])([A-Z0-9])/g, "$1_$2")
+        .replace(/([0-9])([A-Z])/g, "$1_$2")
+        .replace(/^_/, "")
+        .toLowerCase();
+}
+
 // An icon is a glyph of Google's Material Symbols font, which the page loads when it is online (offline, its name
 // shows). The platform's own name wins over Icon, as on the watch; an SF Symbol can't be drawn here, so its name shows.
 function renderImage(node, target) {
@@ -457,7 +467,7 @@ function renderImage(node, target) {
             glyph.textContent = ownName;
         } else {
             glyph.classList.add("material-symbols-rounded");
-            glyph.textContent = ownName ? ownName.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase() : materialSymbols[icon] ?? icon;
+            glyph.textContent = ownName ? materialSymbolName(ownName) : materialSymbols[icon] ?? icon;
             glyph.style.fontSize = height || width ? `${height || width}px` : "";
         }
         glyph.title = description;

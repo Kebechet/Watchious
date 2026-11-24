@@ -115,23 +115,19 @@ struct ImageNode: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: dimension("Width"), height: dimension("Height"))
-                .accessibilityLabel(node.attribute("Description") ?? "")
+                .accessibilityLabel(ifSet: node.attribute("Description"))
         }
     }
 
-    // AppleSymbol names any SF Symbol and wins over Icon, the shared set.
+    // AppleSymbol names any SF Symbol and wins over Icon, the shared set, which stands in when this watchOS doesn't have
+    // that symbol (one of a newer watchOS, say). An Icon value this host doesn't map shows as a missing symbol.
     private var symbolName: String? {
-        if let name = node.attribute("AppleSymbol"), !name.isEmpty {
-            return name
+        let own = node.attribute("AppleSymbol").flatMap { $0.isEmpty ? nil : $0 }
+        let shared = node.attribute("Icon").flatMap { $0.isEmpty ? nil : (watchiousSymbols[$0] ?? $0) }
+        if let own, UIImage(systemName: own) != nil || shared == nil {
+            return own
         }
-        guard let icon = node.attribute("Icon"), !icon.isEmpty else {
-            return nil
-        }
-        guard let name = watchiousSymbols[icon] else {
-            reportUnknownValue(icon, of: "Icon", on: node.type)
-            return nil
-        }
-        return name
+        return shared
     }
 
     private func dimension(_ name: String) -> CGFloat? {
@@ -148,7 +144,7 @@ private struct SymbolImage: View {
     var body: some View {
         if UIImage(systemName: name) != nil {
             symbol
-                .accessibilityLabel(node.attribute("Description") ?? "")
+                .accessibilityLabel(ifSet: node.attribute("Description"))
         } else {
             missing
         }
@@ -168,18 +164,39 @@ private struct SymbolImage: View {
         }
     }
 
+    // Logged when it appears, not on each redraw.
     @ViewBuilder
     private var missing: some View {
-        let _ = NSLog("[Watchious] Unknown SF Symbol %@", name)
         #if DEBUG
         Text("⚠️ \(name)")
             .font(.caption2)
             .foregroundStyle(.red)
+            .onAppear(perform: logMissing)
+        #else
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear(perform: logMissing)
         #endif
+    }
+
+    private func logMissing() {
+        NSLog("[Watchious] Unknown SF Symbol %@", name)
     }
 
     private func dimension(_ name: String) -> CGFloat? {
         node.attribute(name).flatMap(Double.init).map { CGFloat($0) }
+    }
+}
+
+extension View {
+    // Without a description, VoiceOver keeps reading what it reads for the image itself, such as an SF Symbol's name.
+    @ViewBuilder
+    func accessibilityLabel(ifSet text: String?) -> some View {
+        if let text, !text.isEmpty {
+            accessibilityLabel(text)
+        } else {
+            self
+        }
     }
 }
 
