@@ -26,4 +26,13 @@
     <ProjectReference Include="..\..\samples\Watchious.Samples.Counter\Watchious.Samples.Counter.csproj" />
   </ItemGroup>
 
+  <!-- RoutesGeneratorTests run the generator on test sources, so it is also a plain reference here, built by the
+       analyzer reference above. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
+    <Reference Include="Watchious.SourceGenerators">
+      <HintPath>..\..\src\Watchious.SourceGenerators\bin\$(Configuration)\netstandard2.0\Watchious.SourceGenerators.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>
