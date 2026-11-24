@@ -12,8 +12,8 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <EnableDefaultItems>false</EnableDefaultItems>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
-    <_WatchiousTemplateJson>content\watchious\.template.config\template.json</_WatchiousTemplateJson>
-    <_WatchiousTemplateProject>content\watchious\WatchiousApp1.csproj</_WatchiousTemplateProject>
+    <_WatchiousTemplateJson>content/watchious/.template.config/template.json</_WatchiousTemplateJson>
+    <_WatchiousTemplateProject>content/watchious/WatchiousApp1.csproj</_WatchiousTemplateProject>
   </PropertyGroup>
 
   <!-- template.json is packed from obj/, with the version stamped in (below). -->
@@ -28,23 +28,41 @@
        so the two always agree.
        Part of the pack, with no Inputs/Outputs (both tried): run with the build instead, a pack with the no-build option
        packed no template.json at all; and an up-to-date check skipped a pack that changed only the version, so it packed
-       the previous one. Escape: WriteLinesToFile splits its lines at ';' and unescapes '%xx'. -->
+       the previous one. -->
   <Target Name="_WatchiousStampTemplateVersion" BeforeTargets="_GetPackageFiles">
     <PropertyGroup>
       <_WatchiousTemplateJsonText>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)/$(_WatchiousTemplateJson)'))</_WatchiousTemplateJsonText>
       <_WatchiousTemplateProjectText>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)/$(_WatchiousTemplateProject)'))</_WatchiousTemplateProjectText>
-      <_WatchiousStampedTemplateJson>$(IntermediateOutputPath)template.json</_WatchiousStampedTemplateJson>
+      <_WatchiousStampedTemplateJson>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'template.json'))</_WatchiousStampedTemplateJson>
     </PropertyGroup>
     <Error Condition="'$(_WatchiousTemplateJsonText.Contains(`&quot;WATCHIOUS_SDK_VERSION&quot;`))' != 'true' Or '$(_WatchiousTemplateJsonText.Contains(`&quot;WATCHIOUS_SDK_VERSION_VALUE&quot;`))' != 'true'"
            Text="$(_WatchiousTemplateJson) has no parameter that replaces &quot;WATCHIOUS_SDK_VERSION&quot; with the default &quot;WATCHIOUS_SDK_VERSION_VALUE&quot;, which the pack sets to the package version. An app from the template would name no version of Kebechet.Watchious.Sdk." />
     <Error Condition="'$(_WatchiousTemplateProjectText.Contains(`Sdk=&quot;Kebechet.Watchious.Sdk/WATCHIOUS_SDK_VERSION&quot;`))' != 'true'"
            Text="$(_WatchiousTemplateProject) doesn't name Sdk=&quot;Kebechet.Watchious.Sdk/WATCHIOUS_SDK_VERSION&quot;, the token the template replaces with the SDK version." />
-    <WriteLinesToFile File="$(_WatchiousStampedTemplateJson)" Overwrite="true" WriteOnlyWhenDifferent="true"
-                      Lines="$([MSBuild]::Escape($(_WatchiousTemplateJsonText.Replace(`WATCHIOUS_SDK_VERSION_VALUE`, `$(PackageVersion)`))))" />
+    <_WatchiousReplaceText SourceFile="$(MSBuildProjectDirectory)/$(_WatchiousTemplateJson)" DestinationFile="$(_WatchiousStampedTemplateJson)"
+                           OldText="&quot;WATCHIOUS_SDK_VERSION_VALUE&quot;" NewText="&quot;$(PackageVersion)&quot;" />
     <ItemGroup>
       <FileWrites Include="$(_WatchiousStampedTemplateJson)" />
       <None Include="$(_WatchiousStampedTemplateJson)" Pack="true" PackagePath="content/watchious/.template.config/" />
     </ItemGroup>
   </Target>
+
+  <!-- Writes a copy of a file with a text replaced. Not WriteLinesToFile: on Linux and macOS, MSBuild turns every
+       backslash in an item into '/', which broke the template's regular expressions ("\\." became "//."). -->
+  <UsingTask TaskName="_WatchiousReplaceText" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <SourceFile ParameterType="System.String" Required="true" />
+      <DestinationFile ParameterType="System.String" Required="true" />
+      <OldText ParameterType="System.String" Required="true" />
+      <NewText ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(DestinationFile));
+        System.IO.File.WriteAllText(DestinationFile, System.IO.File.ReadAllText(SourceFile).Replace(OldText, NewText));
+      ]]></Code>
+    </Task>
+  </UsingTask>
 
 </Project>
