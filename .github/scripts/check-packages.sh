@@ -11,6 +11,8 @@
 #   - each package has its files: the assemblies, the Android libraries, the analyzer, the Swift, and for the SDK and the
 #     template every file of the source folders they pack, plus the SDK's build/Watchious.Sdk.Version.props with the
 #     version;
+#   - the template's app names the SDK by the token WATCHIOUS_SDK_VERSION, and its template.json is the source one with
+#     the version as the default that replaces it; no WATCHIOUS_SDK_VERSION_VALUE is left anywhere in the package;
 #   - nuget.org's page of each package: its README.md (the one in its project folder, titled with its id, with no
 #     relative link, which nuget.org can't follow), the icon (the repository's icon.png), the copyright, the tags (the
 #     ones in Directory.Build.props, and its own), the release notes (the GitHub release of the version) and the
@@ -239,7 +241,7 @@ for id in "${IDS[@]}"; do
             expect_exactly "$id" build/ "$(source_files "$ROOT/src/$name/build"; echo Watchious.Sdk.Version.props)"
             expect_exactly "$id" tools/ "$(source_files "$ROOT/src/$name/tools")"
             expect_exactly "$id" host/watchOS/ "$(source_files "$ROOT/platforms/watchOS/Host")"
-            # The version the SDK adds its packages at: Version, not PackageVersion alone, sets it at pack time.
+            # The version the SDK adds its packages at, its own, written at pack time.
             version_props="$(unzip -p "$PACKAGE" build/Watchious.Sdk.Version.props 2>/dev/null | tr -d '\r' || true)"
             printf '%s\n' "$version_props" | grep -qF "<WatchiousVersion>$VERSION</WatchiousVersion>" \
                 || error "$id: build/Watchious.Sdk.Version.props doesn't set WatchiousVersion to $VERSION."
@@ -248,9 +250,24 @@ for id in "${IDS[@]}"; do
         Templates)
             printf '%s\n' "$nuspec" | grep -q '<packageType name="Template"' || error "$id isn't of package type Template."
             expect_exactly "$id" content/ "$(source_files "$ROOT/src/$name/content")"
-            template_project="$(unzip -p "$PACKAGE" content/watchious/WatchiousApp1.csproj 2>/dev/null | tr -d '\r' || true)"
-            printf '%s\n' "$template_project" | grep -q '<Project Sdk="Kebechet\.Watchious\.Sdk/' \
-                || error "$id: the template's project doesn't use the Kebechet.Watchious.Sdk."
+            template_project="$(unzip -p "$PACKAGE" content/watchious/WatchiousApp1.csproj 2>/dev/null | tr -d '\r' | head -1 || true)"
+            [ "$template_project" = '<Project Sdk="Kebechet.Watchious.Sdk/WATCHIOUS_SDK_VERSION">' ] \
+                || error "$id: the template's project starts with '$template_project', not <Project Sdk=\"Kebechet.Watchious.Sdk/WATCHIOUS_SDK_VERSION\">, the token its sdkVersion parameter replaces."
+            # The pack stamps the package version as the default of the template's sdkVersion parameter
+            # (https://github.com/Kebechet/Watchious/issues/12), and changes nothing else in template.json.
+            template_json="$(unzip -p "$PACKAGE" content/watchious/.template.config/template.json 2>/dev/null | tr -d '\r' || true)"
+            sdk_version_default="$(printf '%s\n' "$template_json" | awk '
+                /"sdkVersion": *\{/ { in_symbol = 1; next }
+                in_symbol && /^ *\},? *$/ { exit }
+                in_symbol && /"defaultValue"/ { sub(/.*"defaultValue": *"/, ""); sub(/".*/, ""); print; exit }')"
+            [ "$sdk_version_default" = "$VERSION" ] \
+                || error "$id: the default of the template's sdkVersion parameter is '$sdk_version_default', not the package version $VERSION."
+            [ "$template_json" = "$(sed "s/\"WATCHIOUS_SDK_VERSION_VALUE\"/\"$VERSION\"/" "$ROOT/src/$name/content/watchious/.template.config/template.json" | tr -d '\r')" ] \
+                || error "$id: its template.json isn't the source one with the default WATCHIOUS_SDK_VERSION_VALUE set to $VERSION."
+            unstamped="$(unzip -c "$PACKAGE" | tr -d '\r' | awk '
+                /^ *(inflating|extracting): / { file = $0; sub(/^ *(inflating|extracting): /, "", file); sub(/ +$/, "", file); next }
+                /WATCHIOUS_SDK_VERSION_VALUE/ { print file }' | sort -u)"
+            [ -z "$unstamped" ] || error "$id has the token WATCHIOUS_SDK_VERSION_VALUE, which the pack replaces with the version, in $(words "$unstamped")"
             symbols=false
             ;;
         *)
