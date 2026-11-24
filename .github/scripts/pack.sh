@@ -11,9 +11,9 @@
 #                 for example "/c/Program Files/Android/openjdk/jdk-21.0.8".
 #   ANDROID_HOME  the Android SDK, with platform 36, unless platforms/WearOS/local.properties sets sdk.dir
 #
-# The version goes in as -p:Version, which the SDK also writes into its build/Watchious.Sdk.Version.props for the
-# packages it references. -p:PackageVersion alone would leave that file at Directory.Build.props's version, and
-# --version-suffix is ignored, because Directory.Build.props sets Version itself.
+# The version goes in as -p:Version, so the assemblies carry it too. It also becomes PackageVersion, which the SDK writes
+# into its build/Watchious.Sdk.Version.props for the packages it references and the template into its template.json for
+# the SDK the app names. --version-suffix is ignored, because Directory.Build.props sets Version itself.
 set -euo pipefail
 
 if [ $# -lt 1 ] || [ $# -gt 2 ]; then

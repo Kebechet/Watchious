@@ -28,13 +28,15 @@
     <None Include="..\..\platforms\watchOS\Host\**" Pack="true" PackagePath="host/watchOS/" />
   </ItemGroup>
 
-  <!-- The SDK references the Watchious packages of its own version. -->
+  <!-- The SDK references the Watchious packages of its own version. PackageVersion, not Version: each package is named
+       after it, so -p:PackageVersion alone can't stamp another version than the packages have. The template stamps the
+       same property (Watchious.Templates.csproj). -->
   <Target Name="_WatchiousPackVersion" BeforeTargets="_GetPackageFiles">
     <PropertyGroup>
       <_WatchiousVersionProps>$(IntermediateOutputPath)Watchious.Sdk.Version.props</_WatchiousVersionProps>
     </PropertyGroup>
     <WriteLinesToFile File="$(_WatchiousVersionProps)" Overwrite="true" WriteOnlyWhenDifferent="true"
-                      Lines="&lt;Project&gt;;  &lt;PropertyGroup&gt;;    &lt;WatchiousVersion&gt;$(Version)&lt;/WatchiousVersion&gt;;  &lt;/PropertyGroup&gt;;&lt;/Project&gt;" />
+                      Lines="&lt;Project&gt;;  &lt;PropertyGroup&gt;;    &lt;WatchiousVersion&gt;$(PackageVersion)&lt;/WatchiousVersion&gt;;  &lt;/PropertyGroup&gt;;&lt;/Project&gt;" />
     <ItemGroup>
       <None Include="$(_WatchiousVersionProps)" Pack="true" PackagePath="build\" />
     </ItemGroup>
