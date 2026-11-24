@@ -134,6 +134,10 @@ the back button on Wear OS. Pages below the top one keep their state.
 > the Razor team keeps by design (https://github.com/dotnet/razor/issues/12620). So the text control keeps MAUI's
 > name. Its content is the text, as in SwiftUI: `<Label>Count: @count</Label>`.
 
+A test (`HostCoverageTests`) fails when a control, attribute, event or enum value of the C# controls is missing
+from the SwiftUI host, the Compose host or the browser preview. An element a host doesn't know, such as a misspelled
+tag in the markup, is logged, and in a Debug build it shows a ⚠️ with its name in its place.
+
 Platform-only controls will be available as platform-specific components (for example
 `<Apple.Gauge>` or `<Wear.CurvedText>`). Styling uses semantic tokens (`TextStyle.Title`,
 `Tint.Accent`) plus a few explicit values such as colour, padding and font size. There is no CSS.
@@ -345,7 +349,7 @@ Versions stay at `0.x.x` until the API is stable.
 1. ✅ **Wear OS proof of concept:** the renderer plus a Compose host with `Label`, `Button` and a list,
    running a counter app on the Wear OS emulator and a Galaxy Watch7. The list came later, with step 5.
 2. ✅ **SwiftUI host** with the same controls as Wear OS. From now on, each new control is added to both
-   hosts together.
+   hosts together, which `HostCoverageTests` checks.
 3. ✅ **Project model:** `Watchious.Sdk`, `dotnet new watchious` and `dotnet build -f net11.0-watchos` on top
    of .NET for iOS, App Store packaging, and remote builds from Windows on a Mac. `dotnet build -t:Run` from
    Windows builds, installs and starts the app on a real Apple Watch SE 3, and `HttpClient` works there: a real

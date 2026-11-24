@@ -1,5 +1,7 @@
 package com.kebechet.watchious.host
 
+import android.content.pm.ApplicationInfo
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,9 +14,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -97,7 +101,25 @@ internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
         }
         // Blank text is the whitespace between controls in the Razor markup.
         UiNode.TEXT_TYPE -> node.text?.takeIf { it.isNotBlank() }?.let { Text(it) }
-        else -> RenderNodes(node.children, dispatch, isInRow)
+        else -> UnknownNode(node, dispatch, isInRow)
+    }
+}
+
+// A control this host has no view for: a misspelled element in the Razor markup, or a control that C# has and this host
+// doesn't yet. Its children are still shown; a debug build also shows a warning in its place.
+@Composable
+private fun UnknownNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean) {
+    LaunchedEffect(node.type) {
+        Log.w(LOG_TAG, "Unknown control ${node.type}: this host has no view for it")
+    }
+    val isDebuggable = (LocalContext.current.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    if (!isDebuggable) {
+        RenderNodes(node.children, dispatch, isInRow)
+        return
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("⚠️ ${node.type}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        RenderNodes(node.children, dispatch, isInRow)
     }
 }
 
@@ -127,7 +149,17 @@ private fun labelStyle(style: String?): TextStyle = when (style) {
     "Title" -> MaterialTheme.typography.titleMedium
     "Headline" -> MaterialTheme.typography.titleSmall
     "Caption" -> MaterialTheme.typography.bodySmall
-    else -> MaterialTheme.typography.bodyMedium
+    "Body", null -> MaterialTheme.typography.bodyMedium
+    else -> {
+        reportUnknownValue(style, "Style", "Label")
+        MaterialTheme.typography.bodyMedium
+    }
+}
+
+// A name or value this host doesn't know means it and the C# controls don't match
+// (https://github.com/Kebechet/Watchious/issues/3). It's logged; a debug build also shows an unknown control in place.
+internal fun reportUnknownValue(value: String?, attribute: String, type: String) {
+    Log.w(LOG_TAG, "Unknown $attribute value $value on $type")
 }
 
 // Without Spacing a stack uses the platform's default, as SwiftUI does.
@@ -135,16 +167,24 @@ private const val DEFAULT_SPACING = 4f
 
 private fun UiNode.spacing(): Float = attribute("Spacing")?.toFloatOrNull() ?: DEFAULT_SPACING
 
-private fun UiNode.horizontalAlignment(): Alignment.Horizontal = when (attribute("Alignment")) {
+private fun UiNode.horizontalAlignment(): Alignment.Horizontal = when (val alignment = attribute("Alignment")) {
     "Leading" -> Alignment.Start
     "Trailing" -> Alignment.End
-    else -> Alignment.CenterHorizontally
+    "Center", null -> Alignment.CenterHorizontally
+    else -> {
+        reportUnknownValue(alignment, "Alignment", type)
+        Alignment.CenterHorizontally
+    }
 }
 
-private fun UiNode.verticalAlignment(): Alignment.Vertical = when (attribute("Alignment")) {
+private fun UiNode.verticalAlignment(): Alignment.Vertical = when (val alignment = attribute("Alignment")) {
     "Top" -> Alignment.Top
     "Bottom" -> Alignment.Bottom
-    else -> Alignment.CenterVertically
+    "Center", null -> Alignment.CenterVertically
+    else -> {
+        reportUnknownValue(alignment, "Alignment", type)
+        Alignment.CenterVertically
+    }
 }
 
 private fun UiNode.joinedText(): String =

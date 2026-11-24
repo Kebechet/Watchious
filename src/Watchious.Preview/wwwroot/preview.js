@@ -307,8 +307,14 @@ function createElement(node) {
         }
         case "Image":
             return element("img", "image");
-        default:
-            return element("div", "vstack");
+        default: {
+            // A control this page has no element for (https://github.com/Kebechet/Watchious/issues/3): shown as a
+            // warning, with its children, instead of dropped.
+            console.warn(`Watchious: unknown control ${node.type}`);
+            const unknown = element("div", "vstack unknown");
+            unknown.dataset.type = node.type;
+            return unknown;
+        }
     }
 }
 
