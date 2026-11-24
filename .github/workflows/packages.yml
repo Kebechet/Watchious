@@ -29,7 +29,8 @@ env:
 jobs:
   pack-test:
     name: Pack, test and smoke (Linux, Wear OS)
-    # Pinned: ubuntu-latest's default JDK 25 can't run the Gradle 8.13 the Wear OS libraries build with.
+    # Pinned, not ubuntu-latest: the image must have the JDK 21 (JAVA_HOME_21_X64) that Gradle 8.13, which builds the
+    # Wear OS libraries, runs on; Gradle 8.13 can't run on the JDK 25 that ubuntu-latest defaults to.
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -82,7 +83,10 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: packages
-          path: artifacts/packages/*.nupkg
+          # With the symbol packages, if any: publish.yml pushes a .snupkg along with its package.
+          path: |
+            artifacts/packages/*.nupkg
+            artifacts/packages/*.snupkg
           if-no-files-found: error
 
       - name: Upload the smoke test logs
