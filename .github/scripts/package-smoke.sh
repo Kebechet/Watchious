@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # Tests the packed Kebechet.Watchious.* packages the way an app outside this repository uses them. Inside the
 # repository nothing uses them: Directory.Build.props switches the SDK to ProjectReferences, and the samples import the
-# SDK by path. So this creates apps from the template content in a folder outside the repository, with a nuget.config
-# that clears every other package source, and checks:
+# SDK by path. So this installs the packed template, Kebechet.Watchious.Templates, into a template folder of its own
+# (dotnet new --debug:custom-hive, so the templates installed on the machine stay as they are), creates apps with
+# dotnet new watchious in a folder outside the repository, with a nuget.config that clears every other package source,
+# and checks:
+#   - an app from the template names Kebechet.Watchious.Sdk of this version
+#     (https://github.com/Kebechet/Watchious/issues/12), and --sdk-version names another; a template installed from its
+#     source folder has no version of its own, so its app's restore fails (MSB4236) unless --sdk-version names one;
 #   - restore takes exactly the Kebechet.Watchious.* packages of this version, and no old Watchious.* id;
 #   - the SDK comes from its package (WatchiousVersion, WatchiousSdkDirectory);
 #   - an app with Central Package Management restores (the SDK's implicit references, NU1008 otherwise), also when
@@ -42,7 +47,7 @@ VERSION="$2"
 WORK_ARG="${3:-}"
 DOTNET="${DOTNET:-dotnet}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TEMPLATE="$ROOT/src/Watchious.Templates/content/watchious"
+TEMPLATE_SOURCE="$ROOT/src/Watchious.Templates/content/watchious"
 IS_MACOS=false
 [ "$(uname -s)" = "Darwin" ] && IS_MACOS=true
 
@@ -60,7 +65,9 @@ if [ "$WATCHOS" = true ] && [ "$IS_MACOS" != true ]; then
     fail "--watchos needs macOS (Xcode and the ios workload)."
 fi
 [ -d "$FEED_ARG" ] || fail "no package folder $FEED_ARG."
-[ -f "$FEED_ARG/Kebechet.Watchious.Sdk.$VERSION.nupkg" ] || fail "no Kebechet.Watchious.Sdk.$VERSION.nupkg in $FEED_ARG."
+for package in Sdk Templates; do
+    [ -f "$FEED_ARG/Kebechet.Watchious.$package.$VERSION.nupkg" ] || fail "no Kebechet.Watchious.$package.$VERSION.nupkg in $FEED_ARG."
+done
 FEED="$(native_path "$FEED_ARG")"
 
 if [ -z "$WORK_ARG" ]; then
@@ -114,18 +121,21 @@ cat > "$WORK_ABS/nuget.config" <<EOF
 </configuration>
 EOF
 
-# An app from the template content, with the SDK at this version. Until the template package stamps its own version
-# (https://github.com/Kebechet/Watchious/issues/12), the content names a fixed one.
+TEMPLATE_HIVE="$WORK/template-hive"
+TEMPLATE_SOURCE_HIVE="$WORK/template-hive-source"
+
+# new_app <name> <template folder> <SDK version the project must name> [dotnet new options]: an app from the template
+# installed in that template folder.
 new_app() {
-    local name="$1" app="$WORK_ABS/$1"
+    local name="$1" hive="$2" sdk_version="$3" app="$WORK_ABS/$1" first_line
+    shift 3
     [ ! -e "$app" ] || fail "$app already exists; use a new work folder."
-    mkdir -p "$app"
-    tar -C "$TEMPLATE" --exclude=./.template.config --exclude=./bin --exclude=./obj --exclude=./WatchiousApp1.csproj \
-        -cf - . | tar -C "$app" -xf -
-    sed "s|Sdk=\"Kebechet.Watchious.Sdk/[^\"]*\"|Sdk=\"Kebechet.Watchious.Sdk/$VERSION\"|" "$TEMPLATE/WatchiousApp1.csproj" \
-        > "$app/$name.csproj"
-    grep -q "<Project Sdk=\"Kebechet.Watchious.Sdk/$VERSION\">" "$app/$name.csproj" \
-        || fail "the template's WatchiousApp1.csproj doesn't start with <Project Sdk=\"Kebechet.Watchious.Sdk/...\">."
+    run "new-$name" "$DOTNET" new watchious -n "$name" -o "$WORK/$name" --no-update-check --debug:custom-hive "$hive" "$@"
+    [ -f "$app/$name.csproj" ] || fail "dotnet new watchious made no $name.csproj."
+    first_line="$(head -1 "$app/$name.csproj" | tr -d '\r')"
+    [ "$first_line" = "<Project Sdk=\"Kebechet.Watchious.Sdk/$sdk_version\">" ] \
+        || fail "$name.csproj from the template starts with '$first_line', expected <Project Sdk=\"Kebechet.Watchious.Sdk/$sdk_version\">."
+    echo "== $name.csproj names Kebechet.Watchious.Sdk/$sdk_version"
 }
 
 # Adds lines before the project's closing tag.
@@ -200,7 +210,8 @@ BASE_PACKAGES=(Controls Core Essentials Preview Hosts.WearOS)
 [ "$IS_MACOS" = true ] && BASE_PACKAGES+=(Hosts.watchOS)
 
 # 1. The template as it is.
-new_app WatchiousApp1
+run install-template "$DOTNET" new install "$FEED/Kebechet.Watchious.Templates.$VERSION.nupkg" --debug:custom-hive "$TEMPLATE_HIVE"
+new_app WatchiousApp1 "$TEMPLATE_HIVE" "$VERSION"
 APP1="$WORK/WatchiousApp1/WatchiousApp1.csproj"
 run restore-app "$DOTNET" restore "$APP1" -nologo
 check_restore WatchiousApp1 "${BASE_PACKAGES[@]}"
@@ -225,7 +236,7 @@ check_served run-inspector http://localhost:5392/ '<title>Watchious inspector</t
     "$DOTNET" "$preview_app" --inspector --no-browser --urls=http://localhost:5392
 
 # 2. With the optional packages, at the SDK's version.
-new_app WatchiousOptional
+new_app WatchiousOptional "$TEMPLATE_HIVE" "$VERSION"
 APP2="$WORK/WatchiousOptional/WatchiousOptional.csproj"
 add_to_project "$WORK_ABS/WatchiousOptional/WatchiousOptional.csproj" '
   <ItemGroup>
@@ -292,7 +303,7 @@ fi
 # 3. Central Package Management: the SDK's references are implicit, and the app's own come from
 # Directory.Packages.props. That file also versions the packages the SDK adds, as a solution does when another of its
 # projects, such as a Razor library with the pages, references Kebechet.Watchious.Controls.
-new_app WatchiousCpm
+new_app WatchiousCpm "$TEMPLATE_HIVE" "$VERSION"
 cat > "$WORK_ABS/WatchiousCpm/Directory.Packages.props" <<EOF
 <Project>
   <PropertyGroup>
@@ -314,5 +325,22 @@ add_to_project "$WORK_ABS/WatchiousCpm/WatchiousCpm.csproj" '
 '
 run restore-cpm "$DOTNET" restore "$WORK/WatchiousCpm/WatchiousCpm.csproj" -nologo
 check_restore WatchiousCpm "${BASE_PACKAGES[@]}" Messaging
+
+# 4. The SDK version: --sdk-version names another one. Installed from its source folder, the template has no version of
+# its own, which only its pack stamps: its app names the token, and the restore fails (the README says to pass
+# --sdk-version then).
+new_app WatchiousSdkVersion "$TEMPLATE_HIVE" 9.9.9-other --sdk-version 9.9.9-other
+run install-template-source "$DOTNET" new install "$(native_path "$TEMPLATE_SOURCE")" --debug:custom-hive "$TEMPLATE_SOURCE_HIVE"
+new_app WatchiousFromSource "$TEMPLATE_SOURCE_HIVE" WATCHIOUS_SDK_VERSION_VALUE
+echo "== dotnet restore WatchiousFromSource, which must fail"
+if "$DOTNET" restore "$WORK/WatchiousFromSource/WatchiousFromSource.csproj" -nologo > "$LOGS/restore-from-source.log" 2>&1; then
+    fail "an app from the template's source folder, which names no SDK version, restored."
+fi
+grep -q "MSB4236.*Kebechet\.Watchious\.Sdk/WATCHIOUS_SDK_VERSION_VALUE" "$LOGS/restore-from-source.log" \
+    || fail "the restore of an app from the template's source folder didn't fail with MSB4236 for Kebechet.Watchious.Sdk/WATCHIOUS_SDK_VERSION_VALUE (log: $LOGS/restore-from-source.log)."
+echo "== an app from the template's source folder names no SDK version, and its restore fails with MSB4236"
+new_app WatchiousFromSourceVersion "$TEMPLATE_SOURCE_HIVE" "$VERSION" --sdk-version "$VERSION"
+run restore-from-source-version "$DOTNET" restore "$WORK/WatchiousFromSourceVersion/WatchiousFromSourceVersion.csproj" -nologo
+check_restore WatchiousFromSourceVersion "${BASE_PACKAGES[@]}"
 
 echo "== package smoke passed: $VERSION (logs in $LOGS)"
