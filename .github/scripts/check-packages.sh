@@ -258,7 +258,6 @@ for id in "${IDS[@]}"; do
             ;;
     esac
 
-    # nuget.org's page of the package.
     printf '%s\n' "$nuspec" | grep -qF '<readme>README.md</readme>' || error "$id: its nuspec has no <readme>README.md</readme>."
     readme_source="$ROOT/src/$name/README.md"
     if ! printf '%s\n' "$ENTRIES" | grep -qxF README.md; then
@@ -289,7 +288,6 @@ for id in "${IDS[@]}"; do
     printf '%s\n' "$nuspec" | grep -qE '<repository type="git" url="https://github.com/Kebechet/Watchious"[^>]* commit="[0-9a-f]{40}"' \
         || error "$id: its nuspec has no <repository> with the commit."
 
-    # The license, and the notices of what the package bundles of other projects.
     printf '%s\n' "$nuspec" | grep -qF "<license type=\"expression\">$license</license>" \
         || error "$id: its license isn't the expression '$license': $(printf '%s\n' "$nuspec" | grep -oE '<license[^<]*</license>' || echo none)."
     bundled="$(maven_libraries "$ROOT/src/$name/$name.csproj"; bundled_binaries)"
@@ -306,7 +304,6 @@ for id in "${IDS[@]}"; do
         [ -z "$unnamed" ] || error "$id: its THIRD-PARTY-NOTICES.txt doesn't name what it bundles: $(words "$unnamed").$(native_hint "$unnamed")"
     fi
 
-    # The .pdb of each assembly, for the packages with assemblies.
     symbol_package="$FEED/$id.$VERSION.snupkg"
     if [ "$symbols" = true ]; then
         if [ ! -f "$symbol_package" ]; then
