@@ -39,6 +39,19 @@ fi
 
 PROJECTS=(Core Controls Essentials Preview Hosts.watchOS Hosts.WearOS Messaging Health Sdk Templates)
 
+# The list must match the projects that opt in to packing: a new packable project left out of it would not ship with
+# the others, and nothing after this would notice, since only the listed projects are packed.
+packable=()
+for csproj in "$ROOT"/src/*/*.csproj; do
+    grep -q '<IsPackable>true</IsPackable>' "$csproj" || continue
+    name="$(basename "$csproj" .csproj)"
+    packable+=("${name#Watchious.}")
+done
+if [ "$(printf '%s\n' "${packable[@]}" | sort)" != "$(printf '%s\n' "${PROJECTS[@]}" | sort)" ]; then
+    echo "::error::pack: the packable projects in src/ (${packable[*]}) aren't the ones this script packs (${PROJECTS[*]})." >&2
+    exit 1
+fi
+
 echo "== Gradle: the Wear OS libraries"
 (cd "$ROOT/platforms/WearOS" && ./gradlew --console=plain :host:assembleRelease :messaging:assembleRelease :health:assembleRelease)
 
@@ -47,8 +60,8 @@ for project in "${PROJECTS[@]}"; do
     "$DOTNET" pack "$ROOT/src/Watchious.$project/Watchious.$project.csproj" -c Release "-p:Version=$VERSION" -o "$OUT" -nologo
 done
 
-# Exactly the 10 packages, each under its Kebechet.Watchious.* id: a package missing, or one more (a new packable
-# project, or a stray package of this version in the folder), fails the run.
+# Exactly the 10 packages, each under its Kebechet.Watchious.* id: a package missing, or one more (a stray package of
+# this version in the folder), fails the run.
 missing=()
 for project in "${PROJECTS[@]}"; do
     [ -f "$OUT/Kebechet.Watchious.$project.$VERSION.nupkg" ] || missing+=("Kebechet.Watchious.$project.$VERSION.nupkg")
