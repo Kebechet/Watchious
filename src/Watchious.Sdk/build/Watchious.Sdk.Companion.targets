@@ -9,9 +9,13 @@
       <WatchiousWatchApp Include="..\MyWatch\MyWatch.csproj" CodesignProvision="<the watch app's profile>" />
     </ItemGroup>
 
-  The iPhone build builds that project for watchOS (its own configuration, a device or a simulator to match its own
-  runtime identifier, signed with its own CodesignKey) as the companion of $(ApplicationId), and puts the watch app into
-  Watch/ before .NET for iOS signs the iPhone app. It needs a Mac. Item metadata:
+  The iPhone build (iOS only; Mac Catalyst and Android are left alone) builds that project for watchOS (its own
+  configuration, a device or a simulator to match its own runtime identifier, signed with its signing identity) as the
+  companion of its bundle identifier, and puts the watch app into Watch/ before .NET for iOS signs the iPhone app. It
+  needs a Mac; a Windows build without a paired Mac makes no app bundle, so it skips the watch app too. The watch app's
+  bundle identifier must start with the iPhone app's and a dot (its default, <ApplicationId>.watchkitapp, does when
+  both projects have the same ApplicationId). Build the watch project only through the iPhone project: a solution
+  build that also builds it in parallel writes the same bin and obj folders twice at once. Item metadata:
     CodesignProvision  the watch app's provisioning profile (a path or an installed profile's UUID), for a device
     TargetFramework    the watch project's watchOS target framework (default: net<the iPhone app's .NET version>-watchos)
   Once AdditionalWatchOSApp ships, it replaces this file.
@@ -20,9 +24,17 @@
 
   <Target Name="_WatchiousEmbedWatchApps"
           BeforeTargets="_CodesignAppBundle"
-          DependsOnTargets="_GenerateBundleName"
-          Condition="'@(WatchiousWatchApp)' != '' And '$(_CanOutputAppBundle)' == 'true'">
-    <Error Condition="!$([MSBuild]::IsOSPlatform('OSX'))" Text="Watchious: embedding a watch app in an iPhone app needs a Mac." />
+          DependsOnTargets="_GenerateBundleName;_ReadAppManifest;_DetectSigningIdentity"
+          Condition="'@(WatchiousWatchApp)' != '' And '$(TargetPlatformIdentifier)' == 'ios' And '$(_CanOutputAppBundle)' == 'true' And '$(IsMacEnabled)' == 'true'">
+    <Error Condition="!$([MSBuild]::IsOSPlatform('OSX'))" Text="Watchious: embedding a watch app in an iPhone app needs a Mac. Build the iPhone app on the Mac." />
+    <PropertyGroup>
+      <_WatchiousCompanionId>$(_BundleIdentifier)</_WatchiousCompanionId>
+      <_WatchiousCompanionId Condition="'$(_WatchiousCompanionId)' == ''">$(ApplicationId)</_WatchiousCompanionId>
+      <!-- The identity .NET for iOS found for the iPhone app when CodesignKey isn't set; a simulator build signs the
+           watch app ad hoc. -->
+      <_WatchiousWatchCodesignKey>$(CodesignKey)</_WatchiousWatchCodesignKey>
+      <_WatchiousWatchCodesignKey Condition="'$(_WatchiousWatchCodesignKey)' == '' And '$(_SdkIsSimulator)' != 'true'">$(_CodeSigningKey)</_WatchiousWatchCodesignKey>
+    </PropertyGroup>
     <ItemGroup>
       <_WatchiousWatchProject Include="@(WatchiousWatchApp)">
         <TargetFramework Condition="'%(WatchiousWatchApp.TargetFramework)' == ''">net$(TargetFrameworkVersion.TrimStart('v'))-watchos</TargetFramework>
@@ -33,11 +45,18 @@
         <AdditionalProperties>RuntimeIdentifier=$(RuntimeIdentifier);Configuration=$(Configuration)</AdditionalProperties>
       </_WatchiousWatchRestore>
       <_WatchiousWatchProject>
-        <AdditionalProperties>TargetFramework=%(TargetFramework);RuntimeIdentifier=$(RuntimeIdentifier);Configuration=$(Configuration);CodesignKey=$([MSBuild]::Escape('$(CodesignKey)'));CodesignProvision=$([MSBuild]::Escape('%(CodesignProvision)'));WatchiousCompanionAppBundleIdentifier=$(ApplicationId)</AdditionalProperties>
+        <AdditionalProperties>TargetFramework=%(TargetFramework);RuntimeIdentifier=$(RuntimeIdentifier);Configuration=$(Configuration);CodesignKey=$([MSBuild]::Escape('$(_WatchiousWatchCodesignKey)'));CodesignProvision=$([MSBuild]::Escape('%(CodesignProvision)'));WatchiousCompanionAppBundleIdentifier=$([MSBuild]::Escape('$(_WatchiousCompanionId)'))</AdditionalProperties>
       </_WatchiousWatchProject>
     </ItemGroup>
     <MSBuild Projects="@(_WatchiousWatchRestore)" Targets="Restore" RemoveProperties="TargetFramework"
              Properties="MSBuildRestoreSessionId=$([System.Guid]::NewGuid())" />
+    <!-- Before the build: iOS refuses to install a companion whose bundle identifier isn't under the iPhone app's, and
+         the watch app's profile is tied to its identifier, so it is not rewritten here. -->
+    <MSBuild Projects="@(_WatchiousWatchProject)" Targets="WatchiousGetWatchApp">
+      <Output TaskParameter="TargetOutputs" ItemName="_WatchiousPlannedWatchApp" />
+    </MSBuild>
+    <Error Condition="!$([System.String]::Copy('%(_WatchiousPlannedWatchApp.BundleIdentifier)').StartsWith('$(_WatchiousCompanionId).'))"
+           Text="Watchious: the watch app's bundle identifier %(_WatchiousPlannedWatchApp.BundleIdentifier) must start with the iPhone app's, $(_WatchiousCompanionId), and a dot. Give both projects the same ApplicationId, or set WatchiousBundleIdentifier in the watch project." />
     <MSBuild Projects="@(_WatchiousWatchProject)" Targets="Build" />
     <MSBuild Projects="@(_WatchiousWatchProject)" Targets="WatchiousGetWatchApp">
       <Output TaskParameter="TargetOutputs" ItemName="_WatchiousBuiltWatchApp" />
@@ -49,7 +68,7 @@
     <MakeDir Directories="$(_WatchiousWatchDirectory)" />
     <!-- ditto keeps the watch app's signature intact; the iPhone app's signature then seals it. -->
     <Exec Command="ditto &quot;%(_WatchiousBuiltWatchApp.Identity)&quot; &quot;$(_WatchiousWatchDirectory)%(_WatchiousBuiltWatchApp.Filename)%(_WatchiousBuiltWatchApp.Extension)&quot;" />
-    <Message Importance="high" Text="Watchious: embedded @(_WatchiousBuiltWatchApp->'%(Filename)%(Extension)') as the companion of $(ApplicationId)" />
+    <Message Importance="high" Text="Watchious: embedded @(_WatchiousBuiltWatchApp->'%(Filename)%(Extension)') as the companion of $(_WatchiousCompanionId)" />
   </Target>
 
 </Project>

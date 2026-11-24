@@ -271,7 +271,9 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
   project: `<WatchiousWatchApp Include="..\MyWatch\MyWatch.csproj" CodesignProvision="<watch app profile>" />`. The
   iPhone build then builds the watch app for the same device or simulator, as its companion
   (`WatchiousCompanionAppBundleIdentifier`, which also works on its own), and puts it into the app's `Watch/` folder
-  before signing it; `samples/Watchious.Samples.Phone` does this. It needs a Mac.
+  before signing it; `samples/Watchious.Samples.Phone` does this. It needs a Mac. The watch app's bundle identifier
+  must start with the iPhone app's (the same `ApplicationId` in both projects does that), and the watch project is
+  built only through the iPhone project, not also in parallel in the same solution build.
 
 | Package (working names) | MAUI equivalent | Contents |
 |---|---|---|
