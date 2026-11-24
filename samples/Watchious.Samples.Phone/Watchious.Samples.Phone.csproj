@@ -24,4 +24,12 @@
     <PackageReference Include="Plugin.Maui.WearableMessaging" Version="0.6.5" />
   </ItemGroup>
 
+  <!-- iOS: the Counter watch app inside this app, as its companion. On a device, WatchiousWatchAppProvision is the watch
+       app's provisioning profile (a path or an installed profile's UUID). -->
+  <Import Project="..\..\src\Watchious.Sdk\build\Watchious.Sdk.Companion.targets" />
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <WatchiousWatchApp Include="..\Watchious.Samples.Counter.App\Watchious.Samples.Counter.App.csproj"
+                       CodesignProvision="$(WatchiousWatchAppProvision)" />
+  </ItemGroup>
+
 </Project>

@@ -264,12 +264,16 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
 - The repository itself still builds with .NET 10 (`net10.0-*`) until .NET 11 is installed on its
   development machines. The Wear OS libraries come from Gradle first: `./gradlew assembleRelease` in
   `platforms/WearOS` (with Android Studio's JDK) also writes the POMs and binding jars the .NET projects read.
-- **Companion apps:** a watch app can ship inside a .NET iPhone app (for example a MAUI app) using the
-  `AdditionalWatchOSApp` item that dotnet/macios is adding in
-  https://github.com/dotnet/macios/pull/27284 (still open). `WatchiousCompanionAppBundleIdentifier=<the iPhone
-  app's bundle identifier>` already builds the watch app as that app's companion instead of a watch-only app.
-  ⚠️ Installed on its own, next to the iPhone app, it still can't use WatchConnectivity (tried on a real watch):
-  iOS connects the two only when the watch app came inside the iPhone app.
+- **Companion apps:** a watch app can ship inside a .NET iPhone app (for example a MAUI app), which
+  WatchConnectivity needs: iOS connects the two only when the watch app came inside the iPhone app (tried on a real
+  watch). Until .NET for iOS's `AdditionalWatchOSApp` item (https://github.com/dotnet/macios/pull/27284, still open)
+  ships, the iPhone project imports Watchious.Sdk's `build/Watchious.Sdk.Companion.targets` and names the watch
+  project: `<WatchiousWatchApp Include="..\MyWatch\MyWatch.csproj" CodesignProvision="<watch app profile>" />`. The
+  iPhone build then builds the watch app for the same device or simulator, as its companion
+  (`WatchiousCompanionAppBundleIdentifier`, which also works on its own), and puts it into the app's `Watch/` folder
+  before signing it; `samples/Watchious.Samples.Phone` does this. It needs a Mac. The watch app's bundle identifier
+  must start with the iPhone app's (the same `ApplicationId` in both projects does that), and the watch project is
+  built only through the iPhone project, not also in parallel in the same solution build.
 
 | Package (working names) | MAUI equivalent | Contents |
 |---|---|---|

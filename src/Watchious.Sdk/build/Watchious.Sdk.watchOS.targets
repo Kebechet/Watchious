@@ -115,6 +115,14 @@
           EnvironmentVariables="WATCHIOUS_APP=$(MSBuildProjectDirectory)/$(_AppBundlePath);WATCHIOUS_SDK_NAME=$(_WatchiousSdkName);WATCHIOUS_MIN_OS=$(WatchiousMinimumWatchOSVersion);WATCHIOUS_BUNDLE_ID=$(WatchiousBundleIdentifier);WATCHIOUS_INFO_PLIST=$(_WatchiousInfoPlist);WATCHIOUS_ASSETS=$(_WatchiousAssets);WATCHIOUS_WORK_DIR=$(_WatchiousWorkDirectory);WATCHIOUS_SIGN_IDENTITY=$(CodesignKey);WATCHIOUS_PROFILE=$(_WatchiousProfile);WATCHIOUS_ENTITLEMENTS=$(_WatchiousEntitlements);WATCHIOUS_COMPANION_ID=$(WatchiousCompanionAppBundleIdentifier)" />
   </Target>
 
+  <!-- The built watch app, for an iPhone project that embeds it (Watchious.Sdk.Companion.targets). -->
+  <Target Name="WatchiousGetWatchApp" DependsOnTargets="_GenerateBundleName" Returns="@(_WatchiousBuiltWatchApp)">
+    <ItemGroup>
+      <_WatchiousBuiltWatchApp Include="$(MSBuildProjectDirectory)/$(_AppBundlePath.TrimEnd('/').TrimEnd('\'))"
+                               BundleIdentifier="$(WatchiousBundleIdentifier)" />
+    </ItemGroup>
+  </Target>
+
   <!-- App Store package: dotnet build -f net*-watchos -r ios-arm64 -p:BuildIpa=true with CodesignKey,
        CodesignProvision (the watch app's App Store profile) and WatchiousContainerProvision (the stub's). -->
   <Target Name="CreateIpa" Condition="'$(BuildIpa)' == 'true'" DependsOnTargets="_WatchiousCompleteWatchApp">
