@@ -5,8 +5,8 @@ struct ListNodeView: View {
     let store: WatchiousStore
 
     var body: some View {
-        // Blank text between the rows' markup would otherwise become empty rows.
-        List(node.children.filter { !$0.isBlankText }) { row in
+        // Blank text between the rows' markup, and Wear OS's own controls, would otherwise become empty rows.
+        List(node.children.filter { !$0.isBlankText && !$0.type.hasPrefix("Wear.") }) { row in
             NodeView(node: row, store: store)
         }
     }
@@ -99,6 +99,54 @@ struct TextFieldNode: View {
                 store.dispatch(eventHandlerId, "changed", value: text)
             }
         )
+    }
+}
+
+// SwiftUI's Gauge (Apple.Gauge in C#). C# keeps Value within From and Through.
+struct GaugeNode: View {
+    let node: UiNode
+
+    var body: some View {
+        let from = number("From") ?? 0
+        let through = max(number("Through") ?? 1, from)
+        let value = min(max(number("Value") ?? from, from), through)
+        let gauge = Gauge(value: value, in: from...through) {
+            Text(node.attribute("Text") ?? "")
+        } currentValueLabel: {
+            optionalText("CurrentValueText")
+        } minimumValueLabel: {
+            optionalText("MinimumText")
+        } maximumValueLabel: {
+            optionalText("MaximumText")
+        }
+        switch node.attribute("Style") {
+        case "Circular":
+            gauge.gaugeStyle(.accessoryCircular)
+        case "CircularCapacity":
+            gauge.gaugeStyle(.accessoryCircularCapacity)
+        case "Linear":
+            gauge.gaugeStyle(.accessoryLinear)
+        case "LinearCapacity":
+            gauge.gaugeStyle(.linearCapacity)
+        case "Automatic", nil:
+            gauge
+        case let style?:
+            gauge
+                .onAppear {
+                    reportUnknownValue(style, of: "Style", on: node.type)
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func optionalText(_ attribute: String) -> some View {
+        if let text = node.attribute(attribute), !text.isEmpty {
+            Text(text)
+        }
+    }
+
+    private func number(_ name: String) -> Double? {
+        node.attribute(name).flatMap(Double.init)
     }
 }
 

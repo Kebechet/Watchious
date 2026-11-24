@@ -41,7 +41,6 @@ import androidx.wear.compose.material3.LinearProgressIndicator
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Picker
 import androidx.wear.compose.material3.PickerDefaults
-import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.rememberPickerState
 
@@ -49,8 +48,9 @@ import androidx.wear.compose.material3.rememberPickerState
 internal fun WatchList(node: UiNode, dispatch: EventDispatch) {
     val state = rememberTransformingLazyColumnState()
     val crown = rememberScreenCrown()
-    val rows = node.children.filterNot { it.isBlankText() }
-    ScreenScaffold(scrollState = state) { contentPadding: PaddingValues ->
+    // Apple's own controls, and the ones on the screen's edges, would otherwise become empty rows.
+    val rows = node.children.filterNot { it.isBlankText() || it.isAppleOnly() || it.isScreenEdge() }
+    EdgesScreenScaffold(state, dispatch) { contentPadding: PaddingValues ->
         CompositionLocalProvider(LocalScreenCrown provides crown) {
             // The list's own crown handling, like ScrollView's, so that it can let a Picker have the crown.
             TransformingLazyColumn(

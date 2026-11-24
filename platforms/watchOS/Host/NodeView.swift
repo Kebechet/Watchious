@@ -41,6 +41,11 @@ struct NodeView: View {
             TextFieldNode(node: node, store: store)
         case "DigitalCrownRotation":
             DigitalCrownRotationNode(node: node, store: store)
+        case "Apple.Gauge":
+            GaugeNode(node: node)
+        // Wear OS's own controls (the Wear namespace in C#) have no place on watchOS.
+        case let type where type.hasPrefix("Wear."):
+            EmptyView()
         case "Toggle":
             if let text = node.attribute("Text"), !text.isEmpty {
                 Toggle(text, isOn: isOnBinding)
