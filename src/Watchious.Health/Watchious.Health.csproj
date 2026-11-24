@@ -12,6 +12,9 @@
     <PackageId>Kebechet.Watchious.Health</PackageId>
     <Description>Watchious's health: permissions and live workouts with heart rate, HealthKit on watchOS and Health Services on Wear OS, with Kebechet.Maui.Health's types (Kebechet.Types.Health).</Description>
     <PackageTags>$(PackageTags);health;healthkit;health-services;workout;heart-rate</PackageTags>
+    <!-- The package bundles Health Services (Apache-2.0) and the protobuf runtime it repackages (BSD-3-Clause):
+         THIRD-PARTY-NOTICES.txt. -->
+    <PackageLicenseExpression>MIT AND Apache-2.0 AND BSD-3-Clause</PackageLicenseExpression>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -66,6 +69,7 @@
   <ItemGroup>
     <None Include="watchOS\*.swift" Pack="true" PackagePath="host/watchOS/" />
     <None Include="build\Kebechet.Watchious.Health.targets" Pack="true" PackagePath="build\;buildTransitive\" />
+    <None Include="THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="" />
   </ItemGroup>
 
   <ItemGroup>
