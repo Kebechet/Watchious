@@ -8,11 +8,14 @@
 #   - an app with Central Package Management restores (the SDK's implicit references, NU1008 otherwise), also when
 #     Directory.Packages.props versions the packages the SDK adds, for another project (NU1009 otherwise);
 #   - Kebechet.Watchious.Health and .Messaging add their Swift files to the watchOS host (WatchiousWatchOSHostSource);
-#   - the app builds for net10.0 (the desktop preview), and for net10.0-android in Release (R8), with the optional
-#     packages;
-#   - with --watchos (macOS only), it builds for the watchOS simulator instead of Wear OS, with the optional packages,
-#     and their Swift files go into the watch app. That build needs Xcode and the ios workload; the Wear OS one a JDK
-#     and the Android SDK. All restores need the android workload, since the template targets Wear OS everywhere.
+#   - the app builds for net10.0 (the desktop preview), and the built preview and inspector serve their pages;
+#   - the app builds for net10.0-android in Release (R8), with the optional packages and the code the packages' READMEs
+#     show (registering Messaging and Health, injecting their services and an Essentials one);
+#   - with --watchos (macOS only), it builds for the watchOS simulator instead of Wear OS, with the optional packages
+#     and that code, and their Swift files go into the watch app; and an untested .NET for iOS version fails the build
+#     with WATCHIOUS003 unless WatchiousAllowUntestedIOSSdk is true (the SDK's README). That build needs Xcode and the
+#     ios workload; the Wear OS one a JDK and the Android SDK. All restores need the android workload, since the
+#     template targets Wear OS everywhere.
 # Runs in bash on Linux and macOS and in Git Bash on Windows:
 #
 #   .github/scripts/package-smoke.sh [--watchos] <package folder> <version> [work folder, default a new temp folder]
@@ -140,6 +143,30 @@ run() {
     "$@" 2>&1 | tee "$LOGS/$log.log"
 }
 
+# Starts a built app in the background and waits up to a minute for its page at the URL to contain the text; then
+# stops the app.
+check_served() {
+    local log="$1" url="$2" text="$3" pid served=false
+    shift 3
+    echo "== $* ($url)"
+    "$@" > "$LOGS/$log.log" 2>&1 &
+    pid=$!
+    for _ in $(seq 1 60); do
+        if curl -sf "$url" 2>/dev/null | grep -qF "$text"; then
+            served=true
+            break
+        fi
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 1
+    done
+    # Still running: the page came from this app, not from another one already on the port.
+    kill -0 "$pid" 2>/dev/null || served=false
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    [ "$served" = true ] || fail "$url didn't serve a page with '$text' (log: $LOGS/$log.log)."
+    echo "== $url served its page"
+}
+
 property() {
     "$DOTNET" msbuild "$1" -nologo "-getProperty:$2" "${@:3}" | tr -d '\r'
 }
@@ -184,6 +211,15 @@ printf '%s' "$sdk_directory" | tr '\\' '/' | grep -qi "kebechet.watchious.sdk/$V
     || fail "the SDK isn't the package: WatchiousSdkDirectory is '$sdk_directory'."
 echo "== the SDK is the package: $sdk_directory"
 run build-preview "$DOTNET" build "$APP1" -f net10.0 -nologo
+# dotnet run -f net10.0 [-- --inspector] (Kebechet.Watchious.Preview's README), on ports of their own (-- --urls=...).
+preview_app="$WORK_ABS/WatchiousApp1/bin/Debug/net10.0/WatchiousApp1.dll"
+[ -f "$preview_app" ] || fail "the preview build made no $preview_app."
+check_served run-preview http://localhost:5390/ '<title>Watchious preview</title>' \
+    "$DOTNET" "$preview_app" --no-browser --urls=http://localhost:5390
+check_served run-preview-script http://localhost:5391/preview.js 'function' \
+    "$DOTNET" "$preview_app" --no-browser --urls=http://localhost:5391
+check_served run-inspector http://localhost:5392/ '<title>Watchious inspector</title>' \
+    "$DOTNET" "$preview_app" --inspector --no-browser --urls=http://localhost:5392
 
 # 2. With the optional packages, at the SDK's version.
 new_app WatchiousOptional
@@ -194,6 +230,26 @@ add_to_project "$WORK_ABS/WatchiousOptional/WatchiousOptional.csproj" '
     <PackageReference Include="Kebechet.Watchious.Messaging" Version="$(WatchiousVersion)" />
   </ItemGroup>
 '
+# The code the packages' READMEs show.
+program="$WORK_ABS/WatchiousOptional/WatchiousProgram.cs"
+awk '/^using Watchious\.Hosting;/ { print "using Watchious.Health;" }
+     { print }
+     /^using Watchious\.Hosting;/ { print "using Watchious.Messaging;" }
+     /builder\.UseWatchiousApp</ { print "        builder.Services.AddPhoneMessaging();"; print "        builder.Services.AddWatchiousHealth();" }' \
+    "$program" > "$program.new"
+mv "$program.new" "$program"
+grep -q 'AddPhoneMessaging' "$program" && grep -q 'AddWatchiousHealth' "$program" && grep -q '^using Watchious.Health;' "$program" \
+    || fail "the template's WatchiousProgram.cs no longer has the lines the READMEs' registrations go after."
+cat > "$WORK_ABS/WatchiousOptional/ReadmeServices.razor" <<'EOF'
+@using Watchious.Essentials
+@using Watchious.Health
+@using Watchious.Messaging
+@inject IHaptics Haptics
+@inject IHealthService Health
+@inject IPhoneMessaging PhoneMessaging
+
+<Button Text="Done" OnClick="() => Haptics.Play(HapticFeedback.Success)" />
+EOF
 run restore-optional "$DOTNET" restore "$APP2" -nologo
 check_restore WatchiousOptional "${BASE_PACKAGES[@]}" Health Messaging
 host_sources="$("$DOTNET" msbuild "$APP2" -nologo -getItem:WatchiousWatchOSHostSource -p:TargetFramework=net10.0 | tr -d '\r' | tr -s '\\/' '/')"
@@ -211,6 +267,15 @@ if [ "$WATCHOS" != true ]; then
     [ -n "$apks" ] || fail "the Release build for Wear OS made no signed APK."
     echo "== Wear OS Release APK: $apks"
 else
+    # WATCHIOUS003 (Kebechet.Watchious.Sdk's README), with this .NET for iOS made an untested version.
+    untested="$("$DOTNET" msbuild "$APP2" -nologo -t:_WatchiousCheckIOSSdkVersion -p:TargetFramework=net10.0-watchos \
+        -p:WatchiousTestedIOSSdkVersions=0.0.0 2>&1 | tee "$LOGS/watchious003-error.log" || true)"
+    printf '%s\n' "$untested" | grep -q 'error WATCHIOUS003' || fail "an untested .NET for iOS version didn't fail with WATCHIOUS003."
+    run watchious003-allowed "$DOTNET" msbuild "$APP2" -nologo -t:_WatchiousCheckIOSSdkVersion -p:TargetFramework=net10.0-watchos \
+        -p:WatchiousTestedIOSSdkVersions=0.0.0 -p:WatchiousAllowUntestedIOSSdk=true
+    grep -q 'warning WATCHIOUS003' "$LOGS/watchious003-allowed.log" \
+        || fail "WatchiousAllowUntestedIOSSdk=true didn't turn WATCHIOUS003 into a warning."
+    echo "== WATCHIOUS003: an error for an untested .NET for iOS version, a warning with WatchiousAllowUntestedIOSSdk=true"
     run build-watchos "$DOTNET" build "$APP2" -f net10.0-watchos -nologo
     linked="$(find "$WORK_ABS/WatchiousOptional/obj" -path '*net10.0-watchos*' -name host-sources.txt 2>/dev/null | head -1)"
     [ -n "$linked" ] || fail "the watchOS build wrote no host-sources.txt: the watch app wasn't linked."
