@@ -421,8 +421,11 @@ fails unless exactly the 10 `Kebechet.Watchious.*` packages come out. Inside the
 (the samples build the SDK and libraries from source), so `.github/scripts/package-smoke.sh <package folder> <version>`
 tests them in apps made from the template outside the repository: restore, Central Package Management, the optional
 packages' Swift, and builds for the preview and Wear OS in Release (with `--watchos`, on a Mac, for the watchOS
-simulator instead of Wear OS). Pack and test with a throwaway version, a new one each time, such as `0.0.0-smoke.1`: NuGet's cache keeps
-every version it has restored, so the test refuses a version that is already there.
+simulator instead of Wear OS).
+
+⚠️ **Pack and test only with a throwaway version such as `0.0.0-smoke.<n>`, a new one each run, never a real
+version:** NuGet's global packages folder keeps every version it restores, so a locally packed real version would
+later stand in for the published one on that machine, and the test refuses a version that is already there.
 
 - **Single project**, like MAUI, through the Watchious MSBuild SDK:
   ```xml
