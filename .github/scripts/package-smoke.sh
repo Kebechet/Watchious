@@ -5,7 +5,8 @@
 # that clears every other package source, and checks:
 #   - restore takes exactly the Kebechet.Watchious.* packages of this version, and no old Watchious.* id;
 #   - the SDK comes from its package (WatchiousVersion, WatchiousSdkDirectory);
-#   - an app with Central Package Management restores (the SDK's implicit references, NU1008 otherwise);
+#   - an app with Central Package Management restores (the SDK's implicit references, NU1008 otherwise), also when
+#     Directory.Packages.props versions the packages the SDK adds, for another project (NU1009 otherwise);
 #   - Kebechet.Watchious.Health and .Messaging add their Swift files to the watchOS host (WatchiousWatchOSHostSource);
 #   - the app builds for net10.0 (the desktop preview), and for net10.0-android in Release (R8), with the optional
 #     packages;
@@ -221,7 +222,8 @@ else
 fi
 
 # 3. Central Package Management: the SDK's references are implicit, and the app's own come from
-# Directory.Packages.props.
+# Directory.Packages.props. That file also versions the packages the SDK adds, as a solution does when another of its
+# projects, such as a Razor library with the pages, references Kebechet.Watchious.Controls.
 new_app WatchiousCpm
 cat > "$WORK_ABS/WatchiousCpm/Directory.Packages.props" <<EOF
 <Project>
@@ -230,6 +232,10 @@ cat > "$WORK_ABS/WatchiousCpm/Directory.Packages.props" <<EOF
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Kebechet.Watchious.Messaging" Version="$VERSION" />
+    <PackageVersion Include="Kebechet.Watchious.Controls" Version="$VERSION" />
+    <PackageVersion Include="Kebechet.Watchious.Preview" Version="$VERSION" />
+    <PackageVersion Include="Kebechet.Watchious.Hosts.WearOS" Version="$VERSION" />
+    <PackageVersion Include="Kebechet.Watchious.Hosts.watchOS" Version="$VERSION" />
   </ItemGroup>
 </Project>
 EOF

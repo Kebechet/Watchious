@@ -92,6 +92,11 @@
                       Condition="'$(WatchiousTargetPlatform)' == 'watchos'" />
     <PackageReference Include="Kebechet.Watchious.Preview" Version="[$(WatchiousVersion)]" IsImplicitlyDefined="true"
                       Condition="'$(WatchiousIsPreview)' == 'true'" />
+    <!-- Another project of the solution, such as a Razor library with the app's pages, needs a central version of
+         these packages in Directory.Packages.props, but NuGet refuses one for an implicitly defined package (NU1009).
+         So this app drops them; the other projects keep them. -->
+    <PackageVersion Remove="Kebechet.Watchious.Controls;Kebechet.Watchious.Hosts.WearOS;Kebechet.Watchious.Hosts.watchOS;Kebechet.Watchious.Preview"
+                    Condition="'$(ManagePackageVersionsCentrally)' == 'true'" />
   </ItemGroup>
 
   <!-- The preview's Main, which runs the app in the preview page. -->
