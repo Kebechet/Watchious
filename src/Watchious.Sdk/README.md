@@ -96,6 +96,9 @@ An Apple Watch gets the live host signed as the app itself, which it replaces un
 it on a network you trust only. ⚠️ **Keep the watch's screen on:** watchOS suspends an app whose screen is off, the
 live host too.
 
+⚠️ **Tried in the Wear OS emulator and the watchOS simulator only** (from a Mac, and from Windows through a remote Mac),
+not yet on a real watch: neither a Wear OS watch over adb nor an Apple Watch.
+
 ## License
 
 Watchious is MIT-licensed. The Wear OS live host in this package (`live/WearOS/watchious-live.apk`) is built with
