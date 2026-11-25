@@ -10,7 +10,10 @@
 #     Sdk.targets import its build/ files by path;
 #   - each package has its files: the assemblies, the Android libraries, the analyzer, the Swift, and for the SDK and the
 #     template every file of the source folders they pack, plus the SDK's build/Watchious.Sdk.Version.props with the
-#     version;
+#     version and its live hosts (dotnet build -t:WatchiousLive): the watchOS one's sources, and the Wear OS one,
+#     live/WearOS/watchious-live.apk, whose signature is valid and made with the repository's live key
+#     (platforms/WearOS/live/watchious-live.keystore: adb updates an installed app only with the same signature), whose
+#     versionName is the version, and which kept the Rounded Material icons that MaterialIcon looks up by name;
 #   - the template's app names the SDK by the token WATCHIOUS_SDK_VERSION, and its template.json is the source one with
 #     the version as the default that replaces it; no WATCHIOUS_SDK_VERSION_VALUE is left anywhere in the package;
 #   - nuget.org's page of each package: its README.md (the one in its project folder, titled with its id, with no
@@ -19,29 +22,37 @@
 #     repository commit;
 #   - the license: MIT, and for a package that bundles another project's binaries, the expression this script names
 #     plus a THIRD-PARTY-NOTICES.txt that names each of them: every Maven library its project downloads
-#     (AndroidMavenLibrary), every Android library in it that isn't Watchious's own, and every native library inside one.
-#     An MIT package must bundle none;
+#     (AndroidMavenLibrary), every Android library in it that isn't Watchious's own, every native library inside one,
+#     and in an Android app (the SDK's live host) every AndroidX and kotlinx library at the version the app records, and
+#     the Kotlin standard library. An MIT package must bundle none;
 #   - a symbol package (.snupkg) with the .pdb of each assembly for the 8 packages with assemblies, and none for the SDK
 #     and the template, which have no assembly (a symbol package of nothing fails their pack: NU5017).
-# Runs in bash on Linux and macOS and in Git Bash on Windows; it needs unzip, and the android workload to evaluate the
-# Android projects:
+# Runs in bash on Linux and macOS and in Git Bash on Windows; it needs unzip, the android workload to evaluate the
+# Android projects, a JDK (keytool, and java for apksigner) and the Android SDK's build tools (apksigner, aapt2):
 #
-#   .github/scripts/check-packages.sh <package folder> <version>
+#   .github/scripts/check-packages.sh <package folder> <version> [work folder, default a new temp folder]
 #
-#   DOTNET  dotnet to evaluate the projects with (default: dotnet)
+#   DOTNET        dotnet to evaluate the projects with (default: dotnet)
+#   JAVA_HOME     the JDK, unless java and keytool are on the PATH
+#   ANDROID_HOME  the Android SDK (or ANDROID_SDK_ROOT), unless platforms/WearOS/local.properties sets sdk.dir; its
+#                 newest build tools are used
+# The work folder gets the live host's APK, unpacked from the SDK package, for apksigner and aapt2.
 set -euo pipefail
 # sort and comm must order the file lists alike.
 export LC_ALL=C
 
-if [ $# -ne 2 ]; then
-    echo "usage: $0 <package folder> <version>" >&2
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+    echo "usage: $0 <package folder> <version> [work folder]" >&2
     exit 2
 fi
 FEED="$1"
 VERSION="$2"
+WORK="${3:-}"
 DOTNET="${DOTNET:-dotnet}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 [ -d "$FEED" ] || { echo "::error::check packages: no package folder $FEED." >&2; exit 1; }
+[ -n "$WORK" ] || WORK="$(mktemp -d "${TMPDIR:-/tmp}/watchious-check-packages.XXXXXX")"
+mkdir -p "$WORK"
 
 ERRORS=()
 # A list of lines as one line, for a message.
@@ -166,6 +177,107 @@ native_hint() {
     fi
 }
 
+# What an Android app in the package (the SDK's live host) bundles, one per line as its THIRD-PARTY-NOTICES.txt names
+# it: each AndroidX library at the version it records in the app (META-INF/<group>_<artifact>.version; only its id when
+# that file holds no version, as androidx.arch.core:core-runtime's), kotlinx.coroutines likewise
+# (META-INF/kotlinx_coroutines_<module>.version), the Kotlin standard library and each native library.
+apk_libraries() {
+    local apk file library version entries
+    for apk in $(printf '%s\n' "$ENTRIES" | grep -E '\.apk$' || true); do
+        unzip -o -q "$PACKAGE" "$apk" -d "$WORK/$id"
+        entries="$(unzip -Z1 "$WORK/$id/$apk" | tr -d '\r')"
+        for file in $(printf '%s\n' "$entries" | grep -E '^META-INF/(androidx\.[^/]+|kotlinx_coroutines_[^/]+)\.version$' || true); do
+            library="${file#META-INF/}"
+            library="${library%.version}"
+            case "$library" in
+                kotlinx_coroutines_*) library="org.jetbrains.kotlinx:kotlinx-coroutines-${library#kotlinx_coroutines_}" ;;
+                *) library="${library%%_*}:${library#*_}" ;;
+            esac
+            version="$(unzip -p "$WORK/$id/$apk" "$file" | tr -d '\r\n')"
+            if [[ "$version" =~ ^[0-9][0-9A-Za-z.+-]*$ ]]; then
+                echo "$library:$version"
+            else
+                echo "$library:"
+            fi
+        done
+        if printf '%s\n' "$entries" | grep -qxF kotlin/kotlin.kotlin_builtins; then
+            echo "org.jetbrains.kotlin:kotlin-stdlib:"
+        fi
+        printf '%s\n' "$entries" | grep -E '^lib/[^/]+/[^/]+\.so$' | sed 's|.*/||' || true
+    done | sort -u
+}
+
+# The newest build tools of the Android SDK, for apksigner and aapt2.
+android_build_tools() {
+    local sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}" properties="$ROOT/platforms/WearOS/local.properties" version
+    if [ -z "$sdk" ] && [ -f "$properties" ]; then
+        # local.properties escapes : and \ (sdk.dir=C\:\\Users\\...).
+        sdk="$(sed -n 's/^sdk\.dir=//p' "$properties" | tr -d '\r' | sed 's/\\\(.\)/\1/g')"
+    fi
+    if [ -n "$sdk" ] && [ -d "$sdk/build-tools" ]; then
+        version="$(ls "$sdk/build-tools" | sort -V | tail -1)"
+        [ -z "$version" ] || printf '%s\n' "$sdk/build-tools/$version"
+    fi
+}
+BUILD_TOOLS="$(android_build_tools)"
+
+# A build tool by its name: on Windows apksigner is a .bat file and aapt2 an .exe.
+build_tool() {
+    local candidate
+    [ -n "$BUILD_TOOLS" ] || return 0
+    for candidate in "$BUILD_TOOLS/$1" "$BUILD_TOOLS/$1.bat" "$BUILD_TOOLS/$1.exe"; do
+        if [ -f "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+}
+
+KEYTOOL=keytool
+[ -z "${JAVA_HOME:-}" ] || KEYTOOL="$JAVA_HOME/bin/keytool"
+
+# The SHA-256 digest of the live key's certificate, in lowercase hex. The keystore's password and alias are the ones
+# platforms/WearOS/live/build.gradle.kts signs with.
+live_key_digest() {
+    local gradle="$ROOT/platforms/WearOS/live/build.gradle.kts" password alias
+    password="$(sed -n 's/.*storePassword = "\([^"]*\)".*/\1/p' "$gradle")"
+    alias="$(sed -n 's/.*keyAlias = "\([^"]*\)".*/\1/p' "$gradle")"
+    "$KEYTOOL" -list -v -keystore "$ROOT/platforms/WearOS/live/watchious-live.keystore" -storetype PKCS12 \
+        -storepass "$password" -alias "$alias" 2>/dev/null | tr -d '\r' \
+        | sed -n 's/^[[:space:]]*SHA256: //p' | tr -d ':' | tr '[:upper:]' '[:lower:]' || true
+}
+
+# The SDK's Wear OS live host: a valid signature made with the live key, the version as its versionName, and the Rounded
+# Material icons kept, which MaterialIcon looks up by name (two that no code of the host names stand for them all).
+check_live_apk() {
+    local apk="$WORK/$id/live/WearOS/watchious-live.apk" apksigner aapt2 signature digest expected version_name icons
+    if ! unzip -o -q "$PACKAGE" live/WearOS/watchious-live.apk -d "$WORK/$id"; then
+        error "$id has no live/WearOS/watchious-live.apk."
+        return 0
+    fi
+    apksigner="$(build_tool apksigner)"
+    aapt2="$(build_tool aapt2)"
+    if [ -z "$apksigner" ] || [ -z "$aapt2" ]; then
+        error "$id: no apksigner and aapt2 to check its live host with: set ANDROID_HOME to an Android SDK with build tools."
+        return 0
+    fi
+    if ! signature="$("$apksigner" verify --print-certs "$apk" 2>&1 | tr -d '\r')"; then
+        error "$id: live/WearOS/watchious-live.apk has no valid signature: $(words "$signature")"
+        return 0
+    fi
+    digest="$(printf '%s\n' "$signature" | grep -oiE 'certificate SHA-256 digest: [0-9a-f]+' | sed 's/.*: //' | tr '[:upper:]' '[:lower:]' | sort -u || true)"
+    expected="$(live_key_digest)"
+    if [ -z "$expected" ]; then
+        error "$id: the live key's certificate couldn't be read from platforms/WearOS/live/watchious-live.keystore (keytool: $KEYTOOL)."
+    elif [ "$digest" != "$expected" ]; then
+        error "$id: live/WearOS/watchious-live.apk is signed with the certificate $(words "$digest"), not with the live key's $expected (platforms/WearOS/live/watchious-live.keystore)."
+    fi
+    version_name="$("$aapt2" dump badging "$apk" | tr -d '\r' | sed -n "s/^package: .* versionName='\([^']*\)'.*/\1/p")"
+    [ "$version_name" = "$VERSION" ] || error "$id: the live host's versionName is '$version_name', not $VERSION."
+    icons="$(unzip -p "$apk" 'classes*.dex' | grep -aoE 'Landroidx/compose/material/icons/(rounded/Hiking|automirrored/rounded/Article)Kt;' | sort -u | wc -l | tr -d ' ')"
+    [ "$icons" = 2 ] || error "$id: R8 dropped Rounded Material icons from the live host (Icons.Rounded.Hiking, Icons.AutoMirrored.Rounded.Article): check platforms/WearOS/live/proguard-rules.pro."
+}
+
 ANDROID_LIB='lib/net10\.0-android[0-9.]+'
 BACKSLASH=$'\\'
 
@@ -241,6 +353,11 @@ for id in "${IDS[@]}"; do
             expect_exactly "$id" build/ "$(source_files "$ROOT/src/$name/build"; echo Watchious.Sdk.Version.props)"
             expect_exactly "$id" tools/ "$(source_files "$ROOT/src/$name/tools")"
             expect_exactly "$id" host/watchOS/ "$(source_files "$ROOT/platforms/watchOS/Host")"
+            expect_exactly "$id" live/watchOS/ "$(source_files "$ROOT/platforms/watchOS/Live")"
+            expect_exactly "$id" live/WearOS/ watchious-live.apk
+            check_live_apk
+            # The Wear OS live host's AndroidX, Kotlin and other libraries.
+            license='MIT AND Apache-2.0'
             # The version the SDK adds its packages at, its own, written at pack time.
             version_props="$(unzip -p "$PACKAGE" build/Watchious.Sdk.Version.props 2>/dev/null | tr -d '\r' || true)"
             printf '%s\n' "$version_props" | grep -qF "<WatchiousVersion>$VERSION</WatchiousVersion>" \
@@ -307,7 +424,7 @@ for id in "${IDS[@]}"; do
 
     printf '%s\n' "$nuspec" | grep -qF "<license type=\"expression\">$license</license>" \
         || error "$id: its license isn't the expression '$license': $(printf '%s\n' "$nuspec" | grep -oE '<license[^<]*</license>' || echo none)."
-    bundled="$(maven_libraries "$ROOT/src/$name/$name.csproj"; bundled_binaries)"
+    bundled="$(maven_libraries "$ROOT/src/$name/$name.csproj"; bundled_binaries; apk_libraries)"
     notices="$(unzip -p "$PACKAGE" THIRD-PARTY-NOTICES.txt 2>/dev/null | tr -d '\r' || true)"
     if [ "$license" = MIT ]; then
         [ -z "$bundled" ] || error "$id bundles other projects' binaries but its license is MIT alone: $(words "$bundled"). Name them and their licenses in a THIRD-PARTY-NOTICES.txt, and set the expression in the project and here.$(native_hint "$bundled")"

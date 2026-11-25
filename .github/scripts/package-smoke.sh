@@ -20,7 +20,12 @@
 #     and that code, and their Swift files go into the watch app; and an untested .NET for iOS version fails the build
 #     with WATCHIOUS003 unless WatchiousAllowUntestedIOSSdk is true (the SDK's README). That build needs Xcode and the
 #     ios workload; the Wear OS one a JDK and the Android SDK. All restores need the android workload, since the
-#     template targets Wear OS everywhere.
+#     template targets Wear OS everywhere;
+#   - live mode (dotnet build -t:WatchiousLive) takes its hosts from the SDK package; for the preview it says which
+#     target framework to run it for, and for an Apple Watch it refuses a localhost address. On Wear OS it finds adb and
+#     asks it for the device it is given, one that doesn't exist, so that no emulator or watch connected here is
+#     touched; with --watchos it builds the watchOS live host for the simulator from the SDK package's sources, without
+#     starting it.
 # Runs in bash on Linux and macOS and in Git Bash on Windows:
 #
 #   .github/scripts/package-smoke.sh [--watchos] <package folder> <version> [work folder, default a new temp folder]
@@ -183,6 +188,18 @@ property() {
     "$DOTNET" msbuild "$1" -nologo "-getProperty:$2" "${@:3}" | tr -d '\r'
 }
 
+# Runs a command that must fail, with the text in its output.
+expect_failure() {
+    local log="$1" text="$2"
+    shift 2
+    echo "== $* (must fail)"
+    if "$@" > "$LOGS/$log.log" 2>&1; then
+        fail "'$*' succeeded, but it must fail (log: $LOGS/$log.log)."
+    fi
+    grep -qF -- "$text" "$LOGS/$log.log" || fail "'$*' failed without '$text' (log: $LOGS/$log.log)."
+    echo "== it failed with: $text"
+}
+
 # Every Kebechet.Watchious.* package in the restore is of this version, the set is exactly the expected one, and no
 # old Watchious.* id is there (an id the rename missed, which anyone could publish on nuget.org).
 check_restore() {
@@ -342,5 +359,33 @@ echo "== an app from the template's source folder names no SDK version, and its 
 new_app WatchiousFromSourceVersion "$TEMPLATE_SOURCE_HIVE" "$VERSION" --sdk-version "$VERSION"
 run restore-from-source-version "$DOTNET" restore "$WORK/WatchiousFromSourceVersion/WatchiousFromSourceVersion.csproj" -nologo
 check_restore WatchiousFromSourceVersion "${BASE_PACKAGES[@]}"
+
+# 5. Live mode: dotnet build -t:WatchiousLive starts a live host, which comes from the SDK package.
+live_apk="$(property "$APP1" WatchiousWearOSLiveApk -p:TargetFramework=net10.0-android | tr '\\' '/')"
+printf '%s' "$live_apk" | grep -qi "kebechet.watchious.sdk/$VERSION_LOWER/live/WearOS/watchious-live\.apk\$" && [ -f "$live_apk" ] \
+    || fail "the Wear OS live host isn't the SDK package's: WatchiousWearOSLiveApk is '$live_apk'."
+live_sources="$(property "$APP1" WatchiousWatchOSLiveDirectory -p:TargetFramework=net10.0 | tr '\\' '/')"
+printf '%s' "$live_sources" | grep -qi "kebechet.watchious.sdk/$VERSION_LOWER/live/watchOS/\$" \
+    && [ -f "$live_sources/LiveRuntime.swift" ] && [ -f "$live_sources/Info.plist" ] \
+    || fail "the watchOS live host's sources aren't the SDK package's: WatchiousWatchOSLiveDirectory is '$live_sources'."
+echo "== the live hosts are the SDK package's: $live_apk, $live_sources"
+expect_failure live-preview "WatchiousLive starts the live host on a watch" \
+    "$DOTNET" build "$APP1" -t:WatchiousLive -f net10.0 -nologo
+expect_failure live-watch-url "an Apple Watch can't reach the app at http://localhost:5293" \
+    "$DOTNET" msbuild "$APP1" -nologo -t:_WatchiousCheckLiveWatchUrl -p:TargetFramework=net10.0-watchos -p:RuntimeIdentifier=ios-arm64
+if [ "$WATCHOS" != true ]; then
+    expect_failure live-wearos "adb can't reach watchious-smoke-no-device" \
+        "$DOTNET" build "$APP1" -t:WatchiousLive -f net10.0-android -p:Device=watchious-smoke-no-device -nologo
+else
+    run live-watchos "$DOTNET" build "$APP2" -t:_WatchiousBuildLiveWatchApp -f net10.0-watchos -nologo
+    live_app="$(find "$WORK_ABS/WatchiousOptional/obj" -path '*net10.0-watchos*' -name WatchiousLive.app -type d 2>/dev/null | head -1)"
+    [ -n "$live_app" ] || fail "the watchOS live host wasn't built (no WatchiousLive.app in obj)."
+    codesign --verify "$live_app" || fail "the watchOS live host $live_app isn't signed."
+    live_bundle_id="$(plutil -extract CFBundleIdentifier raw "$live_app/Info.plist")"
+    live_platform="$(plutil -extract CFBundleSupportedPlatforms.0 raw "$live_app/Info.plist")"
+    [ "$live_bundle_id" = com.kebechet.watchious.live ] && [ "$live_platform" = WatchSimulator ] \
+        || fail "the watchOS live host is $live_bundle_id for $live_platform, not com.kebechet.watchious.live for WatchSimulator."
+    echo "== watchOS live host for the simulator: $live_app"
+fi
 
 echo "== package smoke passed: $VERSION (logs in $LOGS)"
