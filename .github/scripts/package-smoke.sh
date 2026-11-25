@@ -22,10 +22,10 @@
 #     ios workload; the Wear OS one a JDK and the Android SDK. All restores need the android workload, since the
 #     template targets Wear OS everywhere;
 #   - live mode (dotnet build -t:WatchiousLive) takes its hosts from the SDK package; for the preview it says which
-#     target framework to run it for, and for an Apple Watch it refuses a localhost address. On Wear OS it finds adb and
-#     asks it for the device it is given, one that doesn't exist, so that no emulator or watch connected here is
-#     touched; with --watchos it builds the watchOS live host for the simulator from the SDK package's sources, without
-#     starting it.
+#     target framework to run it for, and how to start the app on the port it is given (WatchiousLivePort), and for
+#     an Apple Watch it refuses a localhost address. On Wear OS it finds adb and asks it for the device it is given,
+#     one that doesn't exist, so that no emulator or watch connected here is touched, and adb answers; with --watchos
+#     it builds the watchOS live host for the simulator from the SDK package's sources, without starting it.
 # Runs in bash on Linux and macOS and in Git Bash on Windows:
 #
 #   .github/scripts/package-smoke.sh [--watchos] <package folder> <version> [work folder, default a new temp folder]
@@ -370,7 +370,10 @@ printf '%s' "$live_sources" | grep -qi "kebechet.watchious.sdk/$VERSION_LOWER/li
     || fail "the watchOS live host's sources aren't the SDK package's: WatchiousWatchOSLiveDirectory is '$live_sources'."
 echo "== the live hosts are the SDK package's: $live_apk, $live_sources"
 expect_failure live-preview "WatchiousLive starts the live host on a watch" \
-    "$DOTNET" build "$APP1" -t:WatchiousLive -f net10.0 -nologo
+    "$DOTNET" build "$APP1" -t:WatchiousLive -f net10.0 -p:WatchiousLivePort=5300 -nologo
+grep -qF "dotnet run -f net10.0 -- --live --urls=http://localhost:5300" "$LOGS/live-preview.log" \
+    || fail "-t:WatchiousLive -p:WatchiousLivePort=5300 doesn't tell to start the app on port 5300 (log: $LOGS/live-preview.log)."
+echo "== it tells to start the app on its port: dotnet run -f net10.0 -- --live --urls=http://localhost:5300"
 expect_failure live-watch-url "an Apple Watch can't reach the app at http://localhost:5293" \
     "$DOTNET" msbuild "$APP1" -nologo -t:_WatchiousCheckLiveWatchUrl -p:TargetFramework=net10.0-watchos -p:RuntimeIdentifier=ios-arm64
 if [ "$WATCHOS" != true ]; then

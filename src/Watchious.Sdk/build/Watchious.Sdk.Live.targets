@@ -6,7 +6,8 @@
     dotnet build -t:WatchiousLive -f net10.0-watchos      the watchOS simulator (on a Mac, or a remote Mac from Windows)
     dotnet build -t:WatchiousLive -f net10.0-watchos -r ios-arm64 -p:WatchiousDevice=<watch>   an Apple Watch
   The live host retries until it reaches the app, so either can start first.
-    WatchiousLivePort   the live server's port (default 5293, Kebechet.Watchious.Preview's)
+    WatchiousLivePort   the live server's port (default 5293, Kebechet.Watchious.Preview's); with another one the app
+                        has to listen on it too, as the target's messages say
     WatchiousLiveUrl    where the live host reaches the server (default http://localhost:<port>): on Wear OS through adb
                         reverse, in the simulator on its Mac (from Windows through an ssh tunnel). An Apple Watch needs
                         the computer's address on the network.
@@ -19,6 +20,10 @@
   <PropertyGroup>
     <WatchiousLivePort Condition="'$(WatchiousLivePort)' == ''">5293</WatchiousLivePort>
     <WatchiousLiveUrl Condition="'$(WatchiousLiveUrl)' == ''">http://localhost:$(WatchiousLivePort)</WatchiousLiveUrl>
+    <!-- The messages' command that starts the app: on another port than the live server's default, the app has to
+         listen there too. -->
+    <_WatchiousLiveAppCommand>dotnet run -f net10.0 -- --live</_WatchiousLiveAppCommand>
+    <_WatchiousLiveAppCommand Condition="'$(WatchiousLivePort)' != '5293'">$(_WatchiousLiveAppCommand) --urls=http://localhost:$(WatchiousLivePort)</_WatchiousLiveAppCommand>
     <!-- Watchious.Sdk.watchOS.targets and Watchious.Sdk.watchOS.Remote.targets set it for watchOS. .NET for Android
          turns an app's OutputType Exe into Library, and marks it with AndroidApplication. -->
     <_WatchiousLiveDependsOn Condition="'$(WatchiousTargetPlatform)' == 'android' And '$(AndroidApplication)' == 'true'">_WatchiousLiveWearOS</_WatchiousLiveDependsOn>
@@ -26,7 +31,7 @@
 
   <Target Name="WatchiousLive" DependsOnTargets="$(_WatchiousLiveDependsOn)">
     <Error Condition="'$(_WatchiousLiveDependsOn)' == ''"
-           Text="Watchious: WatchiousLive starts the live host on a watch, an emulator or a simulator: run it for the app's Wear OS or watchOS target framework (-f net10.0-android or -f net10.0-watchos). The app itself runs on this computer: dotnet run -f net10.0 -- --live" />
+           Text="Watchious: WatchiousLive starts the live host on a watch, an emulator or a simulator: run it for the app's Wear OS or watchOS target framework (-f net10.0-android or -f net10.0-watchos). The app itself runs on this computer: $(_WatchiousLiveAppCommand)" />
   </Target>
 
   <!-- A real Apple Watch reaches the app over the network: localhost would be the watch itself. -->
@@ -94,7 +99,7 @@
     </Exec>
     <Error Condition="$(_WatchiousAdbOutput.Contains('Error'))" Text="Watchious: the live host didn't start on $(_WatchiousLiveDevice): $(_WatchiousAdbOutput)" />
     <Message Importance="high"
-             Text="Watchious live: Watchious Live runs on $(_WatchiousLiveDevice) and shows the app running at $(WatchiousLiveUrl) on this computer (adb reverse tcp:$(WatchiousLivePort)). Start it, if it isn't running: dotnet run -f net10.0 -- --live" />
+             Text="Watchious live: Watchious Live runs on $(_WatchiousLiveDevice) and shows the app running at $(WatchiousLiveUrl) on this computer (adb reverse tcp:$(WatchiousLivePort)). Start it, if it isn't running: $(_WatchiousLiveAppCommand)" />
   </Target>
 
 </Project>

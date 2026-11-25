@@ -210,7 +210,7 @@
     <Exec Command="bash &quot;$(WatchiousToolsDirectory)run-watch-app.sh&quot; $(_WatchiousRunMode) &quot;$(_WatchiousLiveApp)&quot; $(_WatchiousLiveBundleIdentifier) &quot;$(WatchiousDevice)&quot;"
           EnvironmentVariables="WATCHIOUS_LAUNCH_ARGUMENTS=--watchious-live=$(WatchiousLiveUrl) $(WatchiousLaunchArguments)" />
     <Message Condition="'$(_SdkIsSimulator)' == 'true'" Importance="high"
-             Text="Watchious live: Watchious Live runs in the simulator and shows the app running at $(WatchiousLiveUrl). Start it, if it isn't running: dotnet run -f net10.0 -- --live" />
+             Text="Watchious live: Watchious Live runs in the simulator and shows the app running at $(WatchiousLiveUrl). Start it, if it isn't running: $(_WatchiousLiveAppCommand)" />
     <Message Condition="'$(_SdkIsSimulator)' != 'true'" Importance="high"
              Text="Watchious live: Watchious Live runs on $(WatchiousDevice) in place of the app ($(WatchiousBundleIdentifier)) until the app is run again, and shows the app running at $(WatchiousLiveUrl). Start it, if it isn't running: dotnet run -f net10.0 -- --live --urls=http://0.0.0.0:$(WatchiousLivePort). ⚠️ Keep the watch's screen on: watchOS suspends an app whose screen is off." />
   </Target>

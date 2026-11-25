@@ -94,7 +94,7 @@
       <_WatchiousLiveTunnel Condition="!$(RuntimeIdentifier.StartsWith('ios-'))">true</_WatchiousLiveTunnel>
     </PropertyGroup>
     <Message Condition="'$(_WatchiousLiveTunnel)' == 'true'" Importance="high"
-             Text="Watchious live: the simulator on $(WatchiousRemoteMac) reaches port $(WatchiousLivePort) of this computer through ssh while this runs; Ctrl+C ends it. Start the app here, if it isn't running: dotnet run -f net10.0 -- --live" />
+             Text="Watchious live: the simulator on $(WatchiousRemoteMac) reaches port $(WatchiousLivePort) of this computer through ssh while this runs; Ctrl+C ends it. Start the app here, if it isn't running: $(_WatchiousLiveAppCommand)" />
     <!-- ExitOnForwardFailure: a port already taken on the Mac fails here instead of leaving a tunnel that forwards
          nothing. -->
     <Exec Condition="'$(_WatchiousLiveTunnel)' == 'true'"

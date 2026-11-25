@@ -422,7 +422,8 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
     started with `--urls=http://0.0.0.0:5293`. ⚠️ **Keep the watch's screen on:** watchOS suspends an app whose
     screen is off, the live host too, until the user raises the wrist.
   - `WatchiousLivePort` (default 5293) and `WatchiousLiveUrl` (default `http://localhost:<port>`) tell the live host
-    where the app runs.
+    where the app runs. Another port goes to both sides: `--urls=http://localhost:<port>` to the app and
+    `-p:WatchiousLivePort=<port>` to the target, and each prints the other's command with it.
   - ⚠️ **`--urls=http://0.0.0.0:5293` lets every device on the network start the app and tap in it:** use it on a
     network you trust only. Without `--urls`, live mode listens on this computer only.
   - ⚠️ **Tried in the Wear OS emulator and the watchOS simulator only** (from a Mac, and from Windows through the
