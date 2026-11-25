@@ -12,6 +12,7 @@
                         the computer's address on the network.
     Device              Wear OS: the emulator's or watch's adb serial (adb devices), as for -t:Run
     WatchiousDevice     watchOS: the simulator's name, or the watch's UDID or name, as for -t:Run
+    WatchiousLaunchArguments   watchOS: more launch arguments for the live host, as for -t:Run
 -->
 <Project>
 

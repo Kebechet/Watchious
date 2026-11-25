@@ -204,7 +204,7 @@
       <_WatchiousRunMode Condition="'$(_SdkIsSimulator)' != 'true'">device</_WatchiousRunMode>
     </PropertyGroup>
     <Exec Command="bash &quot;$(WatchiousToolsDirectory)run-watch-app.sh&quot; $(_WatchiousRunMode) &quot;$(_WatchiousLiveApp)&quot; $(_WatchiousLiveBundleIdentifier) &quot;$(WatchiousDevice)&quot;"
-          EnvironmentVariables="WATCHIOUS_LAUNCH_ARGUMENTS=--watchious-live=$(WatchiousLiveUrl)" />
+          EnvironmentVariables="WATCHIOUS_LAUNCH_ARGUMENTS=--watchious-live=$(WatchiousLiveUrl) $(WatchiousLaunchArguments)" />
     <Message Condition="'$(_SdkIsSimulator)' == 'true'" Importance="high"
              Text="Watchious live: Watchious Live runs in the simulator and shows the app running at $(WatchiousLiveUrl). Start it, if it isn't running: dotnet run -f net10.0 -- --live" />
     <Message Condition="'$(_SdkIsSimulator)' != 'true'" Importance="high"
