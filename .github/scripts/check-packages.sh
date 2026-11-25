@@ -167,7 +167,7 @@ bundled_binaries() {
 # (workload set 10.0.401) on Windows copies a dependency's native libraries into it, CI's (10.0.404) doesn't.
 native_hint() {
     if printf '%s\n' "$1" | grep -q '\.so$'; then
-        echo " A native library inside $name.aar can come from the .NET for Android that packed it: pack with the workload set CI uses."
+        echo " A native library inside $name.aar can come from the .NET for Android that packed it: pack with the workload set CI uses (10.0.404, DOTNET_WORKLOAD_SET in .github/workflows/packages.yml), or check the packages artifact of a CI run."
     fi
 }
 
@@ -272,7 +272,9 @@ for id in "${IDS[@]}"; do
     elif [ ! -f "$readme_source" ]; then
         error "$id: src/$name/README.md doesn't exist."
     else
-        unzip -p "$PACKAGE" README.md | cmp -s - "$readme_source" || error "$id: its README.md isn't src/$name/README.md."
+        # Without line endings: a Windows checkout has the README with CRLF, a package packed on Linux with LF.
+        cmp -s <(unzip -p "$PACKAGE" README.md | tr -d '\r') <(tr -d '\r' < "$readme_source") \
+            || error "$id: its README.md isn't src/$name/README.md."
         [ "$(head -1 "$readme_source" | tr -d '\r')" = "# $id" ] || error "$id: src/$name/README.md doesn't start with '# $id'."
         relative_links="$(grep -oE '\]\([^)]*\)' "$readme_source" | grep -vE '^\]\((https?://|#)' || true)"
         [ -z "$relative_links" ] || error "$id: src/$name/README.md has links relative to the repository, which nuget.org can't follow: $(words "$relative_links")"

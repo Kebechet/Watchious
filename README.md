@@ -426,6 +426,7 @@ Watchious copies MAUI's project model and packaging as closely as possible. Its 
 published yet; "Publishing" below says how a version goes out. `.github/scripts/pack.sh <version>` packs all 10
 packages at one version into `artifacts/packages`: it builds the Wear OS libraries with Gradle first (`JAVA_HOME` a JDK
 17 to 21, the Android SDK in `ANDROID_HOME`), and fails unless exactly the 10 `Kebechet.Watchious.*` packages come out.
+It packs with the android workload of the installed workload set; CI's is `10.0.404`.
 `.github/scripts/check-packages.sh <package folder> <version>` then checks that each packable project's id is
 `Kebechet.<project name>`, that no package depends on an old `Watchious.*` id, that the Health and Messaging targets
 carry their package's name (the only name NuGet imports), each package's files, and what nuget.org shows of it: its
@@ -437,6 +438,11 @@ repository: restore, Central Package Management, the optional packages' Swift, t
 builds for the preview (whose pages it then serves) and Wear OS in Release (with `--watchos`, on a Mac, for the watchOS
 simulator instead of Wear OS, and `WATCHIOUS003`). CI runs all three on every pull request (see "Publishing").
 
+⚠️ **Pack with CI's workload set (`dotnet workload update --version 10.0.404`), or check CI's packages instead:** with
+workload set `10.0.401` on Windows, .NET for Android puts `libandroidx.graphics.path.so` into
+`Kebechet.Watchious.Hosts.WearOS`'s AAR, which its notices don't name, so `check-packages.sh` fails on that package.
+`10.0.404` hasn't been tried on Windows yet; the `packages` artifact of a pull request's CI run can be checked instead.
+
 ⚠️ **Pack and test only with a throwaway version such as `0.0.0-smoke.<n>`, a new one each run, never a real
 version:** NuGet's global packages folder keeps every version it restores, so a locally packed real version would
 later stand in for the published one on that machine, and the test refuses a version that is already there.
@@ -445,7 +451,7 @@ later stand in for the published one on that machine, and the test refuses a ver
   ```xml
   <Project Sdk="Kebechet.Watchious.Sdk/0.1.0-preview.1">
     <PropertyGroup>
-      <TargetFrameworks>net11.0-android;net11.0-watchos</TargetFrameworks>
+      <TargetFrameworks>net10.0-android;net10.0-watchos</TargetFrameworks>
       <OutputType>Exe</OutputType>
       <ApplicationId>com.companyname.myapp</ApplicationId>
     </PropertyGroup>
@@ -459,10 +465,10 @@ later stand in for the published one on that machine, and the test refuses a ver
   NuGet restore runs. The SDK adds the `Kebechet.Watchious.*` packages of its own version itself, and
   `WatchiousProgram.CreateWatchiousApp()` creates the app (the `WatchiousAppFactory` property can name another method).
 - **Template:** `dotnet new install Kebechet.Watchious.Templates`, then `dotnet new watchious`.
-- **Build and run:** `dotnet build -t:Run -f net11.0-watchos` builds the watch app with no manual Xcode step
+- **Build and run:** `dotnet build -t:Run -f net10.0-watchos` builds the watch app with no manual Xcode step
   and starts it in the watchOS simulator. `-r ios-arm64 -p:WatchiousDevice=<UDID>` installs it on a watch,
-  signed with MAUI's `CodesignKey` and `CodesignProvision`. `-f net11.0-android` works as for any .NET for
-  Android app.
+  signed with MAUI's `CodesignKey` and `CodesignProvision`. `-f net10.0-android` works as for any .NET for
+  Android app. These commands use the template's `net10.0-*` frameworks; an app on .NET 11 says `net11.0-*`.
   - An Apple Watch is reached over a Wi-Fi tunnel that drops while the watch sleeps. Run waits for the watch,
     keeps the tunnel up during the install, and tries install and launch again while the watch can't be reached
     (up to 5 times, 10 s apart), so a dozing watch only needs a wake-up. Signing and provisioning errors fail at
@@ -486,8 +492,8 @@ later stand in for the published one on that machine, and the test refuses a ver
     before it is added to the list (`WatchiousTestedIOSSdkVersions`). Its badge at the top turns red when a newer
     .NET release, the next preview included, breaks the start-up, even while the tested versions still work; the run
     shows which version it was.
-- **Release:** from CI pipelines, like a MAUI app: `dotnet publish -f net11.0-android` gives the Play Store
-  bundle, and `dotnet build -f net11.0-watchos -r ios-arm64 -p:BuildIpa=true` on a macOS runner gives the
+- **Release:** from CI pipelines, like a MAUI app: `dotnet publish -f net10.0-android` gives the Play Store
+  bundle, and `dotnet build -f net10.0-watchos -r ios-arm64 -p:BuildIpa=true` on a macOS runner gives the
   App Store `.ipa`, inside the watch-only container Apple requires (`WatchiousContainerProvision` is the
   container's profile). Signing comes from the pipeline's secrets. A Wear OS release build runs R8, which drops the
   Java code the app never calls (the sample's code shrinks from 52 MB to 13 MB); an app that sets `AndroidLinkTool`
@@ -521,7 +527,7 @@ later stand in for the published one on that machine, and the test refuses a ver
 | `Kebechet.Watchious.Messaging` | none (closest: [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging) on the phone) | Phone ↔ watch messaging, wire-compatible with that plugin. Optional. |
 | `Kebechet.Watchious.Health` | [`Kebechet.Maui.Health`](https://github.com/Kebechet/Maui.Health) (not part of MAUI itself) | Permissions and live workouts with heart rate (HealthKit / Health Services), with its names and its types (`Kebechet.Types.Health`). Optional. |
 | `Kebechet.Watchious.Preview` | none | The desktop preview and the live inspector |
-| `Kebechet.Watchious.Sdk` | the `maui` workload | `<Project Sdk="Kebechet.Watchious.Sdk/<version>">`: the `net11.0-watchos` target, building, running, remote Mac builds and App Store packaging |
+| `Kebechet.Watchious.Sdk` | the `maui` workload | `<Project Sdk="Kebechet.Watchious.Sdk/<version>">`: the `net*-watchos` target, building, running, remote Mac builds and App Store packaging |
 | `Kebechet.Watchious.Templates` | `Microsoft.Maui.Templates` | `dotnet new watchious` |
 
 Versions stay at `0.x.x` until the API is stable.

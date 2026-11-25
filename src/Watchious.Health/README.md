@@ -25,6 +25,10 @@ When the watch app uses health data. The SDK doesn't add it: the app references 
 </ItemGroup>
 ```
 
+⚠️ **With Central Package Management** (a `Directory.Packages.props`), leave `Version` off and give
+`Kebechet.Watchious.Health` a `PackageVersion` there at the SDK's version, written out (a library project has no
+`$(WatchiousVersion)`). Nothing reports it left at an older version, so an update of the SDK changes it too.
+
 ```csharp
 using Watchious.Health;
 
