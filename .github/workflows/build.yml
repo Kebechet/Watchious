@@ -1,0 +1,23 @@
+name: Build
+
+# Packs, checks and tests the packages on every pull request, whatever its base branch (pull requests are often chained
+# on each other), and on every push to main. The version is a throwaway one, never a real release.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  packages:
+    name: Packages
+    uses: ./.github/workflows/packages.yml
+    with:
+      version: 0.0.0-ci.${{ github.run_number }}

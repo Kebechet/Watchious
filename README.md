@@ -1,6 +1,7 @@
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/kebechet)
 
 # Watchious
+[![Build](https://github.com/Kebechet/Watchious/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/Kebechet/Watchious/actions/workflows/build.yml)
 [![watchOS canary](https://github.com/Kebechet/Watchious/actions/workflows/watchos-canary.yml/badge.svg?branch=main)](https://github.com/Kebechet/Watchious/actions/workflows/watchos-canary.yml)
 ![Last updated](https://img.shields.io/github/last-commit/Kebechet/Watchious/main?label=last%20updated)
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/samuel_sidor.svg?style=social&label=Follow%20samuel_sidor)](https://x.com/samuel_sidor)
@@ -422,13 +423,17 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
 
 Watchious copies MAUI's project model and packaging as closely as possible. Its packages are named
 `Kebechet.Watchious.*` (the table below); the projects, assemblies and namespaces stay `Watchious.*`. Nothing is
-published yet. `.github/scripts/pack.sh <version>` packs all 10 packages at one version into `artifacts/packages`: it
-builds the Wear OS libraries with Gradle first (`JAVA_HOME` a JDK 17 to 21, the Android SDK in `ANDROID_HOME`), and
-fails unless exactly the 10 `Kebechet.Watchious.*` packages come out. Inside the repository nothing uses the packages
-(the samples build the SDK and libraries from source), so `.github/scripts/package-smoke.sh <package folder> <version>`
-tests them in apps made from the template outside the repository: restore, Central Package Management, the optional
-packages' Swift, and builds for the preview and Wear OS in Release (with `--watchos`, on a Mac, for the watchOS
-simulator instead of Wear OS).
+published yet; "Publishing" below says how a version goes out. `.github/scripts/pack.sh <version>` packs all 10
+packages at one version into `artifacts/packages`: it builds the Wear OS libraries with Gradle first (`JAVA_HOME` a JDK
+17 to 21, the Android SDK in `ANDROID_HOME`), and fails unless exactly the 10 `Kebechet.Watchious.*` packages come out.
+`.github/scripts/check-packages.sh <package folder> <version>` then checks that each packable project's id is
+`Kebechet.<project name>`, that no package depends on an old `Watchious.*` id, that the Health and Messaging targets
+carry their package's name (the only name NuGet imports), and each package's files. Inside the repository nothing uses
+the packages (the samples build the SDK and libraries from source), so
+`.github/scripts/package-smoke.sh <package folder> <version>` tests them in apps made from the template outside the
+repository: restore, Central Package Management, the optional packages' Swift, and builds for the preview and Wear OS
+in Release (with `--watchos`, on a Mac, for the watchOS simulator instead of Wear OS). CI runs all three on every pull
+request (see "Publishing").
 
 ⚠️ **Pack and test only with a throwaway version such as `0.0.0-smoke.<n>`, a new one each run, never a real
 version:** NuGet's global packages folder keeps every version it restores, so a locally packed real version would
@@ -518,6 +523,51 @@ later stand in for the published one on that machine, and the test refuses a ver
 | `Kebechet.Watchious.Templates` | `Microsoft.Maui.Templates` | `dotnet new watchious` |
 
 Versions stay at `0.x.x` until the API is stable.
+
+## Publishing
+
+All 10 packages always go out together, at the one version in `Directory.Build.props` (`<Version>`), and only by hand:
+
+1. Bump `<Version>` in `Directory.Build.props` and merge it to `main`.
+2. In GitHub Actions, run the **Publish** workflow (`.github/workflows/publish.yml`) on `main`.
+
+The workflow then:
+
+- refuses to run from any other branch, and refuses the version when the tag `v<version>` exists or nuget.org already
+  has any `Kebechet.Watchious.*` package at it (a re-run of a run that passed this check skips it, see below);
+- packs and tests the packages with the same reusable workflow (`.github/workflows/packages.yml`) as every pull
+  request: `pack.sh`, the tests, `check-packages.sh`, and `package-smoke.sh` on Linux (preview, Wear OS Release) and on
+  macOS (watchOS simulator). Nothing is pushed unless all of it passes;
+- logs in to nuget.org with Trusted Publishing: `NuGet/login` trades the job's GitHub OIDC token for an API key that is
+  valid for an hour, so the repository holds no API key;
+- tags the commit `v<version>`, right before the first push;
+- pushes to nuget.org, each package with its symbol package: the libraries first, then `Kebechet.Watchious.Sdk`, which
+  references them at its exact version, then `Kebechet.Watchious.Templates`, which names the SDK;
+- pushes the same packages to GitHub Packages;
+- waits until nuget.org lists all 10, which takes minutes after the pushes (up to 45, or the job fails and a re-run
+  finishes it);
+- creates the GitHub release `v<version>` on that tag, with the packages and generated notes (a prerelease for a
+  version with a `-` suffix).
+
+⚠️ **Package ids and versions are permanent on nuget.org.** A pushed version can be unlisted, never deleted or
+replaced, so a fix always goes out as a new version.
+
+⚠️ **Once, before the first publish, nuget.org needs a Trusted Publishing policy** (user menu → Trusted Publishing)
+with repository owner `Kebechet`, repository `Watchious`, workflow file `publish.yml` and no environment, whose scope
+allows new packages: the first publish creates all 10 ids. Renaming `publish.yml` breaks publishing until the policy
+names the new file.
+
+⚠️ **If a publish stops halfway** (some packages pushed, then an error), **re-run that run, don't start a new one.**
+**Re-run failed jobs** pushes the rest, symbol packages included, from the packages the run already tested: every push
+skips a version that is already there. **Re-run all jobs** works too; it packs and tests the same commit again first. A new run of that version
+is refused from the first push on, because it would pack the current `main` next to the packages already pushed, and
+those can never be replaced. That refusal comes from the tag `v<version>`, which the run creates right before its first
+push: nuget.org lists a pushed package only minutes later, once it has validated and indexed it. If a re-run can't get
+past the error, fix it and bump the version.
+
+`.github/workflows/build.yml` runs the same reusable workflow on every pull request, whatever its base branch, and on
+every push to `main`, with the throwaway version `0.0.0-ci.<run number>`. The run keeps the packages as its `packages`
+artifact.
 
 ## Design decisions
 
