@@ -225,7 +225,7 @@ the icons with Google's Material Symbols font when it is online, and shows an `A
 </details>
 
 ⚠️ **List each `MaterialIcon` the app uses in the Wear OS project**, as `<WatchiousMaterialIcon Include="Hiking" />`.
-Release builds run R8 (`AndroidLinkTool=r8`, which Watchious.Sdk turns on), and R8 keeps only the icons that code
+Release builds run R8 (`AndroidLinkTool=r8`, which the Watchious SDK turns on), and R8 keeps only the icons that code
 names: a `MaterialIcon` is found by its name at run time, so without the item it works in a debug build and is gone in
 a release build.
 
@@ -311,7 +311,7 @@ session, of the kind the app declares in `Platforms/watchOS/Info.plist` (`WKBack
 10 minutes, or `mindfulness` or `physical-therapy`, an hour). Without one, setting it throws
 `FeatureNotSupportedException`. When the session ends, `KeepScreenOn` reads false again. App Store review checks that the
 app is that kind of app; a workout keeps its app
-running anyway (`Watchious.Health`).
+running anyway (`Kebechet.Watchious.Health`).
 
 Each host registers its platform's implementations before the app's `CreateWatchiousApp` runs, so an app (or a
 test) can replace any of them with its own registration. WatchKit, which .NET for iOS has no bindings for,
@@ -319,14 +319,27 @@ is reached through small C functions in the SwiftUI host (`platforms/watchOS/Hos
 
 ## Phone messaging and health
 
-Two optional packages, each registered by the app:
+Two optional packages, each added and registered by the app. `$(WatchiousVersion)` is the version of the SDK the app
+uses, which these packages match:
 
-```csharp
-builder.Services.AddPhoneMessaging();   // Watchious.Messaging: inject IPhoneMessaging
-builder.Services.AddWatchiousHealth();  // Watchious.Health: inject IHealthService
+```xml
+<PackageReference Include="Kebechet.Watchious.Messaging" Version="$(WatchiousVersion)" />
+<PackageReference Include="Kebechet.Watchious.Health" Version="$(WatchiousVersion)" />
 ```
 
-- **`Watchious.Messaging`** talks to a MAUI phone app that uses
+⚠️ **With Central Package Management** (a `Directory.Packages.props`), leave `Version` off these `PackageReference`s
+and give each `Kebechet.Watchious.*` package the solution uses a `PackageVersion` there, at the SDK's version written
+out: `<PackageVersion Include="Kebechet.Watchious.Health" Version="<version>" />`. A library project of the solution,
+such as one with the pages, has no `$(WatchiousVersion)`: only a project on the SDK has it. In the app, the SDK ignores
+the entries of the packages it adds itself (Controls, the hosts and Preview) and uses its own version. ⚠️ Nothing
+reports an entry left at an older version, so an update changes the SDK's version and these entries together.
+
+```csharp
+builder.Services.AddPhoneMessaging();   // Kebechet.Watchious.Messaging: inject IPhoneMessaging
+builder.Services.AddWatchiousHealth();  // Kebechet.Watchious.Health: inject IHealthService
+```
+
+- **`Kebechet.Watchious.Messaging`** talks to a MAUI phone app that uses
   [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging)
   unchanged: messages, messages with an answer, and the application context. An Android phone app answers with a
   message whose `_replyToId` is the message's `_requestId`, since the plugin has no `ReplyHandler` on Android. On
@@ -344,7 +357,7 @@ builder.Services.AddWatchiousHealth();  // Watchious.Health: inject IHealthServi
   (https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging/issues/5, fixed in
   https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging/pull/6). The phone sample doesn't await it
   on iOS until a release has that fix.
-- **`Watchious.Health`** does what a watch does with health data: permissions and live workouts with heart
+- **`Kebechet.Watchious.Health`** does what a watch does with health data: permissions and live workouts with heart
   rate, with [Kebechet.Maui.Health](https://github.com/Kebechet/Maui.Health)'s service names (`IHealthService`,
   `Activity.Start/Pause/Resume/End`). Its data types are Maui.Health's own (`WorkoutDto`, `HeartRateDto`,
   `ActivityType`, `WorkoutSession`...), from the MAUI-free `Kebechet.Types.Health`, so a watch workout reaches a
@@ -360,7 +373,7 @@ builder.Services.AddWatchiousHealth();  // Watchious.Health: inject IHealthServi
   dies (seen on the emulator), so there the workout is over.
 
 Each package brings its native part: a Java module on Wear OS, built with Gradle next to the host, and a Swift file
-that Watchious.Sdk compiles into the watchOS host (`WatchiousWatchOSHostSource`).
+that the SDK compiles into the watchOS host (`WatchiousWatchOSHostSource`).
 
 ## Preview, inspector and live mode
 
@@ -402,17 +415,28 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
     been tried yet.
   - ⚠️ **`--urls=http://0.0.0.0:5293` lets every device on the network start the app and tap in it:** use it on a
     network you trust only. Without `--urls`, live mode listens on this computer only.
-  - ⚠️ **From the repository for now:** the live hosts aren't packaged with Watchious.Sdk yet, and they haven't been
-    tried on a real watch, which needs a signed build of the live host.
+  - ⚠️ **From the repository for now:** the live hosts aren't packaged with Kebechet.Watchious.Sdk yet, and they
+    haven't been tried on a real watch, which needs a signed build of the live host.
 
 ## Project and packaging
 
-Watchious copies MAUI's project model and packaging as closely as possible. Nothing is published yet:
-`dotnet pack` puts the packages in `artifacts/packages`.
+Watchious copies MAUI's project model and packaging as closely as possible. Its packages are named
+`Kebechet.Watchious.*` (the table below); the projects, assemblies and namespaces stay `Watchious.*`. Nothing is
+published yet. `.github/scripts/pack.sh <version>` packs all 10 packages at one version into `artifacts/packages`: it
+builds the Wear OS libraries with Gradle first (`JAVA_HOME` a JDK 17 to 21, the Android SDK in `ANDROID_HOME`), and
+fails unless exactly the 10 `Kebechet.Watchious.*` packages come out. Inside the repository nothing uses the packages
+(the samples build the SDK and libraries from source), so `.github/scripts/package-smoke.sh <package folder> <version>`
+tests them in apps made from the template outside the repository: restore, Central Package Management, the optional
+packages' Swift, and builds for the preview and Wear OS in Release (with `--watchos`, on a Mac, for the watchOS
+simulator instead of Wear OS).
+
+⚠️ **Pack and test only with a throwaway version such as `0.0.0-smoke.<n>`, a new one each run, never a real
+version:** NuGet's global packages folder keeps every version it restores, so a locally packed real version would
+later stand in for the published one on that machine, and the test refuses a version that is already there.
 
 - **Single project**, like MAUI, through the Watchious MSBuild SDK:
   ```xml
-  <Project Sdk="Watchious.Sdk/0.1.0-preview.1">
+  <Project Sdk="Kebechet.Watchious.Sdk/0.1.0-preview.1">
     <PropertyGroup>
       <TargetFrameworks>net11.0-android;net11.0-watchos</TargetFrameworks>
       <OutputType>Exe</OutputType>
@@ -425,9 +449,9 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
   `Platforms/watchOS` (`Info.plist`, `Assets.xcassets` with the app icon, `Entitlements.plist` for capabilities such as
   HealthKit, or MAUI's `CodesignEntitlements`). It is an MSBuild SDK, like Uno's
   `Uno.Sdk`, rather than a `UseWatchious` property, because the watchOS target framework has to exist before
-  NuGet restore runs. The SDK adds the Watchious packages itself, and `WatchiousProgram.CreateWatchiousApp()`
-  creates the app (the `WatchiousAppFactory` property can name another method).
-- **Template:** `dotnet new watchious`.
+  NuGet restore runs. The SDK adds the `Kebechet.Watchious.*` packages of its own version itself, and
+  `WatchiousProgram.CreateWatchiousApp()` creates the app (the `WatchiousAppFactory` property can name another method).
+- **Template:** `dotnet new install Kebechet.Watchious.Templates`, then `dotnet new watchious`.
 - **Build and run:** `dotnet build -t:Run -f net11.0-watchos` builds the watch app with no manual Xcode step
   and starts it in the watchOS simulator. `-r ios-arm64 -p:WatchiousDevice=<UDID>` installs it on a watch,
   signed with MAUI's `CodesignKey` and `CodesignProvision`. `-f net11.0-android` works as for any .NET for
@@ -441,7 +465,9 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
     relabels the native code for watchOS and links it into the SwiftUI host. C# gets Microsoft's bindings for
     Apple's frameworks that way, while NuGet still treats the project as `net*-watchos`.
   - **From Windows:** set `WatchiousRemoteMac=user@host` and the watchOS target builds on that Mac over ssh,
-    like MAUI's "Pair to Mac", and the app comes back. Windows needs no iOS workload for it. ⚠️ From Git Bash, set
+    like MAUI's "Pair to Mac", and the app comes back. Windows needs no iOS workload for it. The Mac gets the folder
+    of the nearest `Directory.Build.props` above the project (else a `nuget.config`, then a `global.json`), or of a
+    `Directory.Packages.props` further up; `WatchiousRemoteSourceRoot` sets another. ⚠️ From Git Bash, set
     `MSYS_NO_PATHCONV=1` when a property holds a path on the Mac (such as `CodesignProvision=/Users/...`), or Git Bash
     turns it into a Windows path.
   - ⚠️ **Tested .NET for iOS versions only.** The watch app starts .NET for iOS through internal functions (see
@@ -461,29 +487,35 @@ Watchious copies MAUI's project model and packaging as closely as possible. Noth
   itself keeps its own choice.
 - The repository itself still builds with .NET 10 (`net10.0-*`) until .NET 11 is installed on its
   development machines. The Wear OS libraries come from Gradle first: `./gradlew assembleRelease` in
-  `platforms/WearOS` (with Android Studio's JDK) also writes the POMs and binding jars the .NET projects read.
+  `platforms/WearOS` (with Android Studio's JDK) also writes the POMs and binding jars the .NET projects read
+  (`pack.sh` runs it only for `:host`, `:messaging` and `:health`, the modules the packages are built from).
 - **Companion apps:** a watch app can ship inside a .NET iPhone app (for example a MAUI app), which
   WatchConnectivity needs: iOS connects the two only when the watch app came inside the iPhone app (tried on a real
   watch). Until .NET for iOS's `AdditionalWatchOSApp` item (https://github.com/dotnet/macios/pull/27284, still open)
-  ships, the iPhone project imports Watchious.Sdk's `build/Watchious.Sdk.Companion.targets` and names the watch
-  project: `<WatchiousWatchApp Include="..\MyWatch\MyWatch.csproj" CodesignProvision="<watch app profile>" />`. The
+  ships, the iPhone project imports `build/Watchious.Sdk.Companion.targets` from the Kebechet.Watchious.Sdk package,
+  `<Import Project="..\build\Watchious.Sdk.Companion.targets" Sdk="Kebechet.Watchious.Sdk" Version="<version>" />`,
+  and names the watch project:
+  `<WatchiousWatchApp Include="..\MyWatch\MyWatch.csproj" CodesignProvision="<watch app profile>" />`. The
   iPhone build then builds the watch app for the same device or simulator, as its companion
   (`WatchiousCompanionAppBundleIdentifier`, which also works on its own), and puts it into the app's `Watch/` folder
   before signing it; `samples/Watchious.Samples.Phone` does this. It needs a Mac. The watch app's bundle identifier
   must start with the iPhone app's (the same `ApplicationId` in both projects does that), and the watch project is
   built only through the iPhone project, not also in parallel in the same solution build.
+  ⚠️ The `Import`'s `Version` must be the watch project's Kebechet.Watchious.Sdk version, and an update changes both:
+  one build resolves an SDK only once, so the watch app inside the iPhone app is built with the `Import`'s version,
+  with only warning `MSB4240`.
 
-| Package (working names) | MAUI equivalent | Contents |
+| Package | MAUI equivalent | Contents |
 |---|---|---|
-| `Watchious.Controls` | `Microsoft.Maui.Controls` | Razor controls, navigation, app builder |
-| `Watchious.Core` | `Microsoft.Maui.Core` | Renderer and UI-change protocol |
-| `Watchious.Hosts.WearOS`, `Watchious.Hosts.watchOS` | the platform parts of `Microsoft.Maui.Controls` | The native hosts; the SDK adds them |
-| `Watchious.Essentials` | `Microsoft.Maui.Essentials` | The common watch APIs as services; the hosts add the platform implementations |
-| `Watchious.Messaging` | none (closest: [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging) on the phone) | Phone ↔ watch messaging, wire-compatible with that plugin. Optional. |
-| `Watchious.Health` | [`Kebechet.Maui.Health`](https://github.com/Kebechet/Maui.Health) (not part of MAUI itself) | Permissions and live workouts with heart rate (HealthKit / Health Services), with its names and its types (`Kebechet.Types.Health`). Optional. |
-| `Watchious.Preview` | none | The desktop preview and the live inspector |
-| `Watchious.Sdk` | the `maui` workload | `<Project Sdk="Watchious.Sdk">`: the `net11.0-watchos` target, building, running, remote Mac builds and App Store packaging |
-| `Watchious.Templates` | `Microsoft.Maui.Templates` | `dotnet new watchious` |
+| `Kebechet.Watchious.Controls` | `Microsoft.Maui.Controls` | Razor controls, navigation, app builder |
+| `Kebechet.Watchious.Core` | `Microsoft.Maui.Core` | Renderer and UI-change protocol |
+| `Kebechet.Watchious.Hosts.WearOS`, `Kebechet.Watchious.Hosts.watchOS` | the platform parts of `Microsoft.Maui.Controls` | The native hosts; the SDK adds them |
+| `Kebechet.Watchious.Essentials` | `Microsoft.Maui.Essentials` | The common watch APIs as services; the hosts add the platform implementations |
+| `Kebechet.Watchious.Messaging` | none (closest: [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging) on the phone) | Phone ↔ watch messaging, wire-compatible with that plugin. Optional. |
+| `Kebechet.Watchious.Health` | [`Kebechet.Maui.Health`](https://github.com/Kebechet/Maui.Health) (not part of MAUI itself) | Permissions and live workouts with heart rate (HealthKit / Health Services), with its names and its types (`Kebechet.Types.Health`). Optional. |
+| `Kebechet.Watchious.Preview` | none | The desktop preview and the live inspector |
+| `Kebechet.Watchious.Sdk` | the `maui` workload | `<Project Sdk="Kebechet.Watchious.Sdk/<version>">`: the `net11.0-watchos` target, building, running, remote Mac builds and App Store packaging |
+| `Kebechet.Watchious.Templates` | `Microsoft.Maui.Templates` | `dotnet new watchious` |
 
 Versions stay at `0.x.x` until the API is stable.
 
@@ -508,15 +540,15 @@ Versions stay at `0.x.x` until the API is stable.
 | App state | Blazor style: state in components with `@bind`, shared logic in services through dependency injection |
 | Watch APIs | All common watch APIs wrapped as C# services in dependency injection, unified across the platforms as far as possible, in the style of [`Kebechet.Maui.RevenueCat.InAppBilling`](https://github.com/Kebechet/Maui.RevenueCat.InAppBilling). A feature only one platform has stays in the API and throws on the other. |
 | Platform-specific code | C# in `Platforms/WearOS` and `Platforms/watchOS`, like MAUI. Wear OS: Android and AndroidX APIs through .NET for Android. watchOS: Apple's frameworks (HealthKit, Foundation, CoreMotion...) through Microsoft's .NET for iOS bindings, which run on the watch (shown on an Apple Watch SE 3). Watch-only Apple APIs that .NET for iOS lacks get small bindings in Watchious. |
-| Health and workouts | A separate, optional `Watchious.Health` package |
+| Health and workouts | A separate, optional `Kebechet.Watchious.Health` package |
 | Styling | Semantic tokens plus a few explicit values. Never CSS. |
 | Navigation | Blazor `@page` routes plus source-generated typed helpers: `Navigation.GoToAsync(Routes.Workout(exerciseId: 5))`. A stack of pages, shown with each platform's own navigation and back gestures. |
-| Phone ↔ watch messaging | A separate, optional `Watchious.Messaging` package for the watch, **wire-compatible with [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging)**, so a MAUI phone app uses that plugin unchanged: on Wear OS its `/message` JSON messages, `_requestId`/`_replyToId` replies, `/application_context` data item and `wearable_app` capability; on watchOS plain WatchConnectivity dictionaries with native replies. No Watchious phone package, because the plugin already covers the phone side of both platforms with the same concepts; gaps go upstream. The platforms require that on Wear OS the phone and watch apps share the applicationId and signing key, and that on watchOS the watch app is the iPhone app's companion (https://github.com/Kebechet/Watchious/issues/4). |
+| Phone ↔ watch messaging | A separate, optional `Kebechet.Watchious.Messaging` package for the watch, **wire-compatible with [Plugin.Maui.WearableMessaging](https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging)**, so a MAUI phone app uses that plugin unchanged: on Wear OS its `/message` JSON messages, `_requestId`/`_replyToId` replies, `/application_context` data item and `wearable_app` capability; on watchOS plain WatchConnectivity dictionaries with native replies. No Watchious phone package, because the plugin already covers the phone side of both platforms with the same concepts; gaps go upstream. The platforms require that on Wear OS the phone and watch apps share the applicationId and signing key, and that on watchOS the watch app is the iPhone app's companion (https://github.com/Kebechet/Watchious/issues/4). |
 | watchOS runtime | NativeAOT, built as .NET for iOS (`ios-arm64`) and relabelled for watchOS. Microsoft's runtime glue (`libxamarin`) is started the way its own `main` starts it, minus the iPhone app. ⚠️ That relies on internal start-up functions of .NET for iOS, which may change between versions, so the SDK builds only with the .NET for iOS versions it was tested with (`WatchiousAllowUntestedIOSSdk` overrides that) and a canary CI job tries each new one. |
 | Build | Automatic through `dotnet build`, no manual Xcode step. watchOS builds run on a Mac, or from Windows on a remote Mac like MAUI's "Pair to Mac". Releases come from CI pipelines, like a MAUI app. |
 | Debugging | A desktop preview of the same screens (`dotnet run -f net10.0`) and a live inspector of apps running on watches |
 | Testing | Watch simulators and emulators first, real watches later |
-| Packaging | Mirror MAUI's packages and project template. `Watchious.Sdk` is an MSBuild SDK, like Uno's `Uno.Sdk`. Nothing published until decided. |
+| Packaging | Mirror MAUI's packages and project template. `Kebechet.Watchious.Sdk` is an MSBuild SDK, like Uno's `Uno.Sdk`. The package ids carry the `Kebechet.` prefix, which is reserved on nuget.org; the projects, assemblies and namespaces stay `Watchious.*`. All packages ship together at one version. |
 | Versioning | `0.x.x` |
 
 ## Open questions
@@ -542,7 +574,7 @@ Versions stay at `0.x.x` until the API is stable.
    running a counter app on the Wear OS emulator and a Galaxy Watch7. The list came later, with step 5.
 2. ✅ **SwiftUI host** with the same controls as Wear OS. From now on, each new control is added to both
    hosts together, which `HostCoverageTests` checks.
-3. ✅ **Project model:** `Watchious.Sdk`, `dotnet new watchious` and `dotnet build -f net11.0-watchos` on top
+3. ✅ **Project model:** `Kebechet.Watchious.Sdk`, `dotnet new watchious` and `dotnet build -f net11.0-watchos` on top
    of .NET for iOS, App Store packaging, and remote builds from Windows on a Mac. `dotnet build -t:Run` from
    Windows builds, installs and starts the app on a real Apple Watch SE 3, and `HttpClient` works there: a real
    watch has no sockets (https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos),
@@ -558,25 +590,25 @@ Versions stay at `0.x.x` until the API is stable.
    `List`, and navigation with typed routes. ✅ All controls in the table above, and navigation (`@page` routes,
    `INavigation`, generated `Routes` helpers, native back on both platforms). ✅ System icons for `Image`: a shared set
    as SF Symbols and Material icons, and any other icon of either platform by name.
-6. **Watch APIs** (`Watchious.Essentials`): the common watch features as unified C# services, with
+6. **Watch APIs** (`Kebechet.Watchious.Essentials`): the common watch features as unified C# services, with
    platform C# as the escape hatch. ✅ Haptics, device info, battery, connectivity, preferences, secure storage,
    app lifecycle, always-on (ambient) mode, local notifications, location and sensors. The ones added last (secure
    storage to sensors) work on an Apple Watch SE 3 and on the Wear OS emulator. ✅ Keeping the screen on, app info, the
    file system, the pedometer and text to speech, so far tried in the watchOS simulator and the Wear OS emulator (which
    have no step counter, and the emulator no speech engine).
-7. ✅ **Messaging** between phone and watch (`Watchious.Messaging`, optional,
+7. ✅ **Messaging** between phone and watch (`Kebechet.Watchious.Messaging`, optional,
    https://github.com/Kebechet/Watchious/issues/4). ✅ A Galaxy Watch7 and a Pixel 6 running the plugin exchange
    messages, answers and the application context both ways, and so do an Apple Watch SE 3 and an iPhone SE, with the
    watch app installed from inside the iPhone app (see "Companion apps").
-8. ✅ **Preview host:** the same screens on the desktop, for debugging in Visual Studio (`Watchious.Preview`,
-   see "Preview, inspector and live mode").
+8. ✅ **Preview host:** the same screens on the desktop, for debugging in Visual Studio
+   (`Kebechet.Watchious.Preview`, see "Preview, inspector and live mode").
 9. ✅ **Live inspector:** a local page that shows a running watch app's UI tree, updates and events, and can send
    it events (https://github.com/Kebechet/Watchious/issues/5). Works with a real Galaxy Watch7 and a real Apple Watch
    SE 3. The app's side uses plain HTTP requests, which a real Apple Watch allows (it refused the earlier WebSocket).
-10. ✅ **Health and workouts** (`Watchious.Health`, optional). A run with live heart rate from the wrist, pause,
-    resume and a summary works on a Galaxy Watch7 and an Apple Watch SE 3, and on the Wear OS emulator with Health
-    Services' synthetic data. A workout keeps running when the user leaves the app, and on an Apple Watch SE 3 it
-    comes back after the app was killed.
+10. ✅ **Health and workouts** (`Kebechet.Watchious.Health`, optional). A run with live heart rate from the wrist,
+    pause, resume and a summary works on a Galaxy Watch7 and an Apple Watch SE 3, and on the Wear OS emulator with
+    Health Services' synthetic data. A workout keeps running when the user leaves the app, and on an Apple Watch SE 3
+    it comes back after the app was killed.
 11. ✅ **Live mode:** the app's C# runs on the computer, under the debugger, and a host app without .NET draws it
     in the watchOS simulator or the Wear OS emulator, connected like the inspector. Unlike the preview, the
     screens are the real SwiftUI and Compose controls. It talks plain HTTP, which a real watch allows too, but it has

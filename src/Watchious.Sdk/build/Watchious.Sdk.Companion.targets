@@ -1,10 +1,11 @@
 <!--
   Until .NET for iOS's AdditionalWatchOSApp item ships (https://github.com/dotnet/macios/pull/27284), this embeds a
   Watchious watch app in a .NET iPhone app (a MAUI app, for example) as its companion. WatchConnectivity, which
-  Watchious.Messaging uses on watchOS, connects a watch app only with the iPhone app it came inside. The iPhone project
-  imports this file and names the watch project:
+  Kebechet.Watchious.Messaging uses on watchOS, connects a watch app only with the iPhone app it came inside. The iPhone
+  project imports this file from the Kebechet.Watchious.Sdk package, at the watch app's Watchious version, and names the
+  watch project:
 
-    <Import Project="<Watchious.Sdk>/build/Watchious.Sdk.Companion.targets" />
+    <Import Project="..\build\Watchious.Sdk.Companion.targets" Sdk="Kebechet.Watchious.Sdk" Version="<version>" />
     <ItemGroup>
       <WatchiousWatchApp Include="..\MyWatch\MyWatch.csproj" CodesignProvision="<the watch app's profile>" />
     </ItemGroup>

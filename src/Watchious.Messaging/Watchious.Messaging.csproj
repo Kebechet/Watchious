@@ -9,6 +9,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsAotCompatible>true</IsAotCompatible>
     <IsPackable>true</IsPackable>
+    <PackageId>Kebechet.Watchious.Messaging</PackageId>
     <Description>Watchious's phone messaging: messages and application context with the phone app, wire-compatible with Plugin.Maui.WearableMessaging on the phone.</Description>
   </PropertyGroup>
 
@@ -38,10 +39,11 @@
     <PackageReference Include="Xamarin.GooglePlayServices.Wearable" Version="120.0.1.2" />
   </ItemGroup>
 
-  <!-- The SwiftUI host compiles the WatchConnectivity file of an app that uses this package. -->
+  <!-- The SwiftUI host compiles the WatchConnectivity file of an app that uses this package. NuGet imports only
+       build/<package id>.targets, so the targets file is named after the package. -->
   <ItemGroup>
     <None Include="watchOS\*.swift" Pack="true" PackagePath="host\watchOS\" />
-    <None Include="build\Watchious.Messaging.targets" Pack="true" PackagePath="build\;buildTransitive\" />
+    <None Include="build\Kebechet.Watchious.Messaging.targets" Pack="true" PackagePath="build\;buildTransitive\" />
   </ItemGroup>
 
   <ItemGroup>

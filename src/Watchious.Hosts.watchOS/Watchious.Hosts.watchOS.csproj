@@ -6,6 +6,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsAotCompatible>true</IsAotCompatible>
     <IsPackable>true</IsPackable>
+    <PackageId>Kebechet.Watchious.Hosts.watchOS</PackageId>
     <Description>Watchious's watchOS host bridge: connects Watchious apps to the SwiftUI host.</Description>
   </PropertyGroup>
 

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- The compiler loads source generators only as netstandard2.0 assemblies. It ships inside the
-         Watchious.Controls package, not as a package of its own. -->
+         Kebechet.Watchious.Controls package, not as a package of its own. -->
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>disable</ImplicitUsings>

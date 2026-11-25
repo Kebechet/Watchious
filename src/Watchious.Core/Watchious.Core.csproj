@@ -5,6 +5,7 @@
     <RootNamespace>Watchious</RootNamespace>
     <IsAotCompatible>true</IsAotCompatible>
     <IsPackable>true</IsPackable>
+    <PackageId>Kebechet.Watchious.Core</PackageId>
     <Description>Watchious's Blazor renderer for native watch UI and its UI-change protocol.</Description>
   </PropertyGroup>
 
