@@ -43,18 +43,25 @@
       <_WatchiousAdbExe>$(AdbToolExe)</_WatchiousAdbExe>
       <_WatchiousAdbExe Condition="'$(_WatchiousAdbExe)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">adb.exe</_WatchiousAdbExe>
       <_WatchiousAdbExe Condition="'$(_WatchiousAdbExe)' == ''">adb</_WatchiousAdbExe>
-      <_WatchiousAdb>&quot;$([System.IO.Path]::Combine('$(AdbToolPath)', '$(_WatchiousAdbExe)'))&quot; $(AdbTarget)</_WatchiousAdb>
+      <_WatchiousAdbPath>$([System.IO.Path]::Combine('$(AdbToolPath)', '$(_WatchiousAdbExe)'))</_WatchiousAdbPath>
+      <_WatchiousAdb>&quot;$(_WatchiousAdbPath)&quot; $(AdbTarget)</_WatchiousAdb>
       <_WatchiousLiveDevice Condition="'$(Device)' != ''">$(Device)</_WatchiousLiveDevice>
       <_WatchiousLiveDevice Condition="'$(Device)' == ''">the device</_WatchiousLiveDevice>
     </PropertyGroup>
     <Error Condition="!Exists('$(WatchiousWearOSLiveApk)')"
            Text="Watchious: the Wear OS live host $(WatchiousWearOSLiveApk) doesn't exist. In the Watchious repository, build it with ./gradlew :live:assembleRelease in platforms/WearOS." />
+    <Error Condition="'$(AdbToolPath)' != '' And !Exists('$(_WatchiousAdbPath)')"
+           Text="Watchious: adb isn't at $(_WatchiousAdbPath) (.NET for Android's AdbToolPath). Install the Android SDK's platform-tools, or point -p:AdbToolPath=&lt;folder&gt; at adb's folder." />
 
     <Exec Command="$(_WatchiousAdb) get-state" ConsoleToMSBuild="true" IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true"
           StandardOutputImportance="low" StandardErrorImportance="low">
       <Output TaskParameter="ExitCode" PropertyName="_WatchiousAdbExitCode" />
       <Output TaskParameter="ConsoleOutput" PropertyName="_WatchiousAdbOutput" />
     </Exec>
+    <!-- Without an AdbToolPath the adb on the PATH runs: 9009 is cmd's exit code for a command it doesn't find, 127
+         sh's. -->
+    <Error Condition="'$(_WatchiousAdbExitCode)' == '9009' Or '$(_WatchiousAdbExitCode)' == '127'"
+           Text="Watchious: adb wasn't found ($(_WatchiousAdbOutput)). Install the Android SDK's platform-tools, or point -p:AdbToolPath=&lt;folder&gt; at adb's folder." />
     <Error Condition="'$(_WatchiousAdbExitCode)' != '0'"
            Text="Watchious: adb can't reach $(_WatchiousLiveDevice) ($(_WatchiousAdbOutput)). Start the Wear OS emulator or connect the watch (adb devices); with more than one, pick one with -p:Device=&lt;serial&gt;." />
 

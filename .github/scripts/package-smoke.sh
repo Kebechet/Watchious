@@ -376,6 +376,10 @@ expect_failure live-watch-url "an Apple Watch can't reach the app at http://loca
 if [ "$WATCHOS" != true ]; then
     expect_failure live-wearos "adb can't reach watchious-smoke-no-device" \
         "$DOTNET" build "$APP1" -t:WatchiousLive -f net10.0-android -p:Device=watchious-smoke-no-device -nologo
+    # adb's own words: the target's error alone doesn't prove that it found adb and ran it.
+    grep -qF "device 'watchious-smoke-no-device' not found" "$LOGS/live-wearos.log" \
+        || fail "adb didn't answer for watchious-smoke-no-device, so the target didn't find adb (log: $LOGS/live-wearos.log)."
+    echo "== adb answered: device 'watchious-smoke-no-device' not found"
 else
     run live-watchos "$DOTNET" build "$APP2" -t:_WatchiousBuildLiveWatchApp -f net10.0-watchos -nologo
     live_app="$(find "$WORK_ABS/WatchiousOptional/obj" -path '*net10.0-watchos*' -name WatchiousLive.app -type d 2>/dev/null | head -1)"
