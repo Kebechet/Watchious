@@ -291,7 +291,7 @@ font size. There is no CSS.
 | `IDeviceDisplay` | `KeepScreenOn`: an extended runtime session | `KeepScreenOn`: `FLAG_KEEP_SCREEN_ON` |
 | `IAppInfo` | the app's Info.plist | `PackageManager` |
 | `IFileSystem` | `Library` and `Library/Caches` | the app's files and cache folders |
-| `ITextToSpeech` | `AVSpeechSynthesizer` | `TextToSpeech` |
+| `ITextToSpeech` | `AVSpeechSynthesizer` | `TextToSpeech`: ⚠️ at most 4,000 characters at a time, a longer text throws `ArgumentException` (https://github.com/Kebechet/Watchious/issues/31) |
 
 The names and shapes are MAUI Essentials' where it has the API (`IGeolocation`, `ISecureStorage`, `IAccelerometer`,
 `SensorSpeed`...). A sensor or service a watch doesn't have says so in `IsSupported`, and using it anyway throws

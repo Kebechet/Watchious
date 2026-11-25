@@ -97,6 +97,16 @@ internal sealed class WearOSTextToSpeech(Context context) : ITextToSpeech, IDisp
     public async Task SpeakAsync(string text, SpeechOptions? options = null, CancellationToken cancelToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        // The engine refuses a longer text without saying why. Speaking it in parts:
+        // https://github.com/Kebechet/Watchious/issues/31
+        var maxLength = TextToSpeech.MaxSpeechInputLength;
+        if (text.Length > maxLength)
+        {
+            throw new ArgumentException(
+                $"Text to speech on Wear OS takes at most {maxLength} characters at a time, and this text has {text.Length}: speak it in parts.",
+                nameof(text));
+        }
+
         cancelToken.ThrowIfCancellationRequested();
         var engine = await GetEngineAsync();
         var locale = options?.Locale;
