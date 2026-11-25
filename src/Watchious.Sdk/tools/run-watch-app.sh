@@ -91,6 +91,8 @@ if [ -z "$DEVICE_ID" ]; then
 fi
 xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
 xcrun simctl bootstatus "$DEVICE_ID" -b >/dev/null
+# Simulator.app shows the simulator; it runs without it too, as over ssh without anyone logged in to the Mac.
+open -a Simulator 2>/dev/null || echo "Simulator.app couldn't be opened: the simulator runs without a window." >&2
 xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
 xcrun simctl install "$DEVICE_ID" "$APP"
 xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" ${WATCHIOUS_LAUNCH_ARGUMENTS:-}

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Packs the 10 Watchious packages (Kebechet.Watchious.*) at one version: first the Wear OS libraries with Gradle,
-# whose AARs, POMs and binding jars Kebechet.Watchious.Hosts.WearOS, .Health and .Messaging build from, then each
+# whose AARs, POMs and binding jars Kebechet.Watchious.Hosts.WearOS, .Health and .Messaging build from, and the Wear OS
+# live host, which Kebechet.Watchious.Sdk ships (an R8 release APK, signed with the repository's live key), then each
 # packable project with dotnet pack. The one way to pack, for developers and CI alike. Runs in bash on Linux and macOS
 # and in Git Bash on Windows:
 #
@@ -53,8 +54,10 @@ if [ "$(printf '%s\n' "${packable[@]}" | sort)" != "$(printf '%s\n' "${PROJECTS[
     exit 1
 fi
 
-echo "== Gradle: the Wear OS libraries"
-(cd "$ROOT/platforms/WearOS" && ./gradlew --console=plain :host:assembleRelease :messaging:assembleRelease :health:assembleRelease)
+echo "== Gradle: the Wear OS libraries and live host"
+# The live host carries the version as its versionName (adb shell dumpsys package com.kebechet.watchious.live).
+(cd "$ROOT/platforms/WearOS" && ./gradlew --console=plain :host:assembleRelease :messaging:assembleRelease :health:assembleRelease \
+    :live:assembleRelease "-PwatchiousVersion=$VERSION")
 
 for project in "${PROJECTS[@]}"; do
     echo "== dotnet pack Watchious.$project $VERSION"

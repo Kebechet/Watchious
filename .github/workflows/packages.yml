@@ -72,10 +72,11 @@ jobs:
       - name: Test
         run: dotnet test --project tests/Watchious.Core.Tests/Watchious.Core.Tests.csproj -c Release
 
+      # apksigner and aapt2 of the build tools installed above check the SDK's Wear OS live host.
       - name: Check the packages
-        run: bash .github/scripts/check-packages.sh artifacts/packages "$VERSION"
+        run: bash .github/scripts/check-packages.sh artifacts/packages "$VERSION" "$RUNNER_TEMP/check-packages"
 
-      - name: Smoke-test the packages (preview, Wear OS Release)
+      - name: Smoke-test the packages (preview, Wear OS Release, live mode)
         run: bash .github/scripts/package-smoke.sh artifacts/packages "$VERSION" "$RUNNER_TEMP/package-smoke"
 
       - name: Upload the packages
@@ -127,7 +128,7 @@ jobs:
           name: packages
           path: ${{ runner.temp }}/packages
 
-      - name: Smoke-test the packages (watchOS simulator)
+      - name: Smoke-test the packages (watchOS simulator, watchOS live host)
         run: bash .github/scripts/package-smoke.sh --watchos "$RUNNER_TEMP/packages" "$VERSION" "$RUNNER_TEMP/package-smoke"
 
       - name: Upload the smoke test logs

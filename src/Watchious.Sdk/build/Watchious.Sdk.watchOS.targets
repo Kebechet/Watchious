@@ -98,9 +98,8 @@
     </ItemGroup>
   </Target>
 
-  <!-- After .NET for iOS has filled the app bundle: watchOS manifest, icon and signature. AfterTargets runs this even
-       when _CreateAppBundle is skipped, as it is for a library, which has no bundle. -->
-  <Target Name="_WatchiousCompleteWatchApp" AfterTargets="_CreateAppBundle" Condition="'$(_CanOutputAppBundle)' == 'true'">
+  <!-- CodesignProvision as a .mobileprovision file. -->
+  <Target Name="_WatchiousResolveProfile">
     <PropertyGroup>
       <_WatchiousProfile Condition="'$(CodesignProvision)' != '' And Exists('$(CodesignProvision)')">$(CodesignProvision)</_WatchiousProfile>
       <!-- An installed profile: where Xcode 16 and later keep them, else where earlier versions did. -->
@@ -109,6 +108,12 @@
     </PropertyGroup>
     <Error Condition="'$(_WatchiousProfile)' != '' And !Exists('$(_WatchiousProfile)')"
            Text="Watchious: CodesignProvision '$(CodesignProvision)' is neither a .mobileprovision file nor the UUID of an installed profile." />
+  </Target>
+
+  <!-- After .NET for iOS has filled the app bundle: watchOS manifest, icon and signature. AfterTargets runs this even
+       when _CreateAppBundle is skipped, as it is for a library, which has no bundle. -->
+  <Target Name="_WatchiousCompleteWatchApp" AfterTargets="_CreateAppBundle" Condition="'$(_CanOutputAppBundle)' == 'true'"
+          DependsOnTargets="_WatchiousResolveProfile">
     <!-- Before complete-watch-app.sh, which signs the bundle. SwiftUI loads them with UIImage(named:). -->
     <Copy SourceFiles="@(WatchiousImage)" DestinationFolder="$(MSBuildProjectDirectory)/$(_AppBundlePath)" SkipUnchangedFiles="true" />
     <Exec Command="bash &quot;$(WatchiousToolsDirectory)complete-watch-app.sh&quot;"
@@ -147,6 +152,67 @@
     </PropertyGroup>
     <Exec Command="bash &quot;$(WatchiousToolsDirectory)run-watch-app.sh&quot; $(_WatchiousRunMode) &quot;$(MSBuildProjectDirectory)/$(_AppBundlePath)&quot; $(WatchiousBundleIdentifier) &quot;$(WatchiousDevice)&quot;"
           EnvironmentVariables="WATCHIOUS_LAUNCH_ARGUMENTS=$(WatchiousLaunchArguments)" />
+  </Target>
+
+  <!-- Live mode's host (dotnet build -t:WatchiousLive, Watchious.Sdk.Live.targets): the SwiftUI host compiled with
+       LiveRuntime.swift, which stands in for the app's .NET code, from the sources the SDK ships, with the app's images.
+       In the simulator it is an app of its own next to the app. A real watch installs only what the app's profile
+       signs, so there it is the app itself (its bundle identifier, CodesignKey and CodesignProvision), which it
+       replaces until the app is run again. -->
+  <PropertyGroup Condition="'$(OutputType)' == 'Exe'">
+    <_WatchiousLiveDependsOn>_WatchiousCheckLiveWatchUrl;_WatchiousLiveWatchOS</_WatchiousLiveDependsOn>
+    <_WatchiousLiveWorkDirectory>$(_WatchiousWorkDirectory)live/</_WatchiousLiveWorkDirectory>
+    <_WatchiousLiveApp>$(_WatchiousLiveWorkDirectory)WatchiousLive.app</_WatchiousLiveApp>
+    <_WatchiousLiveStamp>$(_WatchiousLiveWorkDirectory)live.stamp</_WatchiousLiveStamp>
+    <_WatchiousLiveParameters>$(_WatchiousLiveWorkDirectory)parameters.txt</_WatchiousLiveParameters>
+    <_WatchiousLiveImagesFile>$(_WatchiousLiveWorkDirectory)images.txt</_WatchiousLiveImagesFile>
+    <_WatchiousLiveBundleIdentifier Condition="'$(_SdkIsSimulator)' == 'true'">com.kebechet.watchious.live</_WatchiousLiveBundleIdentifier>
+    <_WatchiousLiveBundleIdentifier Condition="'$(_SdkIsSimulator)' != 'true'">$(WatchiousBundleIdentifier)</_WatchiousLiveBundleIdentifier>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(OutputType)' == 'Exe'">
+    <_WatchiousLiveInput Include="$(WatchiousWatchOSHostDirectory)*.swift;$(WatchiousWatchOSHostDirectory)*.h" />
+    <_WatchiousLiveInput Include="$(WatchiousWatchOSLiveDirectory)LiveRuntime.swift;$(WatchiousWatchOSLiveDirectory)Info.plist" />
+    <_WatchiousLiveInput Include="$(WatchiousToolsDirectory)build-live-watch-app.sh;$(WatchiousToolsDirectory)complete-watch-app.sh" />
+    <_WatchiousLiveInput Include="@(WatchiousImage)" />
+  </ItemGroup>
+
+  <!-- What the live host is built from, for and signed with, written only when it changes, so that a change rebuilds
+       it. The source folders are there for another version of the SDK: NuGet gives the files it extracts the time
+       they were packed, which can be older than the live host built from the version before. -->
+  <Target Name="_WatchiousWriteLiveParameters" DependsOnTargets="_WatchiousResolveProfile">
+    <PropertyGroup>
+      <_WatchiousLiveSignIdentity Condition="'$(_SdkIsSimulator)' != 'true'">$(CodesignKey)</_WatchiousLiveSignIdentity>
+      <_WatchiousLiveProfile Condition="'$(_SdkIsSimulator)' != 'true'">$(_WatchiousProfile)</_WatchiousLiveProfile>
+    </PropertyGroup>
+    <MakeDir Directories="$(_WatchiousLiveWorkDirectory)" />
+    <WriteLinesToFile File="$(_WatchiousLiveParameters)" Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Lines="$(WatchiousWatchOSHostDirectory);$(WatchiousWatchOSLiveDirectory);$(WatchiousToolsDirectory);$(_WatchiousSdkName);$(WatchiousMinimumWatchOSVersion);$(_WatchiousLiveBundleIdentifier);$(_WatchiousLiveSignIdentity);$(_WatchiousLiveProfile)" />
+    <WriteLinesToFile File="$(_WatchiousLiveImagesFile)" Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Lines="@(WatchiousImage->'%(FullPath)')" />
+  </Target>
+
+  <!-- The profile is an input too: one saved again under the same path (with another watch, or renewed) is embedded
+       only when the live host is built. -->
+  <Target Name="_WatchiousBuildLiveWatchApp" DependsOnTargets="_WatchiousWriteLiveParameters"
+          Inputs="@(_WatchiousLiveInput);$(_WatchiousLiveParameters);$(_WatchiousLiveImagesFile);$(_WatchiousLiveProfile)"
+          Outputs="$(_WatchiousLiveStamp)">
+    <Message Importance="high" Text="Watchious: building Watchious Live for $(_WatchiousSdkName) ($(_WatchiousLiveBundleIdentifier))" />
+    <Exec Command="bash &quot;$(WatchiousToolsDirectory)build-live-watch-app.sh&quot;"
+          EnvironmentVariables="WATCHIOUS_SDK_NAME=$(_WatchiousSdkName);WATCHIOUS_MIN_OS=$(WatchiousMinimumWatchOSVersion);WATCHIOUS_HOST_DIR=$(WatchiousWatchOSHostDirectory);WATCHIOUS_LIVE_DIR=$(WatchiousWatchOSLiveDirectory);WATCHIOUS_TOOLS_DIR=$(WatchiousToolsDirectory);WATCHIOUS_WORK_DIR=$(_WatchiousLiveWorkDirectory);WATCHIOUS_APP=$(_WatchiousLiveApp);WATCHIOUS_BUNDLE_ID=$(_WatchiousLiveBundleIdentifier);WATCHIOUS_IMAGES_FILE=$(_WatchiousLiveImagesFile);WATCHIOUS_SIGN_IDENTITY=$(_WatchiousLiveSignIdentity);WATCHIOUS_PROFILE=$(_WatchiousLiveProfile)" />
+    <Touch Files="$(_WatchiousLiveStamp)" AlwaysCreate="true" />
+  </Target>
+
+  <Target Name="_WatchiousLiveWatchOS" DependsOnTargets="_WatchiousBuildLiveWatchApp">
+    <PropertyGroup>
+      <_WatchiousRunMode Condition="'$(_SdkIsSimulator)' == 'true'">simulator</_WatchiousRunMode>
+      <_WatchiousRunMode Condition="'$(_SdkIsSimulator)' != 'true'">device</_WatchiousRunMode>
+    </PropertyGroup>
+    <Exec Command="bash &quot;$(WatchiousToolsDirectory)run-watch-app.sh&quot; $(_WatchiousRunMode) &quot;$(_WatchiousLiveApp)&quot; $(_WatchiousLiveBundleIdentifier) &quot;$(WatchiousDevice)&quot;"
+          EnvironmentVariables="WATCHIOUS_LAUNCH_ARGUMENTS=--watchious-live=$(WatchiousLiveUrl) $(WatchiousLaunchArguments)" />
+    <Message Condition="'$(_SdkIsSimulator)' == 'true'" Importance="high"
+             Text="Watchious live: Watchious Live runs in the simulator and shows the app running at $(WatchiousLiveUrl). Start it, if it isn't running: $(_WatchiousLiveAppCommand)" />
+    <Message Condition="'$(_SdkIsSimulator)' != 'true'" Importance="high"
+             Text="Watchious live: Watchious Live runs on $(WatchiousDevice) in place of the app ($(WatchiousBundleIdentifier)) until the app is run again, and shows the app running at $(WatchiousLiveUrl). Start it, if it isn't running: dotnet run -f $(_WatchiousLiveNet) -- --live --urls=http://0.0.0.0:$(WatchiousLivePort). ⚠️ Keep the watch's screen on: watchOS suspends an app whose screen is off." />
   </Target>
 
 </Project>

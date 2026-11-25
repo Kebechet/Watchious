@@ -5,9 +5,10 @@ import android.os.Bundle
 import com.kebechet.watchious.host.WatchiousComposeHost
 
 // Live mode's host on Wear OS: the Compose host without .NET. The app's C# runs on a computer
-// (dotnet run -f net10.0 -- --live), which sends its patches here and gets the taps back (LiveConnection). Start it
-// with adb reverse tcp:5293 tcp:5293, then
-// adb shell am start -n com.kebechet.watchious.live/.LiveActivity --es watchious_live http://localhost:5293
+// (dotnet run -f net10.0 -- --live), which sends its patches here and gets the taps back (LiveConnection).
+// Kebechet.Watchious.Sdk ships it built (live/WearOS/watchious-live.apk), and dotnet build -t:WatchiousLive
+// -f net10.0-android installs it, runs adb reverse tcp:5293 tcp:5293 and starts it with
+// adb shell am start -S -n com.kebechet.watchious.live/.LiveActivity --es watchious_live http://localhost:5293
 class LiveActivity : Activity() {
     private lateinit var host: WatchiousComposeHost
     private lateinit var connection: LiveConnection

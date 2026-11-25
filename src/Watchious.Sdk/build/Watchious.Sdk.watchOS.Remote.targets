@@ -1,6 +1,6 @@
 <!--
-  watchOS builds need a Mac. On Windows (or Linux) these targets replace Build and Run of a net*-watchos build:
-  like MAUI's "Pair to Mac", the sources go to a Mac over ssh, dotnet builds there, and the app comes back.
+  watchOS builds need a Mac. On Windows (or Linux) these targets replace Build, Run and WatchiousLive of a net*-watchos
+  build: like MAUI's "Pair to Mac", the sources go to a Mac over ssh, dotnet builds there, and the app comes back.
     WatchiousRemoteMac            user@host of the Mac (ssh with key authentication)
     WatchiousRemoteSshOptions     extra ssh options, e.g. -i C:\Users\me\.ssh\mac -o IdentitiesOnly=yes
     WatchiousRemoteDotnet         dotnet on the Mac (default ~/.dotnet/dotnet; it needs the ios workload)
@@ -16,7 +16,7 @@
                                   of the source root>, so two checkouts don't share one). A file deleted here is
                                   deleted there only if an earlier build sent it; nothing else in the folder is touched.
   WatchiousAllowUntestedIOSSdk and WatchiousTestedIOSSdkVersions go to the Mac, which checks the .NET for iOS
-  version (Watchious.Sdk.watchOS.targets).
+  version (Watchious.Sdk.watchOS.targets), and so do WatchiousLivePort and WatchiousLiveUrl (Watchious.Sdk.Live.targets).
   Signing properties (CodesignKey, CodesignProvision, CodesignEntitlements, WatchiousContainerProvision) are paths
   and names on the Mac; a relative CodesignEntitlements works on both sides.
 -->
@@ -73,12 +73,47 @@
                               Condition="'$(WatchiousAllowUntestedIOSSdk)' != ''" />
     <_WatchiousRemoteProperty Include="WatchiousTestedIOSSdkVersions" Value="$(WatchiousTestedIOSSdkVersions.Replace(&quot;'&quot;, &quot;'\''&quot;))"
                               Condition="'$(WatchiousTestedIOSSdkVersions)' != ''" />
+    <_WatchiousRemoteProperty Include="WatchiousLivePort" Value="$(WatchiousLivePort.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(WatchiousLivePort)' != ''" />
+    <_WatchiousRemoteProperty Include="WatchiousLiveUrl" Value="$(WatchiousLiveUrl.Replace(&quot;'&quot;, &quot;'\''&quot;))"
+                              Condition="'$(WatchiousLiveUrl)' != ''" />
   </ItemGroup>
 
   <Target Name="Build" DependsOnTargets="_WatchiousBuildOnRemoteMac" />
 
   <Target Name="Run">
     <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="_WatchiousBuildOnRemoteMac" Properties="TargetFramework=$(TargetFramework);_WatchiousRemoteTargets=Run" />
+  </Target>
+
+  <!-- Live mode (Watchious.Sdk.Live.targets): the Mac builds and starts the live host. The simulator then reaches the
+       app on this computer through an ssh tunnel from the Mac's port to this one's, the remote-Mac version of adb
+       reverse: the app keeps listening on localhost only, but every account on the Mac reaches it through that port.
+       The tunnel stays open, in the foreground, until Ctrl+C. An Apple Watch reaches this computer over the network
+       instead (WatchiousLiveUrl). -->
+  <PropertyGroup Condition="'$(OutputType)' == 'Exe'">
+    <_WatchiousLiveDependsOn>_WatchiousCheckLiveWatchUrl;_WatchiousLiveOnRemoteMac</_WatchiousLiveDependsOn>
+  </PropertyGroup>
+
+  <Target Name="_WatchiousLiveOnRemoteMac">
+    <PropertyGroup>
+      <_WatchiousLiveTunnel Condition="!$(RuntimeIdentifier.StartsWith('ios-'))">true</_WatchiousLiveTunnel>
+    </PropertyGroup>
+    <!-- Before the live host starts: it retries until something answers at its URL, so with the Mac's port taken (a
+         live server there, another tunnel) it would draw that one's app, and only the tunnel below would fail. -->
+    <Exec Condition="'$(_WatchiousLiveTunnel)' == 'true'"
+          Command="$(_WatchiousSsh) &quot;nc -z 127.0.0.1 $(WatchiousLivePort)&quot;"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ExitCode" PropertyName="_WatchiousLivePortAnswered" />
+    </Exec>
+    <Error Condition="'$(_WatchiousLivePortAnswered)' == '0'"
+           Text="Watchious live: port $(WatchiousLivePort) on $(WatchiousRemoteMac) is already in use (a live server or another live tunnel there), so the simulator would reach that instead of this computer. Stop it, or use another port: -p:WatchiousLivePort=&lt;port&gt; here and --urls=http://localhost:&lt;port&gt; for the app." />
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="_WatchiousBuildOnRemoteMac" Properties="TargetFramework=$(TargetFramework);_WatchiousRemoteTargets=WatchiousLive" />
+    <Message Condition="'$(_WatchiousLiveTunnel)' == 'true'" Importance="high"
+             Text="Watchious live: the simulator on $(WatchiousRemoteMac) reaches port $(WatchiousLivePort) of this computer through ssh while this runs; Ctrl+C ends it. Start the app here, if it isn't running: $(_WatchiousLiveAppCommand)" />
+    <!-- ExitOnForwardFailure: a port already taken on the Mac fails here instead of leaving a tunnel that forwards
+         nothing. -->
+    <Exec Condition="'$(_WatchiousLiveTunnel)' == 'true'"
+          Command="ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -R $(WatchiousLivePort):localhost:$(WatchiousLivePort) $(WatchiousRemoteSshOptions) $(WatchiousRemoteMac)" />
   </Target>
 
   <!-- Rebuild is Clean, then Build: the Mac's bin and obj go too, so that the build there starts from scratch. An
@@ -122,11 +157,14 @@
                       Lines="set -e;cd $([MSBuild]::Escape('$(_WatchiousRemoteDirectoryArgument)'));$([MSBuild]::Escape('$(_WatchiousRemoteUnpack)'));cd;cd $([MSBuild]::Escape('$(_WatchiousRemoteProjectDirectoryArgument)'));$([MSBuild]::Escape('$(_WatchiousRemoteBeforeBuildLine)'));$([MSBuild]::Escape('$(_WatchiousRemoteBuild)')) &lt; /dev/null" />
     <Exec Command="$(_WatchiousSsh) &quot;tr -d '\r' | bash -s&quot; &lt; &quot;$(_WatchiousRemoteScript)&quot;" />
     <!-- Only the app (and the App Store package, if any) comes back, and an app's build without one fails; a library
-         has nothing to bring back. find, because the Mac's login shell (zsh) aborts on a wildcard that matches
-         nothing; -print0, for names with spaces. -->
-    <Exec Condition="'$(OutputType)' == 'Exe'" Command="$(_WatchiousSsh) &quot;cd $(_WatchiousRemoteProjectDirectoryArgument) &amp;&amp; find $(_WatchiousRemoteBinDirectory) -maxdepth 2 -name '*.app' | grep -q . &amp;&amp; find $(_WatchiousRemoteBinDirectory) -maxdepth 2 \( -name '*.app' -o -name '*.ipa' \) -print0 | tar --null -cf - -T -&quot; &gt; &quot;$(_WatchiousAppArchive)&quot;" />
-    <Exec Condition="'$(OutputType)' == 'Exe'" Command="tar -xf - -C &quot;$(MSBuildProjectDirectory.Replace('\', '/'))&quot; &lt; &quot;$(_WatchiousAppArchive)&quot;" />
-    <Message Condition="'$(OutputType)' == 'Exe'" Importance="high" Text="Watchious: the watch app is in $(_WatchiousRemoteBinDirectory)/" />
+         has nothing to bring back, and live mode builds no app. find, because the Mac's login shell (zsh) aborts on a
+         wildcard that matches nothing; -print0, for names with spaces. -->
+    <PropertyGroup>
+      <_WatchiousBringBackApp Condition="'$(OutputType)' == 'Exe' And '$(_WatchiousRemoteTargets)' != 'WatchiousLive'">true</_WatchiousBringBackApp>
+    </PropertyGroup>
+    <Exec Condition="'$(_WatchiousBringBackApp)' == 'true'" Command="$(_WatchiousSsh) &quot;cd $(_WatchiousRemoteProjectDirectoryArgument) &amp;&amp; find $(_WatchiousRemoteBinDirectory) -maxdepth 2 -name '*.app' | grep -q . &amp;&amp; find $(_WatchiousRemoteBinDirectory) -maxdepth 2 \( -name '*.app' -o -name '*.ipa' \) -print0 | tar --null -cf - -T -&quot; &gt; &quot;$(_WatchiousAppArchive)&quot;" />
+    <Exec Condition="'$(_WatchiousBringBackApp)' == 'true'" Command="tar -xf - -C &quot;$(MSBuildProjectDirectory.Replace('\', '/'))&quot; &lt; &quot;$(_WatchiousAppArchive)&quot;" />
+    <Message Condition="'$(_WatchiousBringBackApp)' == 'true'" Importance="high" Text="Watchious: the watch app is in $(_WatchiousRemoteBinDirectory)/" />
   </Target>
 
 </Project>

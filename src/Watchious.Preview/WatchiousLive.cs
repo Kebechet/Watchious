@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Runtime.Versioning;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -14,14 +15,19 @@ namespace Watchious.Preview;
 
 public sealed class WatchiousLiveOptions
 {
-    // ⚠️ http://0.0.0.0:5293, which a live host on another computer needs, lets every device on the network start the
-    // app and tap in it: use it on a network you trust only.
-    public string Url { get; set; } = "http://localhost:5293";
+    // The WatchiousLive target's default WatchiousLivePort too (Watchious.Sdk.Live.targets).
+    internal const int DefaultPort = 5293;
+
+    // ⚠️ http://0.0.0.0:5293 lets every device on the network start the app and tap in it: use it on a network you
+    // trust only. Only an Apple Watch needs it, as it reaches the computer over the network. A simulator on a remote
+    // Mac comes through the WatchiousLive target's ssh tunnel and a Wear OS device through adb reverse, both to
+    // localhost.
+    public string Url { get; set; } = $"http://localhost:{DefaultPort}";
 }
 
-// Live mode: the app's C# runs here, under the debugger, and a live host (a watch host app without .NET, in the watchOS
-// simulator or the Wear OS emulator) draws it with the real SwiftUI or Compose controls. The live host talks plain
-// HTTP, like the inspector's app side, as that is what every watch allows:
+// Live mode: the app's C# runs here, under the debugger, and a live host (a watch host app without .NET, on a watch, an
+// emulator or a simulator) draws it with the real SwiftUI or Compose controls. The live host talks plain HTTP, like the
+// inspector's app side, as that is what every watch allows:
 //   POST /live/start?platform=wearos|watchos   starts a new instance of the app; the response is its session id
 //   GET  /live/messages?session=...&ack=N     waits up to 20 s for what the app sends. Each message is a kind byte (1 a
 //                                             patch batch, 2 JSON such as {"error": ...}), its sequence number and its
@@ -44,8 +50,38 @@ public static class WatchiousLive
             Console.WriteLine("⚠️ Every device on this network can start the app and tap in it.");
         }
 
-        Console.WriteLine($"Start the live host with {hostUrl} (see the README's Live mode).");
+        // The live hosts ship with Kebechet.Watchious.Sdk, whose WatchiousLive target starts them (Watchious.Sdk.Live.targets).
+        var startLiveHost = StartLiveHostCommand(server.Urls.FirstOrDefault() ?? options.Url);
+        var net = NetFramework(AppContext.TargetFrameworkName);
+        Console.WriteLine($"Start the live host in the app's folder: {startLiveHost} -f {net}-android (Wear OS) or -f {net}-watchos (watchOS).");
+        if (hostUrl != options.Url)
+        {
+            Console.WriteLine($"An Apple Watch reaches this app over the network: {startLiveHost} -f {net}-watchos -r ios-arm64 -p:WatchiousDevice=<watch> -p:WatchiousLiveUrl={hostUrl}");
+        }
         await server.WaitForShutdownAsync(cancellationToken);
+    }
+
+    // -tl:off: dotnet build's terminal logger hides what the target prints, the remote Mac's tunnel note among it. Not
+    // given the app's port, the target uses the default one, and the live host would look for the app there.
+    internal static string StartLiveHostCommand(string listeningUrl)
+    {
+        const string command = "dotnet build -t:WatchiousLive -tl:off";
+        var port = Uri.TryCreate(listeningUrl, UriKind.Absolute, out var uri) ? uri.Port : WatchiousLiveOptions.DefaultPort;
+        return port == WatchiousLiveOptions.DefaultPort ? command : $"{command} -p:WatchiousLivePort={port}";
+    }
+
+    // The app's watch frameworks share its .NET version, which the framework it runs on names
+    // (".NETCoreApp,Version=v10.0" gives net10.0). Not Environment.Version: the runtime can be a newer one the app
+    // rolled forward to.
+    internal static string NetFramework(string? targetFrameworkName)
+    {
+        if (targetFrameworkName is null)
+        {
+            return $"net{Environment.Version.Major}.0";
+        }
+
+        var version = new FrameworkName(targetFrameworkName).Version;
+        return $"net{version.Major}.{version.Minor}";
     }
 
     internal static WebApplication Start(Func<WatchiousApp> createApp, WatchiousLiveOptions options)

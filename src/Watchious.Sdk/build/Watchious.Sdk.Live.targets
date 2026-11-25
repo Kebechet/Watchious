@@ -1,0 +1,111 @@
+<!--
+  Live mode: the app's C# runs on the computer, under the debugger (the net10.0 app started with its live option, see
+  the README's "Live mode"), and a live host, a watch host app without .NET, draws it with the real Compose or SwiftUI
+  controls. This target starts the live host, as -t:Run starts the app:
+    dotnet build -t:WatchiousLive -f net10.0-android      the Wear OS emulator, or a watch over adb
+    dotnet build -t:WatchiousLive -f net10.0-watchos      the watchOS simulator (on a Mac, or a remote Mac from Windows)
+    dotnet build -t:WatchiousLive -f net10.0-watchos -r ios-arm64 -p:WatchiousDevice=<watch>   an Apple Watch
+  The live host retries until it reaches the app, so either can start first.
+    WatchiousLivePort   the live server's port (default 5293, Kebechet.Watchious.Preview's); with another one the app
+                        has to listen on it too, as the target's messages say
+    WatchiousLiveUrl    where the live host reaches the server (default http://localhost:<port>): on Wear OS through adb
+                        reverse, in the simulator on its Mac (from Windows through an ssh tunnel). An Apple Watch needs
+                        the computer's address on the network.
+    Device              Wear OS: the emulator's or watch's adb serial (adb devices), as for -t:Run
+    WatchiousDevice     watchOS: the simulator's name, or the watch's UDID or name, as for -t:Run
+    WatchiousLaunchArguments   watchOS: more launch arguments for the live host, as for -t:Run
+-->
+<Project>
+
+  <PropertyGroup>
+    <WatchiousLivePort Condition="'$(WatchiousLivePort)' == ''">5293</WatchiousLivePort>
+    <WatchiousLiveUrl Condition="'$(WatchiousLiveUrl)' == ''">http://localhost:$(WatchiousLivePort)</WatchiousLiveUrl>
+    <!-- The app's .NET version (net10.0) for the messages' commands, from its target framework, or in the outer build
+         of a multi-targeted project from the first of its frameworks. -->
+    <_WatchiousLiveFrameworks>$(TargetFramework)</_WatchiousLiveFrameworks>
+    <_WatchiousLiveFrameworks Condition="'$(_WatchiousLiveFrameworks)' == ''">$(TargetFrameworks)</_WatchiousLiveFrameworks>
+    <_WatchiousLiveNet>$([System.Text.RegularExpressions.Regex]::Replace('$(_WatchiousLiveFrameworks)', '(?s)^.*?(net\d+\.\d+).*$', '$1'))</_WatchiousLiveNet>
+    <_WatchiousLiveNet Condition="!$(_WatchiousLiveNet.StartsWith('net'))">net10.0</_WatchiousLiveNet>
+    <!-- The messages' command that starts the app: on another port than the live server's default, the app has to
+         listen there too. -->
+    <_WatchiousLiveAppCommand>dotnet run -f $(_WatchiousLiveNet) -- --live</_WatchiousLiveAppCommand>
+    <_WatchiousLiveAppCommand Condition="'$(WatchiousLivePort)' != '5293'">$(_WatchiousLiveAppCommand) --urls=http://localhost:$(WatchiousLivePort)</_WatchiousLiveAppCommand>
+    <!-- Watchious.Sdk.watchOS.targets and Watchious.Sdk.watchOS.Remote.targets set it for watchOS. .NET for Android
+         turns an app's OutputType Exe into Library, and marks it with AndroidApplication. -->
+    <_WatchiousLiveDependsOn Condition="'$(WatchiousTargetPlatform)' == 'android' And '$(AndroidApplication)' == 'true'">_WatchiousLiveWearOS</_WatchiousLiveDependsOn>
+  </PropertyGroup>
+
+  <Target Name="WatchiousLive" DependsOnTargets="$(_WatchiousLiveDependsOn)">
+    <Error Condition="'$(_WatchiousLiveDependsOn)' == ''"
+           Text="Watchious: WatchiousLive starts the live host on a watch, an emulator or a simulator: run it for the app's Wear OS or watchOS target framework (-f $(_WatchiousLiveNet)-android or -f $(_WatchiousLiveNet)-watchos). The app itself runs on this computer: $(_WatchiousLiveAppCommand)" />
+  </Target>
+
+  <!-- A real Apple Watch reaches the app over the network: localhost would be the watch itself. -->
+  <Target Name="_WatchiousCheckLiveWatchUrl">
+    <Error Condition="$(RuntimeIdentifier.StartsWith('ios-')) And ($(WatchiousLiveUrl.Contains('://localhost')) Or $(WatchiousLiveUrl.Contains('://127.')))"
+           Text="Watchious: an Apple Watch can't reach the app at $(WatchiousLiveUrl), which is the watch itself. Start the app so that the network can reach it: dotnet run -f $(_WatchiousLiveNet) -- --live --urls=http://0.0.0.0:$(WatchiousLivePort) (⚠️ every device on the network can then start the app and tap in it: use a network you trust only), and give the live host that computer's address: -p:WatchiousLiveUrl=http://&lt;address&gt;:$(WatchiousLivePort)" />
+  </Target>
+
+  <!-- Wear OS: the live host is an app of its own (com.kebechet.watchious.live), which the SDK ships built. adb is the
+       one .NET for Android uses, and -p:Device=<serial> picks the device, as for -t:Run. -->
+  <Target Name="_WatchiousLiveWearOS" DependsOnTargets="_ResolveMonoAndroidSdks">
+    <PropertyGroup>
+      <_WatchiousLivePackage>com.kebechet.watchious.live</_WatchiousLivePackage>
+      <_WatchiousAdbExe>$(AdbToolExe)</_WatchiousAdbExe>
+      <_WatchiousAdbExe Condition="'$(_WatchiousAdbExe)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">adb.exe</_WatchiousAdbExe>
+      <_WatchiousAdbExe Condition="'$(_WatchiousAdbExe)' == ''">adb</_WatchiousAdbExe>
+      <_WatchiousAdbPath>$([System.IO.Path]::Combine('$(AdbToolPath)', '$(_WatchiousAdbExe)'))</_WatchiousAdbPath>
+      <_WatchiousAdb>&quot;$(_WatchiousAdbPath)&quot; $(AdbTarget)</_WatchiousAdb>
+      <_WatchiousLiveDevice Condition="'$(Device)' != ''">$(Device)</_WatchiousLiveDevice>
+      <_WatchiousLiveDevice Condition="'$(Device)' == ''">the device</_WatchiousLiveDevice>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(WatchiousWearOSLiveApk)')"
+           Text="Watchious: the Wear OS live host $(WatchiousWearOSLiveApk) doesn't exist. In the Watchious repository, build it with ./gradlew :live:assembleRelease in platforms/WearOS." />
+    <Error Condition="'$(AdbToolPath)' != '' And !Exists('$(_WatchiousAdbPath)')"
+           Text="Watchious: adb isn't at $(_WatchiousAdbPath) (.NET for Android's AdbToolPath). Install the Android SDK's platform-tools, or point -p:AdbToolPath=&lt;folder&gt; at adb's folder." />
+
+    <Exec Command="$(_WatchiousAdb) get-state" ConsoleToMSBuild="true" IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true"
+          StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ExitCode" PropertyName="_WatchiousAdbExitCode" />
+      <Output TaskParameter="ConsoleOutput" PropertyName="_WatchiousAdbOutput" />
+    </Exec>
+    <!-- Without an AdbToolPath the adb on the PATH runs: 9009 is cmd's exit code for a command it doesn't find, 127
+         sh's. -->
+    <Error Condition="'$(_WatchiousAdbExitCode)' == '9009' Or '$(_WatchiousAdbExitCode)' == '127'"
+           Text="Watchious: adb wasn't found ($(_WatchiousAdbOutput)). Install the Android SDK's platform-tools, or point -p:AdbToolPath=&lt;folder&gt; at adb's folder." />
+    <Error Condition="'$(_WatchiousAdbExitCode)' != '0'"
+           Text="Watchious: adb can't reach $(_WatchiousLiveDevice) ($(_WatchiousAdbOutput)). Start the Wear OS emulator or connect the watch (adb devices); with more than one, pick one with -p:Device=&lt;serial&gt;." />
+
+    <Exec Command="$(_WatchiousAdb) install -r &quot;$(WatchiousWearOSLiveApk)&quot;" ConsoleToMSBuild="true" IgnoreExitCode="true"
+          IgnoreStandardErrorWarningFormat="true">
+      <Output TaskParameter="ExitCode" PropertyName="_WatchiousAdbExitCode" />
+      <Output TaskParameter="ConsoleOutput" PropertyName="_WatchiousAdbOutput" />
+    </Exec>
+    <!-- adb updates an app only with one of the same signature, and a live host built in the Watchious repository with
+         another key (a debug build) can be installed. -->
+    <PropertyGroup>
+      <_WatchiousLiveReinstall Condition="'$(_WatchiousAdbExitCode)' != '0' And $(_WatchiousAdbOutput.Contains('INSTALL_FAILED_UPDATE_INCOMPATIBLE'))">true</_WatchiousLiveReinstall>
+    </PropertyGroup>
+    <Message Condition="'$(_WatchiousLiveReinstall)' == 'true'" Importance="high"
+             Text="Watchious: the installed live host has another signature; it is uninstalled first." />
+    <Exec Condition="'$(_WatchiousLiveReinstall)' == 'true'" Command="$(_WatchiousAdb) uninstall $(_WatchiousLivePackage)" />
+    <Exec Condition="'$(_WatchiousLiveReinstall)' == 'true'" Command="$(_WatchiousAdb) install &quot;$(WatchiousWearOSLiveApk)&quot;"
+          ConsoleToMSBuild="true" IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true">
+      <Output TaskParameter="ExitCode" PropertyName="_WatchiousAdbExitCode" />
+      <Output TaskParameter="ConsoleOutput" PropertyName="_WatchiousAdbOutput" />
+    </Exec>
+    <Error Condition="'$(_WatchiousAdbExitCode)' != '0'" Text="Watchious: adb couldn't install the live host on $(_WatchiousLiveDevice): $(_WatchiousAdbOutput)" />
+
+    <!-- The live host's localhost:<port> is this computer's. -->
+    <Exec Command="$(_WatchiousAdb) reverse tcp:$(WatchiousLivePort) tcp:$(WatchiousLivePort)" StandardOutputImportance="low" />
+    <!-- -S: an open live host reads the address only when it starts. am start reports a failure in its output only. -->
+    <Exec Command="$(_WatchiousAdb) shell am start -S -n $(_WatchiousLivePackage)/.LiveActivity --es watchious_live $(WatchiousLiveUrl)"
+          ConsoleToMSBuild="true" IgnoreStandardErrorWarningFormat="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_WatchiousAdbOutput" />
+    </Exec>
+    <Error Condition="$(_WatchiousAdbOutput.Contains('Error'))" Text="Watchious: the live host didn't start on $(_WatchiousLiveDevice): $(_WatchiousAdbOutput)" />
+    <Message Importance="high"
+             Text="Watchious live: Watchious Live runs on $(_WatchiousLiveDevice) and shows the app running at $(WatchiousLiveUrl) on this computer (adb reverse tcp:$(WatchiousLivePort)). Start it, if it isn't running: $(_WatchiousLiveAppCommand)" />
+  </Target>
+
+</Project>

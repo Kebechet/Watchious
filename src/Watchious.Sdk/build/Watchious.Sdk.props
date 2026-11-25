@@ -9,6 +9,10 @@
          Directory.Build.props points these at platforms/watchOS instead. -->
     <WatchiousWatchOSHostDirectory Condition="'$(WatchiousWatchOSHostDirectory)' == ''">$(WatchiousSdkDirectory)host/watchOS/</WatchiousWatchOSHostDirectory>
     <WatchiousToolsDirectory Condition="'$(WatchiousToolsDirectory)' == ''">$(WatchiousSdkDirectory)tools/</WatchiousToolsDirectory>
+    <!-- The live hosts (dotnet build -t:WatchiousLive, Watchious.Sdk.Live.targets): the Wear OS app, and the sources of
+         the watchOS one, which is built on the Mac when it is started. -->
+    <WatchiousWearOSLiveApk Condition="'$(WatchiousWearOSLiveApk)' == ''">$(WatchiousSdkDirectory)live/WearOS/watchious-live.apk</WatchiousWearOSLiveApk>
+    <WatchiousWatchOSLiveDirectory Condition="'$(WatchiousWatchOSLiveDirectory)' == ''">$(WatchiousSdkDirectory)live/watchOS/</WatchiousWatchOSLiveDirectory>
     <!-- Without an arm64_32 slice, which NativeAOT can't build, the App Store accepts a watch app only from
          watchOS 27 (ITMS-90733). -->
     <WatchiousMinimumWatchOSVersion Condition="'$(WatchiousMinimumWatchOSVersion)' == ''">27.0</WatchiousMinimumWatchOSVersion>

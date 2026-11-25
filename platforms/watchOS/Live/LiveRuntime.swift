@@ -1,6 +1,7 @@
 import Foundation
 
-// Live mode's host on watchOS: the SwiftUI host built without .NET (live-watch-app.sh). The app's C# runs on a computer
+// Live mode's host on watchOS: the SwiftUI host built without .NET, from the sources Kebechet.Watchious.Sdk ships
+// (dotnet build -t:WatchiousLive, which runs its tools/build-live-watch-app.sh). The app's C# runs on a computer
 // (dotnet run -f net10.0 -- --live), and these stand in for the four functions .NET exports to the host (Watchious.h):
 // the computer sends the app's patches, and the taps and confirmations go back, over plain HTTP (Watchious.Preview's
 // WatchiousLive.cs). The computer is the launch argument --watchious-live=http://<computer>:5293.

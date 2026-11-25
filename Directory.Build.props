@@ -20,7 +20,8 @@
     <Authors>Kebechet</Authors>
     <Copyright>Copyright (c) 2026 Kebechet</Copyright>
     <!-- A package that bundles another project's binaries sets its own expression and packs THIRD-PARTY-NOTICES.txt
-         (Kebechet.Watchious.Hosts.WearOS, Kebechet.Watchious.Health). -->
+         (Kebechet.Watchious.Hosts.WearOS, Kebechet.Watchious.Health, and Kebechet.Watchious.Sdk for its Wear OS live
+         host). -->
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Kebechet/Watchious</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Kebechet/Watchious</RepositoryUrl>
@@ -38,6 +39,9 @@
     <WatchiousRepositoryRoot>$(MSBuildThisFileDirectory)</WatchiousRepositoryRoot>
     <WatchiousUseProjectReferences>true</WatchiousUseProjectReferences>
     <WatchiousWatchOSHostDirectory>$(MSBuildThisFileDirectory)platforms/watchOS/Host/</WatchiousWatchOSHostDirectory>
+    <WatchiousWatchOSLiveDirectory>$(MSBuildThisFileDirectory)platforms/watchOS/Live/</WatchiousWatchOSLiveDirectory>
+    <!-- Built by ./gradlew :live:assembleRelease in platforms/WearOS. -->
+    <WatchiousWearOSLiveApk>$(MSBuildThisFileDirectory)platforms/WearOS/live/build/outputs/apk/release/live-release.apk</WatchiousWearOSLiveApk>
   </PropertyGroup>
 
 </Project>

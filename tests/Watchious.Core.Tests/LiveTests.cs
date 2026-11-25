@@ -98,6 +98,31 @@ public class LiveTests
         unknownEvent.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
+    [Theory]
+    [InlineData("http://localhost:5293", "dotnet build -t:WatchiousLive -tl:off")]
+    [InlineData("http://localhost:5300", "dotnet build -t:WatchiousLive -tl:off -p:WatchiousLivePort=5300")]
+    [InlineData("http://0.0.0.0:5300", "dotnet build -t:WatchiousLive -tl:off -p:WatchiousLivePort=5300")]
+    public void StartLiveHostCommand_PassesAnotherPortThanTheDefault_ToTheTarget(string listeningUrl, string expected)
+    {
+        // Act
+        var command = WatchiousLive.StartLiveHostCommand(listeningUrl);
+
+        // Assert
+        command.ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData(".NETCoreApp,Version=v10.0", "net10.0")]
+    [InlineData(".NETCoreApp,Version=v11.0", "net11.0")]
+    public void NetFramework_NamesTheAppsDotnetVersion(string targetFrameworkName, string expected)
+    {
+        // Act
+        var net = WatchiousLive.NetFramework(targetFrameworkName);
+
+        // Assert
+        net.ShouldBe(expected);
+    }
+
     private static async Task<Microsoft.AspNetCore.Builder.WebApplication> StartServerAsync(CancellationToken cancellationToken)
     {
         var server = WatchiousLive.Start(CounterApp.CreateWatchiousApp, new WatchiousLiveOptions { Url = "http://127.0.0.1:0" });
