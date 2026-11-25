@@ -1,5 +1,6 @@
 <!-- Packs the Watchious MSBuild SDK, Kebechet.Watchious.Sdk (<Project Sdk="Kebechet.Watchious.Sdk/<version>">).
-     Nothing is compiled: the package is the MSBuild files, the build tools and the sources of the native watchOS host. -->
+     Nothing is compiled: the package is the MSBuild files, the build tools, the sources of the native watchOS host, and
+     the live hosts (dotnet build -t:WatchiousLive): the Wear OS one built by Gradle, the watchOS one as its sources. -->
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
@@ -10,6 +11,8 @@
     <PackageType>MSBuildSdk</PackageType>
     <Description>The Watchious MSBuild SDK: one project for Wear OS and watchOS watch apps written in Razor.</Description>
     <PackageTags>$(PackageTags);msbuild;msbuild-sdk</PackageTags>
+    <!-- The Wear OS live host is built with AndroidX, Kotlin and other Apache-2.0 libraries (THIRD-PARTY-NOTICES.txt). -->
+    <PackageLicenseExpression>MIT AND Apache-2.0</PackageLicenseExpression>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <EnableDefaultItems>false</EnableDefaultItems>
@@ -17,6 +20,7 @@
          .targets, but an SDK package is never a PackageReference: Sdk/Sdk.props and Sdk.targets import the build/
          files by path. -->
     <NoWarn>$(NoWarn);NU5128;NU5129</NoWarn>
+    <_WatchiousWearOSLiveApk>..\..\platforms\WearOS\live\build\outputs\apk\release\live-release.apk</_WatchiousWearOSLiveApk>
   </PropertyGroup>
 
   <!-- host/watchOS/ with forward slashes: packed on Linux, host\watchOS\ gives entries like
@@ -26,7 +30,16 @@
     <None Include="build\**" Pack="true" PackagePath="build\" />
     <None Include="tools\**" Pack="true" PackagePath="tools\" />
     <None Include="..\..\platforms\watchOS\Host\**" Pack="true" PackagePath="host/watchOS/" />
+    <None Include="..\..\platforms\watchOS\Live\LiveRuntime.swift;..\..\platforms\watchOS\Live\Info.plist" Pack="true" PackagePath="live/watchOS/" />
+    <None Include="$(_WatchiousWearOSLiveApk)" Pack="true" PackagePath="live/WearOS/watchious-live.apk" />
+    <None Include="THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="" />
   </ItemGroup>
+
+  <!-- Gradle builds the Wear OS live host, signed with the repository's live key: .github/scripts/pack.sh runs it first. -->
+  <Target Name="_WatchiousCheckWearOSLiveApk" BeforeTargets="_GetPackageFiles">
+    <Error Condition="!Exists('$(_WatchiousWearOSLiveApk)')"
+           Text="Watchious: the Wear OS live host isn't built: run ./gradlew :live:assembleRelease in platforms/WearOS, or pack with .github/scripts/pack.sh, which does." />
+  </Target>
 
   <!-- The SDK references the Watchious packages of its own version. PackageVersion, not Version: each package is named
        after it, so -p:PackageVersion alone can't stamp another version than the packages have. The template stamps the

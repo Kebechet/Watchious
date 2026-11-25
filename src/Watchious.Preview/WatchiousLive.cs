@@ -44,7 +44,12 @@ public static class WatchiousLive
             Console.WriteLine("⚠️ Every device on this network can start the app and tap in it.");
         }
 
-        Console.WriteLine($"Start the live host with {hostUrl} (see the README's Live mode).");
+        // The live hosts ship with Kebechet.Watchious.Sdk, whose WatchiousLive target starts them (Watchious.Sdk.Live.targets).
+        Console.WriteLine("Start the live host in the app's folder: dotnet build -t:WatchiousLive -f net10.0-android (Wear OS) or -f net10.0-watchos (watchOS).");
+        if (hostUrl != options.Url)
+        {
+            Console.WriteLine($"An Apple Watch reaches this app over the network: -f net10.0-watchos -r ios-arm64 -p:WatchiousDevice=<watch> -p:WatchiousLiveUrl={hostUrl}");
+        }
         await server.WaitForShutdownAsync(cancellationToken);
     }
 

@@ -38,6 +38,9 @@
     <WatchiousRepositoryRoot>$(MSBuildThisFileDirectory)</WatchiousRepositoryRoot>
     <WatchiousUseProjectReferences>true</WatchiousUseProjectReferences>
     <WatchiousWatchOSHostDirectory>$(MSBuildThisFileDirectory)platforms/watchOS/Host/</WatchiousWatchOSHostDirectory>
+    <WatchiousWatchOSLiveDirectory>$(MSBuildThisFileDirectory)platforms/watchOS/Live/</WatchiousWatchOSLiveDirectory>
+    <!-- Built by ./gradlew :live:assembleRelease in platforms/WearOS. -->
+    <WatchiousWearOSLiveApk>$(MSBuildThisFileDirectory)platforms/WearOS/live/build/outputs/apk/release/live-release.apk</WatchiousWearOSLiveApk>
   </PropertyGroup>
 
 </Project>
