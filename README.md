@@ -541,9 +541,11 @@ The workflow then:
 - logs in to nuget.org with Trusted Publishing: `NuGet/login` trades the job's GitHub OIDC token for an API key that is
   valid for an hour, so the repository holds no API key;
 - tags the commit `v<version>`, right before the first push;
-- pushes to nuget.org: the libraries first, then `Kebechet.Watchious.Sdk`, which references them at its exact version,
-  then `Kebechet.Watchious.Templates`, which names the SDK;
+- pushes to nuget.org, each package with its symbol package: the libraries first, then `Kebechet.Watchious.Sdk`, which
+  references them at its exact version, then `Kebechet.Watchious.Templates`, which names the SDK;
 - pushes the same packages to GitHub Packages;
+- waits until nuget.org lists all 10, which takes minutes after the pushes (up to 45, or the job fails and a re-run
+  finishes it);
 - creates the GitHub release `v<version>` on that tag, with the packages and generated notes (a prerelease for a
   version with a `-` suffix).
 
@@ -556,8 +558,8 @@ allows new packages: the first publish creates all 10 ids. Renaming `publish.yml
 names the new file.
 
 ⚠️ **If a publish stops halfway** (some packages pushed, then an error), **re-run that run, don't start a new one.**
-**Re-run failed jobs** pushes the rest from the packages the run already tested: every push skips a version that is
-already there. **Re-run all jobs** works too; it packs and tests the same commit again first. A new run of that version
+**Re-run failed jobs** pushes the rest, symbol packages included, from the packages the run already tested: every push
+skips a version that is already there. **Re-run all jobs** works too; it packs and tests the same commit again first. A new run of that version
 is refused from the first push on, because it would pack the current `main` next to the packages already pushed, and
 those can never be replaced. That refusal comes from the tag `v<version>`, which the run creates right before its first
 push: nuget.org lists a pushed package only minutes later, once it has validated and indexed it. If a re-run can't get
