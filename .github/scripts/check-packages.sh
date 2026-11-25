@@ -272,9 +272,11 @@ check_live_apk() {
     elif [ "$digest" != "$expected" ]; then
         error "$id: live/WearOS/watchious-live.apk is signed with the certificate $(words "$digest"), not with the live key's $expected (platforms/WearOS/live/watchious-live.keystore)."
     fi
-    version_name="$("$aapt2" dump badging "$apk" | tr -d '\r' | sed -n "s/^package: .* versionName='\([^']*\)'.*/\1/p")"
+    # || true: under pipefail a failing aapt2, or a grep that finds no icon, would end the script here, before the
+    # error that says what broke.
+    version_name="$("$aapt2" dump badging "$apk" | tr -d '\r' | sed -n "s/^package: .* versionName='\([^']*\)'.*/\1/p" || true)"
     [ "$version_name" = "$VERSION" ] || error "$id: the live host's versionName is '$version_name', not $VERSION."
-    icons="$(unzip -p "$apk" 'classes*.dex' | grep -aoE 'Landroidx/compose/material/icons/(rounded/Hiking|automirrored/rounded/Article)Kt;' | sort -u | wc -l | tr -d ' ')"
+    icons="$(unzip -p "$apk" 'classes*.dex' | grep -aoE 'Landroidx/compose/material/icons/(rounded/Hiking|automirrored/rounded/Article)Kt;' | sort -u | wc -l | tr -d ' ' || true)"
     [ "$icons" = 2 ] || error "$id: R8 dropped Rounded Material icons from the live host (Icons.Rounded.Hiking, Icons.AutoMirrored.Rounded.Article): check platforms/WearOS/live/proguard-rules.pro."
 }
 
