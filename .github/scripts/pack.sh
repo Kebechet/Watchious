@@ -28,10 +28,11 @@ if ! [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-
     exit 2
 fi
 DOTNET="${DOTNET:-dotnet}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# dotnet is a Windows program in Git Bash, so it gets the Windows form of the paths (pwd -W exists only there), which
+# Git Bash itself accepts too. Its argument conversion would do the same, but MSYS_NO_PATHCONV=1 turns that off.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && { pwd -W 2> /dev/null || pwd; })"
 OUT="${2:-$ROOT/artifacts/packages}"
 mkdir -p "$OUT"
-# dotnet is a Windows program in Git Bash, so it gets the Windows form of the path (pwd -W exists only there).
 if pwd -W > /dev/null 2>&1; then
     OUT="$(cd "$OUT" && pwd -W)"
 else

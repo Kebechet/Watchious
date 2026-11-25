@@ -8,9 +8,10 @@ name: Publish
 # ⚠️ A package id and a version on nuget.org are permanent: a version can only be unlisted, never deleted or replaced.
 #
 # The packages go out libraries first, then the SDK that references them at its exact version, then the template that
-# names the SDK, so nothing visible references a package that isn't there yet. Every push skips a version that is
-# already there, so a re-run of a run that stopped halfway ("Re-run failed jobs", or "Re-run all jobs") pushes the rest
-# from the same commit. ⚠️ A new run of a version is refused once its tag v<version> exists or nuget.org lists any
+# names the SDK, so a run that stops halfway never leaves a pushed package that references one that wasn't pushed.
+# nuget.org then lists each package on its own, minutes later and not always in that order, so the release waits until
+# it lists all 10. Every push skips a version that is already there, so a re-run of a run that stopped halfway ("Re-run
+# failed jobs", or "Re-run all jobs") pushes the rest, symbol packages included, from the same commit. ⚠️ A new run of a version is refused once its tag v<version> exists or nuget.org lists any
 # Kebechet.Watchious.* package at it, since it would pack the current main next to the packages already pushed: re-run
 # the run that stopped, or bump the version. The publish job creates the tag right before its first push, because
 # nuget.org lists a pushed package only minutes later, once it has validated and indexed it.
@@ -129,7 +130,8 @@ jobs:
     needs: [version, packages]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # The wait for nuget.org to list the packages takes up to 45 of these minutes.
+    timeout-minutes: 75
     permissions:
       contents: write   # the release and its tag
       packages: write   # GitHub Packages
@@ -182,7 +184,9 @@ jobs:
           fi
           echo "The tag v$VERSION is already at $GITHUB_SHA: this re-run finishes that publish."
 
-      # dotnet nuget push also pushes the .snupkg next to a package, if there is one.
+      # Each .snupkg is pushed on its own: dotnet nuget push sends the one next to a package only when that package was
+      # pushed in the same call, so a re-run, which skips the packages already there, would never send the symbols of
+      # a run that stopped between the two.
       - name: Push to nuget.org
         env:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
@@ -190,7 +194,12 @@ jobs:
           set -euo pipefail
           for package in $PACKAGES; do
             dotnet nuget push "packages/Kebechet.Watchious.$package.$VERSION.nupkg" \
-              --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+              --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols
+            symbols="packages/Kebechet.Watchious.$package.$VERSION.snupkg"
+            if [ -f "$symbols" ]; then
+              dotnet nuget push "$symbols" \
+                --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+            fi
           done
 
       # GitHub Packages has no symbol server.
@@ -205,6 +214,26 @@ jobs:
               --skip-duplicate --no-symbols
           done
 
+      # The release announces the version, so it waits until every package can be installed. The flat container lists
+      # a version once nuget.org has validated and indexed it, in lower case.
+      - name: Wait until nuget.org lists the packages
+        run: |
+          set -euo pipefail
+          version_lower="$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]')"
+          deadline=$((SECONDS + 45 * 60))
+          for package in $PACKAGES; do
+            id_lower="$(printf 'kebechet.watchious.%s' "$package" | tr '[:upper:]' '[:lower:]')"
+            until curl -sSf -o "$RUNNER_TEMP/versions.json" "https://api.nuget.org/v3-flatcontainer/$id_lower/index.json" 2> /dev/null \
+              && grep -qF "\"$version_lower\"" "$RUNNER_TEMP/versions.json"; do
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::error::nuget.org doesn't list Kebechet.Watchious.$package $VERSION after 45 minutes. Everything is pushed: re-run the failed jobs later to create the release."
+                exit 1
+              fi
+              sleep 30
+            done
+            echo "nuget.org lists Kebechet.Watchious.$package $VERSION."
+          done
+
       - name: Create the GitHub release v${{ env.VERSION }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -216,7 +245,7 @@ jobs:
           All 10 Kebechet.Watchious.* packages at $VERSION, on [nuget.org](https://www.nuget.org/packages/Kebechet.Watchious.Sdk/$VERSION).
 
           \`\`\`bash
-          dotnet new install Kebechet.Watchious.Templates::$VERSION
+          dotnet new install Kebechet.Watchious.Templates@$VERSION
           dotnet new watchious
           \`\`\`
 
