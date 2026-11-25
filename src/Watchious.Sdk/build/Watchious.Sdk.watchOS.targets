@@ -176,7 +176,9 @@
     <_WatchiousLiveInput Include="@(WatchiousImage)" />
   </ItemGroup>
 
-  <!-- What the live host is built for and signed with, written only when it changes, so that a change rebuilds it. -->
+  <!-- What the live host is built from, for and signed with, written only when it changes, so that a change rebuilds
+       it. The source folders are there for another version of the SDK: NuGet gives the files it extracts the time
+       they were packed, which can be older than the live host built from the version before. -->
   <Target Name="_WatchiousWriteLiveParameters" DependsOnTargets="_WatchiousResolveProfile">
     <PropertyGroup>
       <_WatchiousLiveSignIdentity Condition="'$(_SdkIsSimulator)' != 'true'">$(CodesignKey)</_WatchiousLiveSignIdentity>
@@ -184,13 +186,15 @@
     </PropertyGroup>
     <MakeDir Directories="$(_WatchiousLiveWorkDirectory)" />
     <WriteLinesToFile File="$(_WatchiousLiveParameters)" Overwrite="true" WriteOnlyWhenDifferent="true"
-                      Lines="$(_WatchiousSdkName);$(WatchiousMinimumWatchOSVersion);$(_WatchiousLiveBundleIdentifier);$(_WatchiousLiveSignIdentity);$(_WatchiousLiveProfile)" />
+                      Lines="$(WatchiousWatchOSHostDirectory);$(WatchiousWatchOSLiveDirectory);$(WatchiousToolsDirectory);$(_WatchiousSdkName);$(WatchiousMinimumWatchOSVersion);$(_WatchiousLiveBundleIdentifier);$(_WatchiousLiveSignIdentity);$(_WatchiousLiveProfile)" />
     <WriteLinesToFile File="$(_WatchiousLiveImagesFile)" Overwrite="true" WriteOnlyWhenDifferent="true"
                       Lines="@(WatchiousImage->'%(FullPath)')" />
   </Target>
 
+  <!-- The profile is an input too: one saved again under the same path (with another watch, or renewed) is embedded
+       only when the live host is built. -->
   <Target Name="_WatchiousBuildLiveWatchApp" DependsOnTargets="_WatchiousWriteLiveParameters"
-          Inputs="@(_WatchiousLiveInput);$(_WatchiousLiveParameters);$(_WatchiousLiveImagesFile)"
+          Inputs="@(_WatchiousLiveInput);$(_WatchiousLiveParameters);$(_WatchiousLiveImagesFile);$(_WatchiousLiveProfile)"
           Outputs="$(_WatchiousLiveStamp)">
     <Message Importance="high" Text="Watchious: building Watchious Live for $(_WatchiousSdkName) ($(_WatchiousLiveBundleIdentifier))" />
     <Exec Command="bash &quot;$(WatchiousToolsDirectory)build-live-watch-app.sh&quot;"
