@@ -464,8 +464,10 @@ later stand in for the published one on that machine, and the test refuses a ver
   HealthKit, or MAUI's `CodesignEntitlements`). It is an MSBuild SDK, like Uno's
   `Uno.Sdk`, rather than a `UseWatchious` property, because the watchOS target framework has to exist before
   NuGet restore runs. The SDK adds the `Kebechet.Watchious.*` packages of its own version itself, so `<version>`, the
-  version of `Kebechet.Watchious.Sdk`, is the one number to change to update Watchious in an app, and
-  `WatchiousProgram.CreateWatchiousApp()` creates the app (the `WatchiousAppFactory` property can name another method).
+  version of `Kebechet.Watchious.Sdk`, is the one number to change to update Watchious in an app (⚠️ plus, with
+  Central Package Management, the `Kebechet.Watchious.*` entries in `Directory.Packages.props`, and in an iPhone app
+  that embeds the watch app, its companion `Import`'s `Version`), and `WatchiousProgram.CreateWatchiousApp()` creates
+  the app (the `WatchiousAppFactory` property can name another method).
 - **Template:** `dotnet new install Kebechet.Watchious.Templates`, then `dotnet new watchious`. The app names
   `Kebechet.Watchious.Sdk` of the template's own version, which the pack writes into the template package
   (`Watchious.Templates.csproj`); `--sdk-version <version>` names another.
