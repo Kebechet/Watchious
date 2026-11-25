@@ -159,6 +159,10 @@ check_served() {
     local log="$1" url="$2" text="$3" pid served=false
     shift 3
     echo "== $* ($url)"
+    # The first answer can come before the app has even tried to listen, so another server on the port would pass.
+    if curl -s "$url" > /dev/null 2>&1; then
+        fail "$url is already served by another process, a preview left by an earlier run perhaps: stop it first."
+    fi
     "$@" > "$LOGS/$log.log" 2>&1 &
     pid=$!
     for _ in $(seq 1 60); do
@@ -171,7 +175,6 @@ check_served() {
         kill -0 "$pid" 2>/dev/null || break
         sleep 1
     done
-    # Still running: the page came from this app, not from another one already on the port.
     kill -0 "$pid" 2>/dev/null || served=false
     kill "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true

@@ -40,7 +40,9 @@ fi
 FEED="$1"
 VERSION="$2"
 DOTNET="${DOTNET:-dotnet}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# dotnet is a Windows program in Git Bash, so it gets the Windows form of the paths (pwd -W exists only there), which
+# Git Bash itself accepts too. Its argument conversion would do the same, but MSYS_NO_PATHCONV=1 turns that off.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && { pwd -W 2> /dev/null || pwd; })"
 [ -d "$FEED" ] || { echo "::error::check packages: no package folder $FEED." >&2; exit 1; }
 
 ERRORS=()
@@ -56,7 +58,12 @@ error() {
 IDS=()
 for csproj in "$ROOT"/src/*/*.csproj; do
     name="$(basename "$csproj" .csproj)"
-    properties="$("$DOTNET" msbuild "$csproj" -nologo -getProperty:IsPackable -getProperty:PackageId | tr -d '\r')"
+    # Checked here, not by set -e: in an assignment, a failure would end the script without dotnet's message.
+    if ! properties="$("$DOTNET" msbuild "$csproj" -nologo -getProperty:IsPackable -getProperty:PackageId 2>&1)"; then
+        error "dotnet msbuild can't evaluate src/$name/$name.csproj: $(printf '%s' "$properties" | tr -d '\r')"
+        continue
+    fi
+    properties="$(printf '%s\n' "$properties" | tr -d '\r')"
     is_packable="$(printf '%s\n' "$properties" | sed -n 's/.*"IsPackable": *"\([^"]*\)".*/\1/p')"
     package_id="$(printf '%s\n' "$properties" | sed -n 's/.*"PackageId": *"\([^"]*\)".*/\1/p')"
     [ "$is_packable" = "true" ] || continue
@@ -162,7 +169,7 @@ bundled_binaries() {
 # (workload set 10.0.401) on Windows copies a dependency's native libraries into it, CI's (10.0.404) doesn't.
 native_hint() {
     if printf '%s\n' "$1" | grep -q '\.so$'; then
-        echo " A native library inside $name.aar can come from the .NET for Android that packed it: pack with the workload set CI uses."
+        echo " A native library inside $name.aar can come from the .NET for Android that packed it: pack with the workload set CI uses (10.0.404, DOTNET_WORKLOAD_SET in .github/workflows/packages.yml), or check the packages artifact of a CI run."
     fi
 }
 
@@ -282,7 +289,9 @@ for id in "${IDS[@]}"; do
     elif [ ! -f "$readme_source" ]; then
         error "$id: src/$name/README.md doesn't exist."
     else
-        unzip -p "$PACKAGE" README.md | cmp -s - "$readme_source" || error "$id: its README.md isn't src/$name/README.md."
+        # Without line endings: a Windows checkout has the README with CRLF, a package packed on Linux with LF.
+        cmp -s <(unzip -p "$PACKAGE" README.md | tr -d '\r') <(tr -d '\r' < "$readme_source") \
+            || error "$id: its README.md isn't src/$name/README.md."
         [ "$(head -1 "$readme_source" | tr -d '\r')" = "# $id" ] || error "$id: src/$name/README.md doesn't start with '# $id'."
         relative_links="$(grep -oE '\]\([^)]*\)' "$readme_source" | grep -vE '^\]\((https?://|#)' || true)"
         [ -z "$relative_links" ] || error "$id: src/$name/README.md has links relative to the repository, which nuget.org can't follow: $(words "$relative_links")"
