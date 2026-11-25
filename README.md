@@ -300,9 +300,11 @@ The names and shapes are MAUI Essentials' where it has the API (`IGeolocation`, 
 `NSLocationWhenInUseUsageDescription` and, for the barometer and the pedometer, `NSMotionUsageDescription` in
 `Platforms/watchOS/Info.plist`; `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, and `ACTIVITY_RECOGNITION` for the
 pedometer, in the Wear OS manifest. ⚠️ The watchOS host builds its location and compass code only when
-`NSLocationWhenInUseUsageDescription` is there, and its barometer and pedometer only with `NSMotionUsageDescription`: App Store Connect refuses an app whose code uses them without the text
-(ITMS-90683). Without the key, `IsSupported` is false and using the API throws `FeatureNotSupportedException` naming
-it. Events
+`NSLocationWhenInUseUsageDescription` is there, and its barometer and pedometer only with `NSMotionUsageDescription`:
+App Store Connect refuses an app whose code uses them without the text (ITMS-90683). An app made from the template,
+with neither key, went through App Store Connect's processing without ITMS-90683 (2026-11-25); its watch app
+references only `CMMotionManager`, which the accelerometer and gyroscope use and which needs no text. Without the key,
+`IsSupported` is false and using the API throws `FeatureNotSupportedException` naming it. Events
 come on the platform's thread, often many times a second for a sensor: a page updates itself through `InvokeAsync`,
 and unsubscribes in `Dispose`.
 
