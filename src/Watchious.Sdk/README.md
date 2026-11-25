@@ -82,14 +82,19 @@ without .NET that this package ships, draws it with the real Compose or SwiftUI 
 live host:
 
 ```bash
-dotnet build -t:WatchiousLive -f net10.0-android   # the Wear OS emulator or a watch connected to adb
-dotnet build -t:WatchiousLive -f net10.0-watchos   # the watchOS simulator, on a Mac or a remote Mac
+dotnet build -t:WatchiousLive -tl:off -f net10.0-android   # the Wear OS emulator or a watch connected to adb
+dotnet build -t:WatchiousLive -tl:off -f net10.0-watchos   # the watchOS simulator, on a Mac or a remote Mac
 ```
+
+⚠️ **Keep `-tl:off`:** since .NET 9, `dotnet build` in a terminal hides a build's messages, and these say where the live
+host runs, how to start the app and, from Windows, that the ssh tunnel to the remote Mac stays open until Ctrl+C.
+Without them the tunnel looks like a build that hangs.
 
 An Apple Watch gets the live host signed as the app itself, which it replaces until the app is run again:
 `-r ios-arm64 -p:WatchiousDevice=<watch> -p:WatchiousLiveUrl=http://<computer>:5293`, with the app started with
 `--urls=http://0.0.0.0:5293`. ⚠️ **That address lets every device on the network start the app and tap in it:** use
-it on a network you trust only.
+it on a network you trust only. ⚠️ **Keep the watch's screen on:** watchOS suspends an app whose screen is off, the
+live host too.
 
 ## License
 

@@ -14,14 +14,16 @@ namespace Watchious.Preview;
 
 public sealed class WatchiousLiveOptions
 {
-    // ⚠️ http://0.0.0.0:5293, which a live host on another computer needs, lets every device on the network start the
-    // app and tap in it: use it on a network you trust only.
+    // ⚠️ http://0.0.0.0:5293 lets every device on the network start the app and tap in it: use it on a network you
+    // trust only. Only an Apple Watch needs it, as it reaches the computer over the network. A simulator on a remote
+    // Mac comes through the WatchiousLive target's ssh tunnel and a Wear OS device through adb reverse, both to
+    // localhost.
     public string Url { get; set; } = "http://localhost:5293";
 }
 
-// Live mode: the app's C# runs here, under the debugger, and a live host (a watch host app without .NET, in the watchOS
-// simulator or the Wear OS emulator) draws it with the real SwiftUI or Compose controls. The live host talks plain
-// HTTP, like the inspector's app side, as that is what every watch allows:
+// Live mode: the app's C# runs here, under the debugger, and a live host (a watch host app without .NET, on a watch, an
+// emulator or a simulator) draws it with the real SwiftUI or Compose controls. The live host talks plain HTTP, like the
+// inspector's app side, as that is what every watch allows:
 //   POST /live/start?platform=wearos|watchos   starts a new instance of the app; the response is its session id
 //   GET  /live/messages?session=...&ack=N     waits up to 20 s for what the app sends. Each message is a kind byte (1 a
 //                                             patch batch, 2 JSON such as {"error": ...}), its sequence number and its
@@ -45,7 +47,8 @@ public static class WatchiousLive
         }
 
         // The live hosts ship with Kebechet.Watchious.Sdk, whose WatchiousLive target starts them (Watchious.Sdk.Live.targets).
-        Console.WriteLine("Start the live host in the app's folder: dotnet build -t:WatchiousLive -f net10.0-android (Wear OS) or -f net10.0-watchos (watchOS).");
+        // -tl:off: dotnet build's terminal logger hides what the target prints, the remote Mac's tunnel note among it.
+        Console.WriteLine("Start the live host in the app's folder: dotnet build -t:WatchiousLive -tl:off -f net10.0-android (Wear OS) or -f net10.0-watchos (watchOS).");
         if (hostUrl != options.Url)
         {
             Console.WriteLine($"An Apple Watch reaches this app over the network: -f net10.0-watchos -r ios-arm64 -p:WatchiousDevice=<watch> -p:WatchiousLiveUrl={hostUrl}");

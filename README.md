@@ -400,6 +400,11 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
   itself. The watch APIs are the preview's stand-ins. The live host talks plain HTTP to the computer, like the
   inspector's app side. Kebechet.Watchious.Sdk ships the live hosts, and `dotnet build -t:WatchiousLive` starts one,
   as `-t:Run` starts the app. Either side can start first: the live host retries until it reaches the app.
+  - ⚠️ **Add `-tl:off` to `dotnet build -t:WatchiousLive` to see what it prints:** where the live host runs, how to
+    start the app, the Apple Watch's screen warning, and on Windows that the ssh tunnel to the Mac stays open until
+    Ctrl+C. Since .NET 9, `dotnet build` in a terminal hides a build's messages (with `-v:d` it shows them, but only
+    once the build has ended), so without `-tl:off` the command shows only a running target, and the tunnel looks
+    like a build that hangs.
   - Wear OS: `dotnet build -t:WatchiousLive -f net10.0-android` installs the live host, an app of its own
     (`com.kebechet.watchious.live`), on the emulator or on a watch connected to adb, runs
     `adb reverse tcp:5293 tcp:5293` and starts it. `-p:Device=<serial>` picks one of several devices
@@ -414,7 +419,8 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
     -p:WatchiousLiveUrl=http://<computer>:5293`, with the app's `CodesignKey` and `CodesignProvision`. A watch
     installs only what the app's profile signs, so the live host is signed as the app itself and replaces it on the
     watch until the app is run again (`-t:Run`). The watch reaches the computer over the network, so the app is
-    started with `--urls=http://0.0.0.0:5293`.
+    started with `--urls=http://0.0.0.0:5293`. ⚠️ **Keep the watch's screen on:** watchOS suspends an app whose
+    screen is off, the live host too, until the user raises the wrist.
   - `WatchiousLivePort` (default 5293) and `WatchiousLiveUrl` (default `http://localhost:<port>`) tell the live host
     where the app runs.
   - ⚠️ **`--urls=http://0.0.0.0:5293` lets every device on the network start the app and tap in it:** use it on a
@@ -429,8 +435,9 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
 Watchious copies MAUI's project model and packaging as closely as possible. Its packages are named
 `Kebechet.Watchious.*` (the table below); the projects, assemblies and namespaces stay `Watchious.*`. Nothing is
 published yet; "Publishing" below says how a version goes out. `.github/scripts/pack.sh <version>` packs all 10
-packages at one version into `artifacts/packages`: it builds the Wear OS libraries with Gradle first (`JAVA_HOME` a JDK
-17 to 21, the Android SDK in `ANDROID_HOME`), and fails unless exactly the 10 `Kebechet.Watchious.*` packages come out.
+packages at one version into `artifacts/packages`: it builds the Wear OS libraries and the Wear OS live host with Gradle
+first (`JAVA_HOME` a JDK 17 to 21, the Android SDK in `ANDROID_HOME`), and fails unless exactly the 10
+`Kebechet.Watchious.*` packages come out.
 `.github/scripts/check-packages.sh <package folder> <version>` then checks that each packable project's id is
 `Kebechet.<project name>`, that no package depends on an old `Watchious.*` id, that the Health and Messaging targets
 carry their package's name (the only name NuGet imports), each package's files, and what nuget.org shows of it: its
@@ -505,7 +512,8 @@ later stand in for the published one on that machine, and the test refuses a ver
 - The repository itself still builds with .NET 10 (`net10.0-*`) until .NET 11 is installed on its
   development machines. The Wear OS libraries come from Gradle first: `./gradlew assembleRelease` in
   `platforms/WearOS` (with Android Studio's JDK) also writes the POMs and binding jars the .NET projects read
-  (`pack.sh` runs it only for `:host`, `:messaging` and `:health`, the modules the packages are built from).
+  (`pack.sh` runs it only for the modules the packages are built from: `:host`, `:messaging`, `:health`, and `:live`,
+  the Wear OS live host Kebechet.Watchious.Sdk ships, which gets the package version as its versionName).
 - **Companion apps:** a watch app can ship inside a .NET iPhone app (for example a MAUI app), which
   WatchConnectivity needs: iOS connects the two only when the watch app came inside the iPhone app (tried on a real
   watch). Until .NET for iOS's `AdditionalWatchOSApp` item (https://github.com/dotnet/macios/pull/27284, still open)
@@ -702,7 +710,9 @@ artifact.
 
 ## License
 
-[MIT](LICENSE). Two packages also bundle Google's Android libraries, unchanged, under their own licenses, each listed
-with its license in the package's `THIRD-PARTY-NOTICES.txt`: `Kebechet.Watchious.Hosts.WearOS` (Wear Compose Material
-3, Apache-2.0) and `Kebechet.Watchious.Health` (Health Services and its protos, Apache-2.0, and the protobuf runtime it
-repackages, BSD-3-Clause).
+[MIT](LICENSE). Three packages also bundle third-party libraries under their own licenses, each listed with its license
+in the package's `THIRD-PARTY-NOTICES.txt`. Two bundle Google's Android libraries, unchanged:
+`Kebechet.Watchious.Hosts.WearOS` (Wear Compose Material 3, Apache-2.0) and `Kebechet.Watchious.Health` (Health
+Services and its protos, Apache-2.0, and the protobuf runtime it repackages, BSD-3-Clause). `Kebechet.Watchious.Sdk`
+ships the Wear OS live host (`live/WearOS/watchious-live.apk`), an app built with AndroidX, Kotlin, kotlinx and other
+libraries, all Apache-2.0, and shrunk by R8.
