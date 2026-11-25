@@ -75,6 +75,28 @@ dotnet build -f net10.0-watchos -p:WatchiousAllowUntestedIOSSdk=true
 
 (`<WatchiousAllowUntestedIOSSdk>true</WatchiousAllowUntestedIOSSdk>` in the project does the same.)
 
+## Live mode
+
+`dotnet run -f net10.0 -- --live` runs the app's C# on the computer, under the debugger, and a live host, a watch app
+without .NET that this package ships, draws it with the real Compose or SwiftUI controls. In another terminal, start the
+live host:
+
+```bash
+dotnet build -t:WatchiousLive -f net10.0-android   # the Wear OS emulator or a watch connected to adb
+dotnet build -t:WatchiousLive -f net10.0-watchos   # the watchOS simulator, on a Mac or a remote Mac
+```
+
+An Apple Watch gets the live host signed as the app itself, which it replaces until the app is run again:
+`-r ios-arm64 -p:WatchiousDevice=<watch> -p:WatchiousLiveUrl=http://<computer>:5293`, with the app started with
+`--urls=http://0.0.0.0:5293`. ⚠️ **That address lets every device on the network start the app and tap in it:** use
+it on a network you trust only.
+
+## License
+
+Watchious is MIT-licensed. The Wear OS live host in this package (`live/WearOS/watchious-live.apk`) is built with
+AndroidX, Kotlin and other libraries under the Apache License 2.0: `THIRD-PARTY-NOTICES.txt` in the package lists them,
+with their license.
+
 ## More
 
 Running on a watch, a simulator or an emulator, building on a remote Mac from Windows, App Store packaging and iPhone
