@@ -18,9 +18,17 @@
   <PropertyGroup Label="Packages">
     <Version>0.1.0-preview.1</Version>
     <Authors>Kebechet</Authors>
+    <Copyright>Copyright (c) 2026 Kebechet</Copyright>
+    <!-- A package that bundles another project's binaries sets its own expression and packs THIRD-PARTY-NOTICES.txt
+         (Kebechet.Watchious.Hosts.WearOS, Kebechet.Watchious.Health). -->
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Kebechet/Watchious</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Kebechet/Watchious</RepositoryUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <!-- Each package adds its own tags. The icon, README and release notes are set in Directory.Build.targets. -->
+    <PackageTags>watchious;watch;smartwatch;wearos;watchos;apple-watch;blazor;razor</PackageTags>
     <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/packages/</PackageOutputPath>
     <IsPackable>false</IsPackable>
   </PropertyGroup>

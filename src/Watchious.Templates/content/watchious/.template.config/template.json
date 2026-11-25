@@ -16,7 +16,7 @@
     "applicationId": {
       "type": "parameter",
       "datatype": "string",
-      "description": "The app's package name on Wear OS and bundle identifier on watchOS.",
+      "description": "The app's package name on Wear OS. On watchOS the watch app's bundle identifier is this plus .watchkitapp.",
       "replaces": "com.companyname.watchiousapp1",
       "defaultValue": "com.companyname.watchiousapp1"
     },

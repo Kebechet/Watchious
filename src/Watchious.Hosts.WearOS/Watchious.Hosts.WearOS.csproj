@@ -7,6 +7,9 @@
     <IsPackable>true</IsPackable>
     <PackageId>Kebechet.Watchious.Hosts.WearOS</PackageId>
     <Description>Watchious's Wear OS host: renders Watchious apps with Compose for Wear OS.</Description>
+    <PackageTags>$(PackageTags);compose;wear-compose;android</PackageTags>
+    <!-- The package bundles Wear Compose Material 3, which is Apache-2.0 (THIRD-PARTY-NOTICES.txt). -->
+    <PackageLicenseExpression>MIT AND Apache-2.0</PackageLicenseExpression>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -57,6 +60,10 @@
     <!-- AmbientLifecycleObserver, for IAmbientMode. -->
     <PackageReference Include="Xamarin.AndroidX.Wear" Version="1.4.0.2" />
     <PackageReference Include="Xamarin.KotlinX.Coroutines.Core" Version="1.11.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="" />
   </ItemGroup>
 
   <ItemGroup>
