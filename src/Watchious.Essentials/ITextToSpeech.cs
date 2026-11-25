@@ -2,7 +2,8 @@ namespace Watchious.Essentials;
 
 // MAUI Essentials' ITextToSpeech: AVSpeechSynthesizer on watchOS, Android's TextToSpeech on Wear OS. SpeakAsync
 // completes once the text has been spoken; cancelling stops the speech and cancels the task. A watch without a speech
-// engine throws FeatureNotSupportedException.
+// engine throws FeatureNotSupportedException. Wear OS speaks at most 4,000 characters at a time and throws
+// ArgumentException for a longer text (https://github.com/Kebechet/Watchious/issues/31).
 public interface ITextToSpeech
 {
     Task<IEnumerable<Locale>> GetLocalesAsync();
