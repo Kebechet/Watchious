@@ -401,35 +401,38 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
     sensor values.
   - ⚠️ **Keep the watch's screen on.** watchOS runs an app only while its screen is on: an app started while the
     screen is off stays in the background, suspended, and reaches the inspector once the user raises the wrist.
-- **Live mode:** `dotnet run -f net10.0 -- --live` runs the app's C# on the computer, under the debugger, and a live
-  host, a watch host app without .NET, draws it on a watch, an emulator or a simulator with the real Compose
-  and SwiftUI controls. Taps go back to the computer, and when the app is started again, the live host starts over by
-  itself. The watch APIs are the preview's stand-ins. The live host talks plain HTTP to the computer, like the
-  inspector's app side. Kebechet.Watchious.Sdk ships the live hosts, and `dotnet build -t:WatchiousLive` starts one,
-  as `-t:Run` starts the app. Either side can start first: the live host retries until it reaches the app.
-  - ⚠️ **Add `-tl:off` to `dotnet build -t:WatchiousLive` to see what it prints:** where the live host runs, how to
+- **Live mode:** `dotnet run -f net10.0 -- --live` runs the app's C# on the computer, where a .NET debugger works (to
+  debug it, start the `net10.0` framework from the IDE with the argument `--live`), and a live host, a watch host app
+  without .NET, draws it on a watch, an emulator or a simulator with the real Compose and SwiftUI controls. Taps go
+  back to the computer, and when the app is started again, the live host starts over by itself. The watch APIs are the
+  preview's stand-ins. The live host talks plain HTTP to the computer, like the inspector's app side.
+  Kebechet.Watchious.Sdk ships the live hosts, and `dotnet build -t:WatchiousLive` starts one, as `-t:Run` starts the
+  app. Either side can start first: the live host retries until it reaches the app.
+  - ⚠️ **Keep `-tl:off` in `dotnet build -t:WatchiousLive` to see what it prints:** where the live host runs, how to
     start the app, the Apple Watch's screen warning, and on Windows that the ssh tunnel to the Mac stays open until
     Ctrl+C. Since .NET 9, `dotnet build` in a terminal hides a build's messages (with `-v:d` it shows them, but only
     once the build has ended), so without `-tl:off` the command shows only a running target, and the tunnel looks
     like a build that hangs.
-  - Wear OS: `dotnet build -t:WatchiousLive -f net10.0-android` installs the live host, an app of its own
+  - Wear OS: `dotnet build -t:WatchiousLive -tl:off -f net10.0-android` installs the live host, an app of its own
     (`com.kebechet.watchious.live`), on the emulator or on a watch connected to adb, runs
     `adb reverse tcp:5293 tcp:5293` and starts it. `-p:Device=<serial>` picks one of several devices
     (`adb devices`). The live host is built once for every app, so it has none of the app's images
     (`<Image Source>`); icons (`Icon`, `MaterialIcon`) show.
-  - watchOS simulator: `dotnet build -t:WatchiousLive -f net10.0-watchos` builds the live host on the Mac, from the
-    SwiftUI host's sources and `LiveRuntime.swift` in place of .NET, with the app's images, and starts it in the
-    simulator, next to the app. On Windows, with `-p:WatchiousRemoteMac=user@host` as for a remote build, the Mac
+  - watchOS simulator: `dotnet build -t:WatchiousLive -tl:off -f net10.0-watchos` builds the live host on the Mac,
+    from the SwiftUI host's sources and `LiveRuntime.swift` in place of .NET, with the app's images, and starts it in
+    the simulator, next to the app. On Windows, with `-p:WatchiousRemoteMac=user@host` as for a remote build, the Mac
     builds and starts it, and the command then keeps an ssh tunnel open from the Mac's port 5293 to this computer's
-    until Ctrl+C, the remote-Mac version of `adb reverse`: the app on Windows still listens on localhost only.
-  - Apple Watch: `dotnet build -t:WatchiousLive -f net10.0-watchos -r ios-arm64 -p:WatchiousDevice=<watch>
+    until Ctrl+C, the remote-Mac version of `adb reverse`. The app on Windows still listens on localhost only, but
+    ⚠️ **while the tunnel is open, every account on that Mac can start the app and tap in it** through the Mac's
+    port: use a Mac no one else uses. A port already in use on the Mac fails the command before the live host starts.
+  - Apple Watch: `dotnet build -t:WatchiousLive -tl:off -f net10.0-watchos -r ios-arm64 -p:WatchiousDevice=<watch>
     -p:WatchiousLiveUrl=http://<computer>:5293`, with the app's `CodesignKey` and `CodesignProvision`. A watch
     installs only what the app's profile signs, so the live host is signed as the app itself and replaces it on the
     watch until the app is run again (`-t:Run`). The watch reaches the computer over the network, so the app is
     started with `--urls=http://0.0.0.0:5293`. ⚠️ **Keep the watch's screen on:** watchOS suspends an app whose
     screen is off, the live host too, until the user raises the wrist. ⚠️ **Open it on the watch:** watchOS doesn't
     bring an app started from the Mac to the front, so the watch can stay on its app grid while the live host runs
-    behind it; tap the app's icon.
+    behind it; tap Watchious Live, which has a default icon and stands in for the app.
   - `WatchiousLivePort` (default 5293) and `WatchiousLiveUrl` (default `http://localhost:<port>`) tell the live host
     where the app runs. Another port goes to both sides: `--urls=http://localhost:<port>` to the app and
     `-p:WatchiousLivePort=<port>` to the target, and each prints the other's command with it.
@@ -578,8 +581,8 @@ The workflow then:
 - refuses to run from any other branch, and refuses the version when the tag `v<version>` exists or nuget.org already
   has any `Kebechet.Watchious.*` package at it (a re-run of a run that passed this check skips it, see below);
 - packs and tests the packages with the same reusable workflow (`.github/workflows/packages.yml`) as every pull
-  request: `pack.sh`, the tests, `check-packages.sh`, and `package-smoke.sh` on Linux (preview, Wear OS Release) and on
-  macOS (watchOS simulator). Nothing is pushed unless all of it passes;
+  request: `pack.sh`, the tests, `check-packages.sh`, and `package-smoke.sh` on Linux (preview, Wear OS Release, live
+  mode) and on macOS (watchOS simulator, watchOS live host). Nothing is pushed unless all of it passes;
 - logs in to nuget.org with Trusted Publishing: `NuGet/login` trades the job's GitHub OIDC token for an API key that is
   valid for an hour, so the repository holds no API key;
 - tags the commit `v<version>`, right before the first push;
@@ -701,8 +704,8 @@ artifact.
     pause, resume and a summary works on a Galaxy Watch7 and an Apple Watch SE 3, and on the Wear OS emulator with
     Health Services' synthetic data. A workout keeps running when the user leaves the app, and on an Apple Watch SE 3
     it comes back after the app was killed.
-11. ✅ **Live mode:** the app's C# runs on the computer, under the debugger, and a host app without .NET draws it
-    in the watchOS simulator or the Wear OS emulator, connected like the inspector. Unlike the preview, the
+11. ✅ **Live mode:** the app's C# runs on the computer, where a .NET debugger works, and a host app without .NET
+    draws it in the watchOS simulator or the Wear OS emulator, connected like the inspector. Unlike the preview, the
     screens are the real SwiftUI and Compose controls. Kebechet.Watchious.Sdk ships the live hosts, which
     `dotnet build -t:WatchiousLive` starts, also on a real watch: on an Apple Watch signed as the app itself. It talks
     plain HTTP, which a real watch allows too. Works in the Wear OS emulator, the watchOS simulator, on a Galaxy

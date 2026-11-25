@@ -20,9 +20,15 @@
   <PropertyGroup>
     <WatchiousLivePort Condition="'$(WatchiousLivePort)' == ''">5293</WatchiousLivePort>
     <WatchiousLiveUrl Condition="'$(WatchiousLiveUrl)' == ''">http://localhost:$(WatchiousLivePort)</WatchiousLiveUrl>
+    <!-- The app's .NET version (net10.0) for the messages' commands, from its target framework, or in the outer build
+         of a multi-targeted project from the first of its frameworks. -->
+    <_WatchiousLiveFrameworks>$(TargetFramework)</_WatchiousLiveFrameworks>
+    <_WatchiousLiveFrameworks Condition="'$(_WatchiousLiveFrameworks)' == ''">$(TargetFrameworks)</_WatchiousLiveFrameworks>
+    <_WatchiousLiveNet>$([System.Text.RegularExpressions.Regex]::Replace('$(_WatchiousLiveFrameworks)', '(?s)^.*?(net\d+\.\d+).*$', '$1'))</_WatchiousLiveNet>
+    <_WatchiousLiveNet Condition="!$(_WatchiousLiveNet.StartsWith('net'))">net10.0</_WatchiousLiveNet>
     <!-- The messages' command that starts the app: on another port than the live server's default, the app has to
          listen there too. -->
-    <_WatchiousLiveAppCommand>dotnet run -f net10.0 -- --live</_WatchiousLiveAppCommand>
+    <_WatchiousLiveAppCommand>dotnet run -f $(_WatchiousLiveNet) -- --live</_WatchiousLiveAppCommand>
     <_WatchiousLiveAppCommand Condition="'$(WatchiousLivePort)' != '5293'">$(_WatchiousLiveAppCommand) --urls=http://localhost:$(WatchiousLivePort)</_WatchiousLiveAppCommand>
     <!-- Watchious.Sdk.watchOS.targets and Watchious.Sdk.watchOS.Remote.targets set it for watchOS. .NET for Android
          turns an app's OutputType Exe into Library, and marks it with AndroidApplication. -->
@@ -31,13 +37,13 @@
 
   <Target Name="WatchiousLive" DependsOnTargets="$(_WatchiousLiveDependsOn)">
     <Error Condition="'$(_WatchiousLiveDependsOn)' == ''"
-           Text="Watchious: WatchiousLive starts the live host on a watch, an emulator or a simulator: run it for the app's Wear OS or watchOS target framework (-f net10.0-android or -f net10.0-watchos). The app itself runs on this computer: $(_WatchiousLiveAppCommand)" />
+           Text="Watchious: WatchiousLive starts the live host on a watch, an emulator or a simulator: run it for the app's Wear OS or watchOS target framework (-f $(_WatchiousLiveNet)-android or -f $(_WatchiousLiveNet)-watchos). The app itself runs on this computer: $(_WatchiousLiveAppCommand)" />
   </Target>
 
   <!-- A real Apple Watch reaches the app over the network: localhost would be the watch itself. -->
   <Target Name="_WatchiousCheckLiveWatchUrl">
     <Error Condition="$(RuntimeIdentifier.StartsWith('ios-')) And ($(WatchiousLiveUrl.Contains('://localhost')) Or $(WatchiousLiveUrl.Contains('://127.')))"
-           Text="Watchious: an Apple Watch can't reach the app at $(WatchiousLiveUrl), which is the watch itself. Start the app so that the network can reach it: dotnet run -f net10.0 -- --live --urls=http://0.0.0.0:$(WatchiousLivePort) (⚠️ every device on the network can then start the app and tap in it: use a network you trust only), and give the live host that computer's address: -p:WatchiousLiveUrl=http://&lt;address&gt;:$(WatchiousLivePort)" />
+           Text="Watchious: an Apple Watch can't reach the app at $(WatchiousLiveUrl), which is the watch itself. Start the app so that the network can reach it: dotnet run -f $(_WatchiousLiveNet) -- --live --urls=http://0.0.0.0:$(WatchiousLivePort) (⚠️ every device on the network can then start the app and tap in it: use a network you trust only), and give the live host that computer's address: -p:WatchiousLiveUrl=http://&lt;address&gt;:$(WatchiousLivePort)" />
   </Target>
 
   <!-- Wear OS: the live host is an app of its own (com.kebechet.watchious.live), which the SDK ships built. adb is the

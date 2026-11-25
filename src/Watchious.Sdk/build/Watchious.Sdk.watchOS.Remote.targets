@@ -87,17 +87,27 @@
 
   <!-- Live mode (Watchious.Sdk.Live.targets): the Mac builds and starts the live host. The simulator then reaches the
        app on this computer through an ssh tunnel from the Mac's port to this one's, the remote-Mac version of adb
-       reverse: the app keeps listening on localhost only. The tunnel stays open, in the foreground, until Ctrl+C. An
-       Apple Watch reaches this computer over the network instead (WatchiousLiveUrl). -->
+       reverse: the app keeps listening on localhost only, but every account on the Mac reaches it through that port.
+       The tunnel stays open, in the foreground, until Ctrl+C. An Apple Watch reaches this computer over the network
+       instead (WatchiousLiveUrl). -->
   <PropertyGroup Condition="'$(OutputType)' == 'Exe'">
     <_WatchiousLiveDependsOn>_WatchiousCheckLiveWatchUrl;_WatchiousLiveOnRemoteMac</_WatchiousLiveDependsOn>
   </PropertyGroup>
 
   <Target Name="_WatchiousLiveOnRemoteMac">
-    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="_WatchiousBuildOnRemoteMac" Properties="TargetFramework=$(TargetFramework);_WatchiousRemoteTargets=WatchiousLive" />
     <PropertyGroup>
       <_WatchiousLiveTunnel Condition="!$(RuntimeIdentifier.StartsWith('ios-'))">true</_WatchiousLiveTunnel>
     </PropertyGroup>
+    <!-- Before the live host starts: it retries until something answers at its URL, so with the Mac's port taken (a
+         live server there, another tunnel) it would draw that one's app, and only the tunnel below would fail. -->
+    <Exec Condition="'$(_WatchiousLiveTunnel)' == 'true'"
+          Command="$(_WatchiousSsh) &quot;nc -z 127.0.0.1 $(WatchiousLivePort)&quot;"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ExitCode" PropertyName="_WatchiousLivePortAnswered" />
+    </Exec>
+    <Error Condition="'$(_WatchiousLivePortAnswered)' == '0'"
+           Text="Watchious live: port $(WatchiousLivePort) on $(WatchiousRemoteMac) is already in use (a live server or another live tunnel there), so the simulator would reach that instead of this computer. Stop it, or use another port: -p:WatchiousLivePort=&lt;port&gt; here and --urls=http://localhost:&lt;port&gt; for the app." />
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="_WatchiousBuildOnRemoteMac" Properties="TargetFramework=$(TargetFramework);_WatchiousRemoteTargets=WatchiousLive" />
     <Message Condition="'$(_WatchiousLiveTunnel)' == 'true'" Importance="high"
              Text="Watchious live: the simulator on $(WatchiousRemoteMac) reaches port $(WatchiousLivePort) of this computer through ssh while this runs; Ctrl+C ends it. Start the app here, if it isn't running: $(_WatchiousLiveAppCommand)" />
     <!-- ExitOnForwardFailure: a port already taken on the Mac fails here instead of leaving a tunnel that forwards

@@ -88,8 +88,9 @@ dotnet build -f net10.0-watchos -p:WatchiousAllowUntestedIOSSdk=true
 
 ## Live mode
 
-`dotnet run -f net10.0 -- --live` runs the app's C# on the computer, under the debugger, and a live host, a watch app
-without .NET that this package ships, draws it with the real Compose or SwiftUI controls. In another terminal, start the
+`dotnet run -f net10.0 -- --live` runs the app's C# on the computer, where a .NET debugger works (to debug it, start
+the `net10.0` framework from the IDE with the argument `--live`), and a live host, a watch app without .NET that this
+package ships, draws it with the real Compose or SwiftUI controls. In another terminal, start the
 live host:
 
 ```bash
@@ -99,14 +100,15 @@ dotnet build -t:WatchiousLive -tl:off -f net10.0-watchos   # the watchOS simulat
 
 ⚠️ **Keep `-tl:off`:** since .NET 9, `dotnet build` in a terminal hides a build's messages, and these say where the live
 host runs, how to start the app and, from Windows, that the ssh tunnel to the remote Mac stays open until Ctrl+C.
-Without them the tunnel looks like a build that hangs.
+Without them the tunnel looks like a build that hangs. ⚠️ **While the tunnel is open, every account on that Mac can
+start the app and tap in it** through the Mac's port: use a Mac no one else uses.
 
 An Apple Watch gets the live host signed as the app itself, which it replaces until the app is run again:
 `-r ios-arm64 -p:WatchiousDevice=<watch> -p:WatchiousLiveUrl=http://<computer>:5293`, with the app started with
 `--urls=http://0.0.0.0:5293`. ⚠️ **That address lets every device on the network start the app and tap in it:** use
 it on a network you trust only. ⚠️ **Keep the watch's screen on:** watchOS suspends an app whose screen is off, the
-live host too. ⚠️ **Open it on the watch:** watchOS doesn't bring an app started from the Mac to the front, so tap the
-app's icon if the watch stays on its app grid.
+live host too. ⚠️ **Open it on the watch:** watchOS doesn't bring an app started from the Mac to the front, so tap
+Watchious Live, which has a default icon and stands in for the app, if the watch stays on its app grid.
 
 Tried in the Wear OS emulator and the watchOS simulator (from a Mac, and from Windows through a remote Mac), on a Galaxy
 Watch7 over adb, and on an Apple Watch SE 3 with the app on Windows.
