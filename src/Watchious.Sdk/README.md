@@ -36,7 +36,10 @@ dotnet new watchious -n MyWatchApp
 </Project>
 ```
 
-`<version>` is the version of this package. The target frameworks are:
+`<version>` is the version of this package: the template writes its own, the one all Watchious packages share, and
+`dotnet new watchious --sdk-version <version>` writes another. To update Watchious in an app, change this one number;
+the SDK adds the other packages at its own version. ⚠️ With Central Package Management, change the
+`Kebechet.Watchious.*` entries in `Directory.Packages.props` with it (see below). The target frameworks are:
 
 - `net10.0-android`: the Wear OS app, built with .NET for Android (the `android` workload);
 - `net10.0-watchos`: the watchOS app. .NET has no watchOS target, so the SDK builds it with .NET for iOS (the `ios`
