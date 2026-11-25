@@ -112,6 +112,22 @@ cp "$WATCHIOUS_PROFILE" "$APP/embedded.mobileprovision"
 security cms -D -i "$WATCHIOUS_PROFILE" > "$WORK/profile.plist"
 application_identifier="$(plutil -extract Entitlements.application-identifier raw "$WORK/profile.plist")"
 team_identifier="$(plutil -extract TeamIdentifier.0 raw "$WORK/profile.plist")"
+# Another app's profile signs without complaint, and the watch then refuses the install with an error that names
+# neither the profile nor the bundle identifier. A wildcard profile (TEAM.prefix.*) covers every bundle identifier
+# under its prefix, and the signature then names this one.
+profile_app_id="${application_identifier#"$team_identifier".}"
+profile_fits=""
+case "$profile_app_id" in
+    *\*) [[ "$WATCHIOUS_BUNDLE_ID" == "${profile_app_id%\*}"* ]] && profile_fits=1 ;;
+    *) [ "$profile_app_id" = "$WATCHIOUS_BUNDLE_ID" ] && profile_fits=1 ;;
+esac
+if [ -z "$profile_fits" ]; then
+    echo "complete-watch-app.sh : error : The provisioning profile $WATCHIOUS_PROFILE is for $profile_app_id, not for the watch app's bundle identifier $WATCHIOUS_BUNDLE_ID: set CodesignProvision to the watch app's profile, or ApplicationId so that <ApplicationId>.watchkitapp is the profile's." >&2
+    exit 2
+fi
+if [[ "$profile_app_id" == *\* ]]; then
+    application_identifier="$team_identifier.$WATCHIOUS_BUNDLE_ID"
+fi
 get_task_allow="$(plutil -extract Entitlements.get-task-allow raw "$WORK/profile.plist")"
 beta_reports_entry=""
 if [ "$(plutil -extract Entitlements.beta-reports-active raw "$WORK/profile.plist" 2>/dev/null || true)" = "true" ]; then

@@ -420,14 +420,17 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
     installs only what the app's profile signs, so the live host is signed as the app itself and replaces it on the
     watch until the app is run again (`-t:Run`). The watch reaches the computer over the network, so the app is
     started with `--urls=http://0.0.0.0:5293`. ⚠️ **Keep the watch's screen on:** watchOS suspends an app whose
-    screen is off, the live host too, until the user raises the wrist.
+    screen is off, the live host too, until the user raises the wrist. ⚠️ **Open it on the watch:** watchOS doesn't
+    bring an app started from the Mac to the front, so the watch can stay on its app grid while the live host runs
+    behind it; tap the app's icon.
   - `WatchiousLivePort` (default 5293) and `WatchiousLiveUrl` (default `http://localhost:<port>`) tell the live host
     where the app runs. Another port goes to both sides: `--urls=http://localhost:<port>` to the app and
     `-p:WatchiousLivePort=<port>` to the target, and each prints the other's command with it.
   - ⚠️ **`--urls=http://0.0.0.0:5293` lets every device on the network start the app and tap in it:** use it on a
     network you trust only. Without `--urls`, live mode listens on this computer only.
-  - ⚠️ **Tried in the Wear OS emulator and the watchOS simulator only** (from a Mac, and from Windows through the
-    tunnel), not yet on a real watch.
+  - Tried in the Wear OS emulator and the watchOS simulator (from a Mac, and from Windows through the tunnel), on a
+    Galaxy Watch7 over adb, and on an Apple Watch SE 3 with the app on Windows (`0.0.0.0`): the page, taps, and a
+    restart of the app, after which the live host starts over by itself.
   - Inside this repository the samples use the live hosts' sources: `./gradlew :live:assembleRelease` in
     `platforms/WearOS` builds the Wear OS one first.
 
@@ -487,7 +490,8 @@ later stand in for the published one on that machine, and the test refuses a ver
     keeps the tunnel up during the install, and tries install and launch again while the watch can't be reached
     (up to 5 times, 10 s apart), so a dozing watch only needs a wake-up. Signing and provisioning errors fail at
     once. ⚠️ The app starts in the background, suspended, when the watch's screen is off, and runs once the user
-    raises the wrist.
+    raises the wrist. Even with the screen on, watchOS doesn't bring an app started from the Mac to the front: open
+    it on the watch.
   - .NET has no watchOS target, so the SDK builds a `net*-watchos` project with .NET for iOS (NativeAOT),
     relabels the native code for watchOS and links it into the SwiftUI host. C# gets Microsoft's bindings for
     Apple's frameworks that way, while NuGet still treats the project as `net*-watchos`.
@@ -679,8 +683,9 @@ artifact.
     in the watchOS simulator or the Wear OS emulator, connected like the inspector. Unlike the preview, the
     screens are the real SwiftUI and Compose controls. Kebechet.Watchious.Sdk ships the live hosts, which
     `dotnet build -t:WatchiousLive` starts, also on a real watch: on an Apple Watch signed as the app itself. It talks
-    plain HTTP, which a real watch allows too, but it has been tried in the Wear OS emulator and the watchOS simulator
-    only (see "Preview, inspector and live mode"). The idea comes from SwiftDotNet's live mode.
+    plain HTTP, which a real watch allows too. Works in the Wear OS emulator, the watchOS simulator, on a Galaxy
+    Watch7 and on an Apple Watch SE 3 (see "Preview, inspector and live mode"). The idea comes from SwiftDotNet's live
+    mode.
 12. ✅ **Crown input for values:** the Digital Crown and the Wear OS rotary input change a value, such as a weight
     or a number of reps, not only scroll a list or turn a `Picker`: `DigitalCrownRotation`, on SwiftUI's
     `digitalCrownRotation` and Compose's `onRotaryScrollEvent`, one crown step per value step, clockwise up. Works on

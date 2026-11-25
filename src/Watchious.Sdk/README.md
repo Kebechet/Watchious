@@ -94,10 +94,11 @@ An Apple Watch gets the live host signed as the app itself, which it replaces un
 `-r ios-arm64 -p:WatchiousDevice=<watch> -p:WatchiousLiveUrl=http://<computer>:5293`, with the app started with
 `--urls=http://0.0.0.0:5293`. ⚠️ **That address lets every device on the network start the app and tap in it:** use
 it on a network you trust only. ⚠️ **Keep the watch's screen on:** watchOS suspends an app whose screen is off, the
-live host too.
+live host too. ⚠️ **Open it on the watch:** watchOS doesn't bring an app started from the Mac to the front, so tap the
+app's icon if the watch stays on its app grid.
 
-⚠️ **Tried in the Wear OS emulator and the watchOS simulator only** (from a Mac, and from Windows through a remote Mac),
-not yet on a real watch: neither a Wear OS watch over adb nor an Apple Watch.
+Tried in the Wear OS emulator and the watchOS simulator (from a Mac, and from Windows through a remote Mac), on a Galaxy
+Watch7 over adb, and on an Apple Watch SE 3 with the app on Windows.
 
 ## License
 
