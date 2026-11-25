@@ -38,7 +38,9 @@ fi
 FEED="$1"
 VERSION="$2"
 DOTNET="${DOTNET:-dotnet}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# dotnet is a Windows program in Git Bash, so it gets the Windows form of the paths (pwd -W exists only there), which
+# Git Bash itself accepts too. Its argument conversion would do the same, but MSYS_NO_PATHCONV=1 turns that off.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && { pwd -W 2> /dev/null || pwd; })"
 [ -d "$FEED" ] || { echo "::error::check packages: no package folder $FEED." >&2; exit 1; }
 
 ERRORS=()
@@ -54,7 +56,12 @@ error() {
 IDS=()
 for csproj in "$ROOT"/src/*/*.csproj; do
     name="$(basename "$csproj" .csproj)"
-    properties="$("$DOTNET" msbuild "$csproj" -nologo -getProperty:IsPackable -getProperty:PackageId | tr -d '\r')"
+    # Checked here, not by set -e: in an assignment, a failure would end the script without dotnet's message.
+    if ! properties="$("$DOTNET" msbuild "$csproj" -nologo -getProperty:IsPackable -getProperty:PackageId 2>&1)"; then
+        error "dotnet msbuild can't evaluate src/$name/$name.csproj: $(printf '%s' "$properties" | tr -d '\r')"
+        continue
+    fi
+    properties="$(printf '%s\n' "$properties" | tr -d '\r')"
     is_packable="$(printf '%s\n' "$properties" | sed -n 's/.*"IsPackable": *"\([^"]*\)".*/\1/p')"
     package_id="$(printf '%s\n' "$properties" | sed -n 's/.*"PackageId": *"\([^"]*\)".*/\1/p')"
     [ "$is_packable" = "true" ] || continue
