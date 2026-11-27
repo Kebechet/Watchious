@@ -655,38 +655,58 @@ function stretchesAcrossStack(child) {
 }
 
 // A page's background as C# resolved it (PageBackground.cs): a color as #RRGGBBAA, or "linear x1 y1 x2 y2" or
-// "radial cx cy r" followed by each stop's color and offset, with MAUI's page-relative points. A linear gradient is an
-// SVG gradient, whose points are page-relative too; a radial one a CSS circle sized from the screen's longer side.
+// "radial cx cy r" followed by each stop's color and offset, with MAUI's page-relative points. Both gradients are drawn
+// in the screen's pixels, as the hosts draw them: a linear one as an SVG gradient between the two points (its bands
+// square to the line on screen, not in a stretched unit square), a radial one as a CSS circle sized from the longer side.
 function pageBackground(value) {
     if (!value) {
         return "";
     }
-    const parts = value.split(" ");
-    if (parts.length === 1) {
-        return parts[0];
+    const parsed = parseBackground(value.split(" "));
+    if (!parsed) {
+        console.warn(`Watchious: unknown Background value ${value} on Page`);
+        return "";
     }
-    const [shape, ...rest] = parts;
-    const numbers = rest.slice(0, shape === "linear" ? 4 : 3).map(Number);
-    const stops = [];
-    for (let index = numbers.length; index + 1 < rest.length; index += 2) {
-        stops.push({ color: rest[index], offset: Number(rest[index + 1]) });
+    if (parsed.shape === "color") {
+        return parsed.color;
     }
-    if (shape === "linear") {
-        const [x1, y1, x2, y2] = numbers;
-        const svgStops = stops.map((stop) =>
+    const screen = document.querySelector(".screen").getBoundingClientRect();
+    if (parsed.shape === "linear") {
+        const [x1, y1, x2, y2] = parsed.numbers;
+        const svgStops = parsed.stops.map((stop) =>
             `<stop offset='${stop.offset}' stop-color='${stop.color.slice(0, 7)}' stop-opacity='${parseInt(stop.color.slice(7), 16) / 255}'/>`).join("");
-        const svg = `<svg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none' viewBox='0 0 1 1'>`
-            + `<linearGradient id='g' x1='${x1}' y1='${y1}' x2='${x2}' y2='${y2}'>${svgStops}</linearGradient>`
-            + `<rect width='1' height='1' fill='url(#g)'/></svg>`;
+        const svg = `<svg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none' viewBox='0 0 ${screen.width} ${screen.height}'>`
+            + `<linearGradient id='g' gradientUnits='userSpaceOnUse' x1='${x1 * screen.width}' y1='${y1 * screen.height}' `
+            + `x2='${x2 * screen.width}' y2='${y2 * screen.height}'>${svgStops}</linearGradient>`
+            + `<rect width='${screen.width}' height='${screen.height}' fill='url(#g)'/></svg>`;
         return `center / 100% 100% no-repeat url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
     }
-    if (shape === "radial") {
-        const [cx, cy, radius] = numbers;
-        const screen = document.querySelector(".screen").getBoundingClientRect();
-        const cssStops = stops.map((stop) => `${stop.color} ${stop.offset * 100}%`).join(", ");
-        return `radial-gradient(circle ${Math.max(radius * Math.max(screen.width, screen.height), 0.5)}px at ${cx * 100}% ${cy * 100}%, ${cssStops})`;
+    const [cx, cy, radius] = parsed.numbers;
+    const cssStops = parsed.stops.map((stop) => `${stop.color} ${stop.offset * 100}%`).join(", ");
+    return `radial-gradient(circle ${Math.max(radius * Math.max(screen.width, screen.height), 0.5)}px at ${cx * 100}% ${cy * 100}%, ${cssStops})`;
+}
+
+// Null for a value the hosts would refuse too.
+function parseBackground(parts) {
+    const isColor = (text) => /^#[0-9A-Fa-f]{8}$/.test(text);
+    const toNumber = (text) => (text === "" ? NaN : Number(text));
+    if (parts.length === 1) {
+        return isColor(parts[0]) ? { shape: "color", color: parts[0] } : null;
     }
-    return "";
+    const [shape, ...rest] = parts;
+    const count = shape === "linear" ? 4 : shape === "radial" ? 3 : 0;
+    const stopParts = rest.slice(count);
+    if (count === 0 || rest.length < count || stopParts.length < 4 || stopParts.length % 2 !== 0) {
+        return null;
+    }
+    const numbers = rest.slice(0, count).map(toNumber);
+    const stops = [];
+    for (let index = 0; index < stopParts.length; index += 2) {
+        stops.push({ color: stopParts[index], offset: toNumber(stopParts[index + 1]) });
+    }
+    const isValid = numbers.every(Number.isFinite)
+        && stops.every((stop) => isColor(stop.color) && Number.isFinite(stop.offset));
+    return isValid ? { shape, numbers, stops } : null;
 }
 
 function scrolls(node) {

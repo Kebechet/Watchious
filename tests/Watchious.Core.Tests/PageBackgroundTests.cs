@@ -57,6 +57,41 @@ public class PageBackgroundTests
     }
 
     [Fact]
+    public async Task Start_PageColor_WinsOverTheThemeBrush()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        await using var app = WatchiousApp.CreateBuilder()
+            .UseWatchiousApp<ColoredPage>()
+            .ConfigureTheme(theme => theme.PageBackground = new LinearGradientBrush(
+                [new GradientStop(Colors.Red, 0), new GradientStop(Colors.Blue, 1)]))
+            .Build();
+
+        // Act
+        await app.StartAsync(host);
+
+        // Assert
+        Pages(host).ShouldHaveSingleItem().Attribute("Background").ShouldBe("#512BD4FF");
+    }
+
+    [Fact]
+    public async Task Start_ColorWithAlpha_SendsItsAlpha()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        await using var app = WatchiousApp.CreateBuilder()
+            .UseWatchiousApp<StaticPage>()
+            .ConfigureTheme(theme => theme.PageBackgroundColor = Color.FromArgb("#80FF0000"))
+            .Build();
+
+        // Act
+        await app.StartAsync(host);
+
+        // Assert
+        Pages(host).ShouldHaveSingleItem().Attribute("Background").ShouldBe("#FF000080");
+    }
+
+    [Fact]
     public async Task Start_ThemeBrush_WinsOverTheThemeColor()
     {
         // Arrange
@@ -151,16 +186,33 @@ public class PageBackgroundTests
         await ClickAsync(app, host, "Open custom");
         var page = CustomBackgroundPage.LastCreated!;
         page.HasSubscribers.ShouldBeTrue();
-        await app.Services.GetRequiredService<Watchious.Navigation.INavigation>().GoBackAsync();
-        var batches = host.Batches.Count;
 
         // Act
-        page.ChangeColor(Colors.Orange);
-        await WaitForBatchAsync();
+        await app.Services.GetRequiredService<Watchious.Navigation.INavigation>().GoBackAsync();
 
         // Assert
         page.HasSubscribers.ShouldBeFalse();
-        host.Batches.Count.ShouldBe(batches);
+    }
+
+    [Fact]
+    public async Task PageChangingOtherData_DoesNotRenderTheNavigationAgain()
+    {
+        // Arrange
+        var (app, host) = await StartAsync();
+        await using var disposeApp = app;
+        await ClickAsync(app, host, "Open custom");
+        var page = CustomBackgroundPage.LastCreated!;
+        var reads = page.BackgroundReads;
+
+        // Act
+        page.ChangeTitle();
+        await WaitForBatchAsync();
+
+        // Assert
+        page.BackgroundReads.ShouldBe(reads);
+        page.ChangeColor(Colors.Orange);
+        await WaitForBatchAsync();
+        page.BackgroundReads.ShouldBeGreaterThan(reads);
     }
 
     [Fact]
@@ -236,7 +288,42 @@ public class PageBackgroundTests
         var color = Color.FromArgb(hex);
 
         // Assert
-        color.ToArgbHex().ShouldBe(argb);
+        color.ToArgbHex(includeAlpha: true).ShouldBe(argb);
+    }
+
+    [Fact]
+    public void ToHex_LeavesOutAnOpaqueAlpha_AsMauis()
+    {
+        // Assert
+        Colors.Red.ToArgbHex().ShouldBe("#FF0000");
+        Colors.Red.ToArgbHex(includeAlpha: true).ShouldBe("#FFFF0000");
+        Colors.Red.ToRgbaHex(includeAlpha: true).ShouldBe("#FF0000FF");
+        Color.FromArgb("#80FF0000").ToArgbHex().ShouldBe("#80FF0000");
+        Color.FromArgb("#80FF0000").ToRgbaHex().ShouldBe("#FF000080");
+    }
+
+    [Fact]
+    public void Constructors_TakeMauisBytesAndFractions()
+    {
+        // Assert
+        new Color(128, 64, 0).ShouldBe(Color.FromArgb("#804000"));
+        new Color(128, 64, 0, 128).ShouldBe(Color.FromArgb("#80804000"));
+        new Color((byte)128, (byte)64, (byte)0).ShouldBe(Color.FromArgb("#804000"));
+        new Color(1f, 0.5f, 0f).ShouldBe(Color.FromRgb(255, 128, 0));
+        new Color(0.5f).ShouldBe(Color.FromRgb(128, 128, 128));
+        new Color().ShouldBe(Colors.Black);
+        Color.FromUint(0x80FF0000).ShouldBe(Color.FromArgb("#80FF0000"));
+    }
+
+    [Fact]
+    public void Equality_IsByValue_AlsoWithOperators()
+    {
+        // Assert
+        (Color.FromRgb(255, 0, 0) == Colors.Red).ShouldBeTrue();
+        (Color.FromRgb(255, 0, 0) != Colors.Red).ShouldBeFalse();
+        new SolidColorBrush(Color.FromRgb(255, 0, 0)).ShouldBe(new SolidColorBrush(Colors.Red));
+        new GradientStop(Color.FromRgb(255, 0, 0), 0.5f).ShouldBe(new GradientStop(Colors.Red, 0.5f));
+        new GradientStop(Colors.Red, 0.5f).ShouldNotBe(new GradientStop(Colors.Red, 0.6f));
     }
 
     [Theory]
@@ -256,9 +343,41 @@ public class PageBackgroundTests
     public void Colors_HaveMauisNamesAndValues()
     {
         // Assert
-        Colors.RebeccaPurple.ToArgbHex().ShouldBe("#FF663399");
-        Colors.Transparent.Alpha.ShouldBe(0);
+        Colors.Transparent.ShouldBe(Color.FromArgb("#00000000"));
+        Colors.Grey.ShouldBe(Colors.Gray);
+        Colors.PaleVioletRed.ToArgbHex().ShouldBe("#D87093");
         Colors.Red.ShouldBe(Color.FromRgb(255, 0, 0));
+    }
+
+    [Fact]
+    public void Gradient_KeepsItsStops_WhenTheCallersListChanges()
+    {
+        // Arrange
+        List<GradientStop> stops = [new GradientStop(Colors.Red, 0), new GradientStop(Colors.Blue, 1)];
+        var brush = new LinearGradientBrush(stops);
+
+        // Act
+        stops.Add(new GradientStop(Colors.Lime, 0.5f));
+
+        // Assert
+        brush.GradientStops.Count.ShouldBe(2);
+        PageBackground.Resolve(new BrushPage(brush), new WatchiousTheme()).ShouldBe("linear 0 0 1 1 #FF0000FF 0 #0000FFFF 1");
+    }
+
+    [Fact]
+    public void NaN_IsSentAsZero()
+    {
+        // Arrange
+        var brush = new RadialGradientBrush(
+            [new GradientStop(new Color(float.NaN, 1, 0), float.NaN), new GradientStop(Colors.Blue, 1)],
+            new Point(double.NaN, 0.5),
+            double.NaN);
+
+        // Act
+        var background = PageBackground.Resolve(new BrushPage(brush), new WatchiousTheme());
+
+        // Assert
+        background.ShouldBe("radial 0 0.5 0 #00FF00FF 0 #0000FFFF 1");
     }
 
     [Fact]

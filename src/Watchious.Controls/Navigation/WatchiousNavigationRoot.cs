@@ -12,6 +12,12 @@ namespace Watchious.Navigation;
 // change to either renders the root again.
 internal sealed class WatchiousNavigationRoot : ComponentBase, IDisposable
 {
+    private static readonly HashSet<string> AppearanceProperties =
+    [
+        nameof(IPage.Background), nameof(IPage.BackgroundColor),
+        nameof(ITheme.PageBackground), nameof(ITheme.PageBackgroundColor),
+    ];
+
     // The pages that are IPage, by navigation entry, whose PropertyChanged this root follows while they are open.
     private readonly Dictionary<long, IPage> _pages = [];
 
@@ -101,10 +107,14 @@ internal sealed class WatchiousNavigationRoot : ComponentBase, IDisposable
         }
     }
 
-    // A page or the theme may change on another thread than the renderer's.
+    // A page or the theme may change on another thread than the renderer's. A page that raises PropertyChanged for its
+    // own data doesn't re-render the root; an empty name means every property changed.
     private void OnAppearanceChanged(object? sender, PropertyChangedEventArgs args)
     {
-        _ = InvokeAsync(StateHasChanged);
+        if (string.IsNullOrEmpty(args.PropertyName) || AppearanceProperties.Contains(args.PropertyName))
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
     }
 
     private void OnNativeBack(NativeEventArgs args)

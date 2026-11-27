@@ -16,9 +16,21 @@ public abstract class Brush
     internal abstract string? ToProtocol();
 }
 
+// Equal when their colors are, as MAUI's.
 public sealed class SolidColorBrush(Color color) : Brush
 {
     public Color Color { get; } = color;
+
+    public override bool Equals(object? obj)
+    {
+        var other = obj as SolidColorBrush;
+        return other is not null && Color == other.Color;
+    }
+
+    public override int GetHashCode()
+    {
+        return Color.GetHashCode();
+    }
 
     internal override string? ToProtocol()
     {
@@ -26,12 +38,23 @@ public sealed class SolidColorBrush(Color color) : Brush
     }
 }
 
-// A color at an offset along the gradient, from 0 to 1.
+// A color at an offset along the gradient, from 0 to 1. Equal when the colors are and the offsets nearly, as MAUI's.
 public sealed class GradientStop(Color color, float offset)
 {
     public Color Color { get; } = color;
 
-    public float Offset { get; } = Math.Clamp(offset, 0, 1);
+    public float Offset { get; } = float.IsNaN(offset) ? 0 : Math.Clamp(offset, 0, 1);
+
+    public override bool Equals(object? obj)
+    {
+        var other = obj as GradientStop;
+        return other is not null && Color == other.Color && Math.Abs(Offset - other.Offset) < 0.00001;
+    }
+
+    public override int GetHashCode()
+    {
+        return Color.GetHashCode();
+    }
 }
 
 // A point relative to the page: (0, 0) its top left, (1, 1) its bottom right.
@@ -39,14 +62,16 @@ public readonly record struct Point(double X, double Y);
 
 public abstract class GradientBrush : Brush
 {
+    // A copy, so that a change to the caller's list can't change the brush without raising PropertyChanged.
     private protected GradientBrush(IReadOnlyList<GradientStop> gradientStops)
     {
-        GradientStops = gradientStops;
+        GradientStops = gradientStops.ToList().AsReadOnly();
     }
 
     public IReadOnlyList<GradientStop> GradientStops { get; }
 
-    // A gradient with one stop is that stop's color; one without any is no background.
+    // A gradient with one stop is that stop's color. One without any is empty, as in MAUI: the page's BackgroundColor
+    // shows instead, or the theme's background.
     private protected string? GradientToProtocol(string shape)
     {
         if (GradientStops.Count == 0)
@@ -68,9 +93,10 @@ public abstract class GradientBrush : Brush
         return builder.ToString();
     }
 
+    // NaN or infinity, which no host could draw, as 0.
     private protected static string Number(double value)
     {
-        return value.ToString("0.####", CultureInfo.InvariantCulture);
+        return double.IsFinite(value) ? value.ToString("0.####", CultureInfo.InvariantCulture) : "0";
     }
 }
 
@@ -105,7 +131,7 @@ public sealed class RadialGradientBrush(IReadOnlyList<GradientStop> gradientStop
 
     public Point Center { get; } = center;
 
-    public double Radius { get; } = Math.Max(radius, 0);
+    public double Radius { get; } = double.IsNaN(radius) ? 0 : Math.Max(radius, 0);
 
     internal override string? ToProtocol()
     {

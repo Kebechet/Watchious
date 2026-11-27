@@ -48,7 +48,8 @@ enum PageBackgroundStyle: Equatable {
     }
 
     private static func stops(_ parts: ArraySlice<Substring>) -> [Gradient.Stop]? {
-        guard parts.count >= 2, parts.count % 2 == 0 else {
+        // At least two stops: C# sends a gradient with one stop as its color.
+        guard parts.count >= 4, parts.count % 2 == 0 else {
             return nil
         }
         var stops: [Gradient.Stop] = []

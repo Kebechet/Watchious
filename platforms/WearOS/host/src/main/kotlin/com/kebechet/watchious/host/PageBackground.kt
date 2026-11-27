@@ -52,6 +52,7 @@ private fun parseFill(parts: List<String>): PageFill? {
 
     return when (parts[0]) {
         "linear" -> {
+            if (parts.size < 5) return null
             val numbers = parts.slice(1..4).map { it.toFloatOrNull() ?: return null }
             val stops = parseStops(parts.drop(5)) ?: return null
             PageFill {
@@ -65,6 +66,7 @@ private fun parseFill(parts: List<String>): PageFill? {
             }
         }
         "radial" -> {
+            if (parts.size < 4) return null
             val numbers = parts.slice(1..3).map { it.toFloatOrNull() ?: return null }
             val stops = parseStops(parts.drop(4)) ?: return null
             PageFill {

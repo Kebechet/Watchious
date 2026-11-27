@@ -2,16 +2,50 @@ using System.Globalization;
 
 namespace Watchious.Controls;
 
-// MAUI's Color: red, green, blue and alpha from 0 to 1. Color.FromArgb takes a hex string as MAUI's does: #RGB, #ARGB,
-// #RRGGBB or #AARRGGBB, with or without the #.
-public sealed class Color : IEquatable<Color>
+// MAUI's Color: red, green, blue and alpha from 0 to 1, equal (also with ==) when their ARGB bytes are. Color.FromArgb
+// takes a hex string as MAUI's does: #RGB, #ARGB, #RRGGBB or #AARRGGBB, with or without the #.
+public sealed record class Color
 {
-    public Color(float red, float green, float blue, float alpha = 1)
+    public Color()
     {
-        Red = Math.Clamp(red, 0, 1);
-        Green = Math.Clamp(green, 0, 1);
-        Blue = Math.Clamp(blue, 0, 1);
-        Alpha = Math.Clamp(alpha, 0, 1);
+    }
+
+    public Color(float gray)
+    {
+        Red = Green = Blue = Component(gray);
+    }
+
+    public Color(float red, float green, float blue)
+    {
+        Red = Component(red);
+        Green = Component(green);
+        Blue = Component(blue);
+    }
+
+    public Color(float red, float green, float blue, float alpha)
+        : this(red, green, blue)
+    {
+        Alpha = Component(alpha);
+    }
+
+    public Color(byte red, byte green, byte blue)
+        : this(red / 255f, green / 255f, blue / 255f)
+    {
+    }
+
+    public Color(byte red, byte green, byte blue, byte alpha)
+        : this(red / 255f, green / 255f, blue / 255f, alpha / 255f)
+    {
+    }
+
+    public Color(int red, int green, int blue)
+        : this(red / 255f, green / 255f, blue / 255f)
+    {
+    }
+
+    public Color(int red, int green, int blue, int alpha)
+        : this(red / 255f, green / 255f, blue / 255f, alpha / 255f)
+    {
     }
 
     public float Red { get; }
@@ -20,16 +54,16 @@ public sealed class Color : IEquatable<Color>
 
     public float Blue { get; }
 
-    public float Alpha { get; }
+    public float Alpha { get; } = 1;
 
     public static Color FromRgb(int red, int green, int blue)
     {
-        return FromRgba(red, green, blue, 255);
+        return new Color(red, green, blue);
     }
 
     public static Color FromRgba(int red, int green, int blue, int alpha)
     {
-        return new Color(red / 255f, green / 255f, blue / 255f, alpha / 255f);
+        return new Color(red, green, blue, alpha);
     }
 
     public static Color FromRgb(double red, double green, double blue)
@@ -40,6 +74,11 @@ public sealed class Color : IEquatable<Color>
     public static Color FromRgba(double red, double green, double blue, double alpha)
     {
         return new Color((float)red, (float)green, (float)blue, (float)alpha);
+    }
+
+    public static Color FromUint(uint argb)
+    {
+        return new Color((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb, (byte)(argb >> 24));
     }
 
     public static Color FromArgb(string hex)
@@ -61,36 +100,51 @@ public sealed class Color : IEquatable<Color>
         };
     }
 
-    // #AARRGGBB, as MAUI's ToArgbHex(includeAlpha: true) writes it.
-    public string ToArgbHex()
+    // As MAUI's: #AARRGGBB when asked for the alpha or when the color isn't opaque, #RRGGBB otherwise.
+    public string ToArgbHex(bool includeAlpha = false)
     {
-        return $"#{ToByte(Alpha):X2}{ToByte(Red):X2}{ToByte(Green):X2}{ToByte(Blue):X2}";
+        return includeAlpha || Alpha < 1
+            ? $"#{ToByte(Alpha):X2}{ToByte(Red):X2}{ToByte(Green):X2}{ToByte(Blue):X2}"
+            : $"#{ToByte(Red):X2}{ToByte(Green):X2}{ToByte(Blue):X2}";
+    }
+
+    public string ToRgbaHex(bool includeAlpha = false)
+    {
+        return includeAlpha || Alpha < 1
+            ? $"#{ToByte(Red):X2}{ToByte(Green):X2}{ToByte(Blue):X2}{ToByte(Alpha):X2}"
+            : $"#{ToByte(Red):X2}{ToByte(Green):X2}{ToByte(Blue):X2}";
     }
 
     public bool Equals(Color? other)
     {
-        return other is not null && ToArgbHex() == other.ToArgbHex();
-    }
-
-    public override bool Equals(object? obj)
-    {
-        return Equals(obj as Color);
+        return other is not null && ToArgb() == other.ToArgb();
     }
 
     public override int GetHashCode()
     {
-        return ToArgbHex().GetHashCode(StringComparison.Ordinal);
+        return ToArgb();
     }
 
     public override string ToString()
     {
-        return ToArgbHex();
+        return string.Create(CultureInfo.InvariantCulture, $"[Color: Red={Red}, Green={Green}, Blue={Blue}, Alpha={Alpha}]");
     }
 
     // #RRGGBBAA, the order CSS and the hosts read.
     internal string ToProtocol()
     {
-        return $"#{ToByte(Red):X2}{ToByte(Green):X2}{ToByte(Blue):X2}{ToByte(Alpha):X2}";
+        return ToRgbaHex(includeAlpha: true);
+    }
+
+    private int ToArgb()
+    {
+        return (ToByte(Alpha) << 24) | (ToByte(Red) << 16) | (ToByte(Green) << 8) | ToByte(Blue);
+    }
+
+    // NaN, which Math.Clamp keeps, would reach the hosts as an invalid color.
+    private static float Component(float value)
+    {
+        return float.IsNaN(value) ? 0 : Math.Clamp(value, 0, 1);
     }
 
     private static int Nibble(char digit)

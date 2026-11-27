@@ -189,8 +189,9 @@ builder.ConfigureTheme(theme => theme.PageBackgroundColor = Color.FromArgb("#512
 ```
 
 - The page's `Background` wins over its `BackgroundColor`, and either over the theme's `PageBackground` and
-  `PageBackgroundColor`. A page with none of them is black.
-- `Color` and the brushes have MAUI's API: `Color.FromArgb("#RRGGBB")` or `#AARRGGBB`, the named `Colors`,
+  `PageBackgroundColor`. A page with none of them is black. Unlike MAUI, where a gradient from an implicit style beats
+  a page's own `BackgroundColor`, a page's own value always wins here.
+- `Color` and the brushes have MAUI's API: `Color.FromArgb("#RRGGBB")` or `#AARRGGBB`, MAUI's named `Colors`,
   `SolidColorBrush`, `LinearGradientBrush` (its points relative to the page) and `RadialGradientBrush` (its radius a
   fraction of the page's longer side).
 - A change shows at once: the navigation follows the page's and the theme's `PropertyChanged`, and a page or service
