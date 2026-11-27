@@ -9,6 +9,7 @@ import android.util.Log
 import android.view.View
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.ComposeView
@@ -32,12 +33,16 @@ internal class ComposeHost(activity: Activity) {
     private val backNavigation = BackNavigation(activity)
     private val pendingPatches = ConcurrentLinkedQueue<ByteArray>()
     private var eventListener: WatchiousEventListener? = null
+    private val isAmbient = mutableStateOf(false)
 
     val view: View = ComposeView(activity).apply {
         setViewTreeLifecycleOwner(owner)
         setViewTreeSavedStateRegistryOwner(owner)
         setContent {
-            CompositionLocalProvider(LocalBackNavigation provides backNavigation) {
+            CompositionLocalProvider(
+                LocalBackNavigation provides backNavigation,
+                LocalIsAmbient provides isAmbient.value,
+            ) {
                 WatchiousScreen(tree.root, ::dispatch)
             }
             LaunchedEffect(Unit) { reportFullyDrawnAfterFirstTree(activity) }
@@ -81,6 +86,10 @@ internal class ComposeHost(activity: Activity) {
     }
 
     fun handleBack(): Boolean = backNavigation.handleBack()
+
+    fun setAmbient(ambient: Boolean) {
+        mainHandler.post { isAmbient.value = ambient }
+    }
 
     fun setEventListener(listener: WatchiousEventListener?) {
         eventListener = listener

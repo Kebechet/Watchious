@@ -1,0 +1,19 @@
+@inject INavigation Navigation
+
+<VStack>
+    <Button Text="Open colored" OnClick="OpenColoredAsync" />
+    <Button Text="Open custom" OnClick="OpenCustomAsync" />
+    <ColoredPage />
+</VStack>
+
+@code {
+    private Task OpenColoredAsync()
+    {
+        return Navigation.GoToAsync("/colored");
+    }
+
+    private Task OpenCustomAsync()
+    {
+        return Navigation.GoToAsync("/custom-background");
+    }
+}

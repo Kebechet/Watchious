@@ -54,12 +54,14 @@ internal fun NavigationStack(node: UiNode, dispatch: EventDispatch) {
                 pageStates.SaveableStateProvider(page.id) {
                     val edges = page.screenEdges()
                     CompositionLocalProvider(LocalScreenEdges provides edges) {
-                        if (page.hasScreenScaffold()) {
-                            RenderNodes(page.children, dispatch)
-                        } else if (!edges.isEmpty) {
-                            EdgesPage(dispatch) { PageContent(page, dispatch) }
-                        } else {
-                            PageContent(page, dispatch)
+                        PageBackground(page) {
+                            if (page.hasScreenScaffold()) {
+                                RenderNodes(page.children, dispatch)
+                            } else if (!edges.isEmpty) {
+                                EdgesPage(dispatch) { PageContent(page, dispatch) }
+                            } else {
+                                PageContent(page, dispatch)
+                            }
                         }
                     }
                 }

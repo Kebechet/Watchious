@@ -168,6 +168,42 @@ watches and in the preview:
 
 The Counter sample's Layout page shows each of them.
 
+A page's background works as in MAUI. A page inherits `PageBase` (`@inherits PageBase`, Watchious' counterpart of
+MAUI's `ContentPage`, which the template's page already does) and sets `BackgroundColor` or `Background` in its code;
+every other page gets the app's default from the theme, the counterpart of MAUI's implicit page style:
+
+```csharp
+builder.ConfigureTheme(theme => theme.PageBackgroundColor = Color.FromArgb("#512BD4"));
+```
+
+```razor
+@page "/splash"
+@inherits PageBase
+
+@code {
+    protected override void OnInitialized()
+    {
+        Background = new LinearGradientBrush([new(Color.FromArgb("#512BD4"), 0), new(Colors.Black, 1)], new(0, 0), new(0, 1));
+    }
+}
+```
+
+- The page's `Background` wins over its `BackgroundColor`, and either over the theme's `PageBackground` and
+  `PageBackgroundColor`. A page with none of them is black. Unlike MAUI, where a gradient from an implicit style beats
+  a page's own `BackgroundColor`, a page's own value always wins here.
+- `Color` and the brushes have MAUI's API: `Color.FromArgb("#RRGGBB")` or `#AARRGGBB`, MAUI's named `Colors`,
+  `SolidColorBrush`, `LinearGradientBrush` (its points relative to the page) and `RadialGradientBrush` (its radius a
+  fraction of the page's longer side).
+- A change shows at once: the navigation follows the page's and the theme's `PropertyChanged`, and a page or service
+  can inject `WatchiousTheme` and change it while the app runs.
+- Underneath, the navigation reads a page through `IPage` and the theme through `ITheme`, so an app can write its own
+  page base class, or register its own `ITheme` in the builder's `Services`.
+- Only a page the navigation opens counts: a `PageBase` component used inside another page is part of that page.
+- ⚠️ **On the always-on screen both watches show every page black**, as Wear OS requires there (an app stays on that
+  screen only once it uses `IAmbientMode`).
+
+The Counter sample's Background page shows a color, both gradients and the theme's default.
+
 A control with a value (`Toggle`, `Picker`, `DigitalCrownRotation`) shows the value the page passes it. With
 `@bind-IsOn`, `@bind-SelectedIndex` or `@bind-Value` the page takes the user's change; a page that handles the change
 itself and doesn't take it, because what it starts failed, keeps the control as it was.
@@ -661,6 +697,7 @@ artifact.
 | Supported Apple Watches | Series 9 / Ultra 2 / SE 3 and newer (`arm64`). No `arm64_32` watches. |
 | App startup | MAUI-style `WatchiousApp.CreateBuilder()` with dependency injection |
 | Control names | SwiftUI's vocabulary: `VStack`, `Toggle`, `List`, `TextField`... Not MAUI's names, except `Label` for SwiftUI's `Text`, because Razor reserves `<text>`. Every common UI element is wrapped with its common parameters, with SwiftUI's defaults (stacks center their children and leave the spacing to the platform). Placement is MAUI's: `HorizontalOptions` and `VerticalOptions` on every control, with MAUI's rules, instead of an alignment on the stacks. |
+| Page settings | MAUI's model: a page inherits `PageBase` (MAUI's `ContentPage`; Blazor's naming for a base class, like `ComponentBase`) and sets its properties, such as `BackgroundColor`, in its code, where the navigation reads them through `IPage`. The app's defaults come from a theme on the builder (`ConfigureTheme`, read through `ITheme`), as MAUI's come from an implicit page style. A color isn't a control, so it isn't one in the markup either. |
 | Toggle label | `Toggle` has a `Text` parameter. Both native toggles carry their own label, which looks native and is read together with the switch by VoiceOver and TalkBack. |
 | Events and binding | Blazor style: `OnClick`, `@bind-IsOn` |
 | App state | Blazor style: state in components with `@bind`, shared logic in services through dependency injection |

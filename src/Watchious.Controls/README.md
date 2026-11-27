@@ -14,7 +14,9 @@ and the app builder (`WatchiousApp.CreateBuilder()`, with dependency injection, 
 package turns each `@page` route into a typed method on `Routes`, so navigation is checked by the compiler. Every
 control but `List` and `ScrollView` takes MAUI's `HorizontalOptions` and `VerticalOptions` (`LayoutOptions.Start`,
 `Center`, `End`, `Fill`) with MAUI's rules: a `VStack` places a child by its `HorizontalOptions` within its own width,
-an `HStack` by its `VerticalOptions`, and a page that doesn't scroll by both, its content centered otherwise.
+an `HStack` by its `VerticalOptions`, and a page that doesn't scroll by both, its content centered otherwise. A page
+inherits `PageBase` (`@inherits PageBase`, MAUI's `ContentPage`) to set its own `BackgroundColor` or `Background`
+(MAUI's `Color`, `Colors` and gradient brushes), and `builder.ConfigureTheme(...)` sets the app's default.
 
 ```razor
 <ScrollView>

@@ -1,0 +1,25 @@
+@inherits PageBase
+
+<VStack>
+    <Label>Colored</Label>
+    <Button Text="Gradient" OnClick="UseGradient" />
+    <Button Text="Theme" OnClick="UseTheme" />
+</VStack>
+
+@code {
+    protected override void OnInitialized()
+    {
+        BackgroundColor = Color.FromArgb("#512BD4");
+    }
+
+    private void UseGradient()
+    {
+        Background = new RadialGradientBrush([new GradientStop(Colors.White, 0), new GradientStop(Colors.Black, 1)]);
+    }
+
+    private void UseTheme()
+    {
+        BackgroundColor = null;
+        Background = null;
+    }
+}
