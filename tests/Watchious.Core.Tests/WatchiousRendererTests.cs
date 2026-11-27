@@ -94,9 +94,11 @@ public class WatchiousRendererTests
         await app.StartAsync(host);
 
         // Assert
-        var stack = host.LastTree.Single("VStack");
-        stack.Attributes.ShouldNotContainKey("HorizontalOptions");
-        stack.Attributes.ShouldNotContainKey("VerticalOptions");
+        var placedNodes = host.LastTree.Descendants()
+            .Where(node => node.Attributes.ContainsKey("HorizontalOptions") || node.Attributes.ContainsKey("VerticalOptions"))
+            .ToList();
+        host.LastTree.Descendants().ShouldContain(node => node.Type == "VStack");
+        placedNodes.ShouldBeEmpty();
     }
 
     [Fact]
@@ -121,6 +123,12 @@ public class WatchiousRendererTests
         var row = host.LastTree.Single("HStack");
         row.Attribute("HorizontalOptions").ShouldBe("Center");
         host.LastTree.Single("Label").Attribute("VerticalOptions").ShouldBe("Start");
+        host.LastTree.Single("Toggle").Attribute("HorizontalOptions").ShouldBe("End");
+        host.LastTree.Single("TextField").Attribute("HorizontalOptions").ShouldBe("Fill");
+        host.LastTree.Single("Picker").Attribute("VerticalOptions").ShouldBe("Center");
+        host.LastTree.Single("ProgressView").Attribute("HorizontalOptions").ShouldBe("Start");
+        host.LastTree.Single("DigitalCrownRotation").Attribute("HorizontalOptions").ShouldBe("Center");
+        host.LastTree.Single("Apple.Gauge").Attribute("HorizontalOptions").ShouldBe("End");
     }
 
     [Fact]

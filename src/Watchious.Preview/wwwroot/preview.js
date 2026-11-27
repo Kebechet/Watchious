@@ -150,6 +150,7 @@ function applyPatches(buffer) {
                 }
                 operations?.push(`#${id} ${name} = ${JSON.stringify(value)}`);
                 markChanged(node);
+                markParentOfOptions(node, name);
                 break;
             }
             case 4: {
@@ -158,6 +159,7 @@ function applyPatches(buffer) {
                 node.attributes.delete(name);
                 operations?.push(`#${id} remove ${name}`);
                 markChanged(node);
+                markParentOfOptions(node, name);
                 break;
             }
             case 5: {
@@ -189,6 +191,8 @@ function applyPatches(buffer) {
                 child.parent = parent;
                 operations?.push(`insert #${child.id} into #${id} at ${index}`);
                 markChanged(parent);
+                // Its place depends on the parent it now has.
+                markChanged(child);
                 break;
             }
             case 9: {
@@ -236,6 +240,13 @@ function create(id, type) {
 function markChanged(node) {
     changedNodes.add(node);
     if (node.type === "#text" && node.parent) {
+        changedNodes.add(node.parent);
+    }
+}
+
+// A control's options decide its parent's layout too: a page's slots, a stack's width.
+function markParentOfOptions(node, name) {
+    if ((name === "HorizontalOptions" || name === "VerticalOptions") && node.parent) {
         changedNodes.add(node.parent);
     }
 }
@@ -406,6 +417,22 @@ function render(node) {
                 return row;
             }));
             return;
+        case "Page": {
+            // A page that doesn't scroll gives each control with VerticalOptions an equal share of the height the others
+            // leave, as the hosts do, and places it in its share.
+            const isScrolling = scrolls(node);
+            target.replaceChildren(...node.children.map((child) => {
+                const vertical = attribute(child, "VerticalOptions");
+                if (isScrolling || vertical === null || child.type === "#text") {
+                    return child.element;
+                }
+                const slot = element("div", "slot");
+                slot.style.justifyContent = vertical === "Start" ? "flex-start" : vertical === "End" ? "flex-end" : "center";
+                slot.append(child.element);
+                return slot;
+            }));
+            return;
+        }
         case "VStack":
         case "HStack": {
             const spacing = Number(attribute(node, "Spacing") ?? defaultSpacing);
@@ -584,33 +611,53 @@ function visibleChildren(node) {
     return node.children.filter((child) => child.type !== "#text" || (child.text ?? "").trim() !== "");
 }
 
-// A control's HorizontalOptions and VerticalOptions (MAUI's LayoutOptions, see LayoutOptions.cs). A stack ignores its
-// children's options along its own direction; a page without a List or ScrollView places its content by both. There,
-// auto margins share out the free height as the hosts do: each control with VerticalOptions sits in an equal share.
+// A control's HorizontalOptions and VerticalOptions (MAUI's LayoutOptions, see LayoutOptions.cs), with the hosts' rules.
+// A stack ignores its children's options along its own direction, and places a child within its own width; a page that
+// doesn't scroll puts a control with VerticalOptions in a slot (render's Page). Fill stretches only what stretches by
+// itself (a stack, a Button, Toggle or TextField; a ProgressView always spans the width) and centers anything else.
 function placeByOptions(node) {
     const style = node.element?.style;
     if (!style || node.type === "#text") {
         return;
     }
-    const parentType = node.parent?.type;
-    const isInRow = parentType === "HStack";
-    const horizontal = isInRow ? null : attribute(node, "HorizontalOptions");
-    const vertical = isInRow || parentType === "Page" ? attribute(node, "VerticalOptions") : null;
-    style.alignSelf = flexAlignment(isInRow ? vertical : horizontal);
-    const isPlacedInPage = parentType === "Page" && vertical !== null;
-    style.marginTop = isPlacedInPage && vertical !== "Start" ? "auto" : "";
-    style.marginBottom = isPlacedInPage && vertical !== "End" ? "auto" : "";
-    // A stack and the controls that stretch across the width keep their own width with Start, Center or End; a stack
-    // with children that have options keeps the whole width for them to move in.
-    const keepsWidth = ["Start", "Center", "End"].includes(horizontal)
-        && (stretchingTypes.has(node.type)
-            || (node.type === "VStack" && !node.children.some((child) => attribute(child, "HorizontalOptions") !== null)));
-    style.width = keepsWidth ? "auto" : "";
+    const isInRow = node.parent?.type === "HStack";
+    const horizontal = attribute(node, "HorizontalOptions");
+    const keepsOwnWidth = keepWidthOptions.includes(horizontal);
+    if (isInRow) {
+        // Fill centers too: no control stretches vertically.
+        style.alignSelf = flexAlignment(attribute(node, "VerticalOptions"), false);
+    } else {
+        style.alignSelf = flexAlignment(horizontal, stretchingTypes.has(node.type) || stackTypes.has(node.type));
+    }
+    if (stackTypes.has(node.type)) {
+        // A stack spans the width unless it is in a row or keeps its own width; then it is as wide as its widest child,
+        // unless a child stretches across it, and in a row it gets the width its siblings leave.
+        const hasStretchingChild = node.children.some(stretchesAcrossStack);
+        style.width = (isInRow || keepsOwnWidth) && !hasStretchingChild ? "auto" : "";
+        style.flex = isInRow && hasStretchingChild ? "1 1 0" : "";
+        style.minWidth = isInRow && hasStretchingChild ? "0" : "";
+    } else if (stretchingTypes.has(node.type)) {
+        style.width = keepsOwnWidth && !isInRow ? "auto" : "";
+    }
 }
 
-const stretchingTypes = new Set(["Button", "Toggle", "TextField", "ProgressView"]);
+const keepWidthOptions = ["Start", "Center", "End"];
+const stretchingTypes = new Set(["Button", "Toggle", "TextField"]);
+const stackTypes = new Set(["VStack", "DigitalCrownRotation"]);
 
-function flexAlignment(options) {
+function stretchesAcrossStack(child) {
+    if (keepWidthOptions.includes(attribute(child, "HorizontalOptions"))) {
+        return false;
+    }
+    return stretchingTypes.has(child.type) || stackTypes.has(child.type)
+        || (child.type === "ProgressView" && attribute(child, "Style") === "Linear");
+}
+
+function scrolls(node) {
+    return node.type === "List" || node.type === "ScrollView" || node.children.some(scrolls);
+}
+
+function flexAlignment(options, stretches) {
     switch (options) {
         case "Start":
             return "flex-start";
@@ -619,7 +666,7 @@ function flexAlignment(options) {
         case "End":
             return "flex-end";
         case "Fill":
-            return "stretch";
+            return stretches ? "stretch" : "center";
         default:
             return "";
     }

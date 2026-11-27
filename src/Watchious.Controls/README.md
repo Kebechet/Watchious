@@ -12,9 +12,9 @@ The Razor controls with SwiftUI's names (`VStack`, `HStack`, `ScrollView`, `List
 `Image`, `Picker`, `TextField`...), the platform-only controls in the `Apple` and `Wear` namespaces, page navigation,
 and the app builder (`WatchiousApp.CreateBuilder()`, with dependency injection, as in MAUI). A source generator in the
 package turns each `@page` route into a typed method on `Routes`, so navigation is checked by the compiler. Every
-control takes MAUI's `HorizontalOptions` and `VerticalOptions` (`LayoutOptions.Start`, `Center`, `End`, `Fill`) with
-MAUI's rules: a `VStack` places a child by its `HorizontalOptions`, an `HStack` by its `VerticalOptions`, and a page
-that doesn't scroll by both, its content centered otherwise.
+control but `List` and `ScrollView` takes MAUI's `HorizontalOptions` and `VerticalOptions` (`LayoutOptions.Start`,
+`Center`, `End`, `Fill`) with MAUI's rules: a `VStack` places a child by its `HorizontalOptions` within its own width,
+an `HStack` by its `VerticalOptions`, and a page that doesn't scroll by both, its content centered otherwise.
 
 ```razor
 <ScrollView>

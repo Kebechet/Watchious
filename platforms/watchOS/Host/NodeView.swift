@@ -3,6 +3,7 @@ import SwiftUI
 struct NodeView: View {
     let node: UiNode
     let store: WatchiousStore
+    @Environment(\.watchiousLayoutParent) private var parent
 
     var body: some View {
         control
@@ -21,10 +22,10 @@ struct NodeView: View {
             }
             .environment(\.watchiousLayoutParent, .column)
         case "VStack":
-            VStack(spacing: spacing) {
+            StackLayout(spacing: spacing, fillsWidth: parent != .row && !node.keepsOwnWidth) {
                 children
             }
-            .environment(\.watchiousLayoutParent, .column)
+            .environment(\.watchiousLayoutParent, .stack)
         case "HStack":
             // A child's VerticalOptions places it within the row's height: its frame takes the height, and the row
             // keeps the height of its tallest child.
@@ -79,7 +80,7 @@ struct NodeView: View {
 
     private var children: some View {
         // The node id keeps a view's identity (state, animations) when siblings are inserted, removed or moved.
-        ForEach(node.children) { child in
+        ForEach(node.placedChildren) { child in
             NodeView(node: child, store: store)
         }
     }
@@ -140,7 +141,7 @@ struct UnknownNodeView: View {
                 .font(.caption)
                 .foregroundStyle(.orange)
             #endif
-            ForEach(node.children) { child in
+            ForEach(node.placedChildren) { child in
                 NodeView(node: child, store: store)
             }
         }

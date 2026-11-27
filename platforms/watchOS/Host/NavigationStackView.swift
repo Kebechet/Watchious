@@ -57,11 +57,11 @@ struct PageView: View {
     // takes the whole page and keeps its content off the screen's sides itself; other content gets the same margin.
     var body: some View {
         VStack(spacing: 0) {
-            ForEach(page.children) { child in
+            ForEach(page.placedChildren) { child in
                 NodeView(node: child, store: store)
             }
         }
-        .environment(\.watchiousLayoutParent, .page)
+        .environment(\.watchiousLayoutParent, page.scrolls ? .column : .page)
         .scenePadding(page.scrolls ? [] : .horizontal)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

@@ -140,18 +140,24 @@ the back button on Wear OS. Pages below the top one keep their state.
 > the Razor team keeps by design (https://github.com/dotnet/razor/issues/12620). So the text control keeps MAUI's
 > name. Its content is the text, as in SwiftUI: `<Label>Count: @count</Label>`.
 
-Every control takes MAUI's `HorizontalOptions` and `VerticalOptions` (`LayoutOptions.Start`, `Center`, `End`, `Fill`)
-to say where it sits in the space its parent gives it, with MAUI's rules, the same on both watches and in the preview:
+Every control but `List` and `ScrollView` takes MAUI's `HorizontalOptions` and `VerticalOptions` (`LayoutOptions.Start`,
+`Center`, `End`, `Fill`) to say where it sits in the space its parent gives it, with MAUI's rules, the same on both
+watches and in the preview:
 
-- A `VStack`, a `ScrollView` and a `List` row place a child by its `HorizontalOptions`; an `HStack` places a child by its
-  `VerticalOptions`, within the row's height. A stack ignores the options along its own direction.
+- A `VStack` places a child by its `HorizontalOptions` within the stack's own width, and so do a `ScrollView` and a
+  `List` row; an `HStack` places a child by its `VerticalOptions` within the row's height. A stack ignores the options
+  along its own direction.
+- A `VStack` spans the width it is given, as MAUI's default `Fill` does, unless it is in an `HStack` or its own `Start`,
+  `Center` or `End` keep it as wide as its widest child. In an `HStack` it gets the width its siblings leave.
 - A page without a `List` or `ScrollView` puts its content in the middle of the screen. There a control is placed by
   both options, and each one with `VerticalOptions` gets an equal share of the height the others leave, so `Start` puts
   it at the top and `End` at the bottom.
-- `Start`, `Center` and `End` keep a control's own size. `Fill` stretches a `Button`, `ProgressView`, `TextField` or
-  labeled `Toggle` across the width; any other control sits centered in the space.
-- Without options a control keeps its place: centered, with Wear OS's buttons, progress views, text fields and labeled
-  toggles across the width of a vertical stack (watchOS's buttons are that wide by themselves).
+- `Start`, `Center` and `End` keep a control's own size; a long text still wraps. `Fill` stretches a `VStack`,
+  `Button`, `TextField` or labeled `Toggle` across the width; any other control sits centered, and nothing stretches
+  vertically. A linear `ProgressView` always spans the width.
+- Without options a control keeps its place: centered, with buttons, text fields, labeled toggles and linear progress
+  views across the width of a vertical stack. In a `List` row each platform keeps its own place: leading on watchOS,
+  centered on Wear OS.
 
 ```razor
 <VStack>

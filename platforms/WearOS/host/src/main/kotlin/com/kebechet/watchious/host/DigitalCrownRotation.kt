@@ -25,7 +25,7 @@ private const val CROWN_REST_MILLIS = 500L
 // SwiftUI's digitalCrownRotation: the crown or the rotating bezel turns Value from From through Through, one step of By
 // per unit of the rotary axis (a detent of a rotating bezel), clockwise up.
 @Composable
-internal fun WatchDigitalCrownRotation(node: UiNode, dispatch: EventDispatch, parent: LayoutParent) {
+internal fun WatchDigitalCrownRotation(node: UiNode, dispatch: EventDispatch, modifier: Modifier) {
     val from = node.attribute("From")?.toDoubleOrNull() ?: 0.0
     val through = maxOf(node.attribute("Through")?.toDoubleOrNull() ?: from, from)
     val by = node.attribute("By")?.toDoubleOrNull()?.takeIf { it > 0 } ?: 1.0
@@ -45,7 +45,7 @@ internal fun WatchDigitalCrownRotation(node: UiNode, dispatch: EventDispatch, pa
     val view = LocalView.current
     val pixelsPerStep = remember(view) { ViewConfiguration.get(view.context).scaledVerticalScrollFactor }
     Column(
-        modifier = Modifier.controlCrown { event ->
+        modifier = modifier.controlCrown { event ->
             partialStep += event.verticalScrollPixels / pixelsPerStep
             val steps = partialStep.toInt()
             if (steps == 0) {
@@ -62,7 +62,7 @@ internal fun WatchDigitalCrownRotation(node: UiNode, dispatch: EventDispatch, pa
         },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        RenderNodes(node.children, dispatch, parent)
+        ColumnChildren(node.children, dispatch)
     }
 }
 

@@ -62,7 +62,7 @@ internal fun WatchList(node: UiNode, dispatch: EventDispatch) {
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 rotaryScrollableBehavior = null,
             ) {
-                items(rows, key = { it.id }) { row -> PlacedNode(row, dispatch, LayoutParent.COLUMN) }
+                items(rows, key = { it.id }) { row -> ListRow(row, dispatch) }
             }
         }
     }
