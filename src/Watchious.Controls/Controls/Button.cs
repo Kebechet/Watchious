@@ -14,12 +14,20 @@ public sealed class Button : ComponentBase
     [Parameter]
     public EventCallback OnClick { get; set; }
 
+    [Parameter]
+    public LayoutOptions? HorizontalOptions { get; set; }
+
+    [Parameter]
+    public LayoutOptions? VerticalOptions { get; set; }
+
     protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
         builder.OpenElement(0, nameof(Button));
         builder.AddAttribute(1, nameof(Text), Text);
         builder.AddAttribute(2, nameof(IsEnabled), ProtocolValue.Of(IsEnabled));
         builder.AddAttribute(3, "onclick", OnClick);
+        builder.AddAttribute(4, nameof(HorizontalOptions), HorizontalOptions?.ToString());
+        builder.AddAttribute(5, nameof(VerticalOptions), VerticalOptions?.ToString());
         builder.CloseElement();
     }
 }

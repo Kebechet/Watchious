@@ -1,0 +1,13 @@
+<VStack VerticalOptions="LayoutOptions.End">
+    <Button Text="Left" HorizontalOptions="LayoutOptions.Start" />
+    <Image Source="logo" Width="20" Height="20" HorizontalOptions="LayoutOptions.Fill" />
+    <HStack HorizontalOptions="LayoutOptions.Center">
+        <Label VerticalOptions="LayoutOptions.Start">Top</Label>
+    </HStack>
+    <Toggle Text="On" HorizontalOptions="LayoutOptions.End" />
+    <TextField Placeholder="Name" HorizontalOptions="LayoutOptions.Fill" />
+    <Picker Items="@(["A", "B"])" VerticalOptions="LayoutOptions.Center" />
+    <ProgressView Value="0.5" HorizontalOptions="LayoutOptions.Start" />
+    <DigitalCrownRotation From="0" Through="10" HorizontalOptions="LayoutOptions.Center" />
+    <Apple.Gauge Value="1" HorizontalOptions="LayoutOptions.End" />
+</VStack>

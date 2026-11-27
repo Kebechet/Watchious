@@ -1,0 +1,34 @@
+@page "/layout"
+@inject INavigation Navigation
+
+@* VerticalOptions in a row, HorizontalOptions in a vertical stack (within the stack's own width); the next page places
+   content on a whole page. *@
+<ScrollView>
+    <VStack Spacing="6">
+        <Label Style="TextStyle.Headline">Layout</Label>
+        <HStack Spacing="6">
+            <Image Source="watchious_logo" Width="48" Height="48" Description="Watchious logo" />
+            <Label Style="TextStyle.Caption" VerticalOptions="LayoutOptions.Start">Top</Label>
+            <Label Style="TextStyle.Caption" VerticalOptions="LayoutOptions.Center">Mid</Label>
+            <Label Style="TextStyle.Caption" VerticalOptions="LayoutOptions.End">Low</Label>
+        </HStack>
+        <HStack Spacing="6">
+            <Image Icon="Icon.Heart" Width="24" Height="24" Description="Heart" />
+            <VStack Spacing="0">
+                <Label Style="TextStyle.Caption" HorizontalOptions="LayoutOptions.Start">Heart rate</Label>
+                <Label HorizontalOptions="LayoutOptions.Start">72 bpm</Label>
+            </VStack>
+            <Label>›</Label>
+        </HStack>
+        <VStack Spacing="0" HorizontalOptions="LayoutOptions.End">
+            <Label Style="TextStyle.Caption" HorizontalOptions="LayoutOptions.Start">Start in</Label>
+            <Label Style="TextStyle.Caption">an End stack</Label>
+        </VStack>
+        <Button Text="Start" HorizontalOptions="LayoutOptions.Start" />
+        <Button Text="Center" HorizontalOptions="LayoutOptions.Center" />
+        <Button Text="End" HorizontalOptions="LayoutOptions.End" />
+        <Button Text="Fill" HorizontalOptions="LayoutOptions.Fill" />
+        <Button Text="Start a long outdoor workout" HorizontalOptions="LayoutOptions.Start" />
+        <Button Text="Whole page" OnClick="() => Navigation.GoToAsync(Routes.Placement())" />
+    </VStack>
+</ScrollView>

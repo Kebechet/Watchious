@@ -23,6 +23,12 @@ public sealed class Picker : ComponentBase
     [Parameter]
     public EventCallback<int> SelectedIndexChanged { get; set; }
 
+    [Parameter]
+    public LayoutOptions? HorizontalOptions { get; set; }
+
+    [Parameter]
+    public LayoutOptions? VerticalOptions { get; set; }
+
     protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
         builder.OpenElement(0, nameof(Picker));
@@ -30,6 +36,8 @@ public sealed class Picker : ComponentBase
         builder.AddAttribute(2, nameof(Items), string.Join(ItemSeparator, Items.Select(item => item.ReplaceLineEndings(" "))));
         builder.AddAttribute(3, nameof(SelectedIndex), ProtocolValue.Of(SelectedIndex));
         builder.AddAttribute(4, "onselected", EventCallback.Factory.Create<NativeEventArgs>(this, OnNativeSelectedAsync));
+        builder.AddAttribute(5, nameof(HorizontalOptions), HorizontalOptions?.ToString());
+        builder.AddAttribute(6, nameof(VerticalOptions), VerticalOptions?.ToString());
         builder.CloseElement();
     }
 

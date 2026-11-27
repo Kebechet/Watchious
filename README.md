@@ -140,6 +140,34 @@ the back button on Wear OS. Pages below the top one keep their state.
 > the Razor team keeps by design (https://github.com/dotnet/razor/issues/12620). So the text control keeps MAUI's
 > name. Its content is the text, as in SwiftUI: `<Label>Count: @count</Label>`.
 
+Every control but `List` and `ScrollView` takes MAUI's `HorizontalOptions` and `VerticalOptions` (`LayoutOptions.Start`,
+`Center`, `End`, `Fill`) to say where it sits in the space its parent gives it, with MAUI's rules, the same on both
+watches and in the preview:
+
+- A `VStack` places a child by its `HorizontalOptions` within the stack's own width, and so do a `ScrollView` and a
+  `List` row; an `HStack` places a child by its `VerticalOptions` within the row's height. A stack ignores the options
+  along its own direction.
+- A `VStack` spans the width it is given, as MAUI's default `Fill` does, unless it is in an `HStack` or its own `Start`,
+  `Center` or `End` keep it as wide as its widest child. In an `HStack` it gets the width its siblings leave.
+- A page without a `List` or `ScrollView` puts its content in the middle of the screen. There a control is placed by
+  both options, and each one with `VerticalOptions` gets an equal share of the height the others leave, so `Start` puts
+  it at the top and `End` at the bottom.
+- `Start`, `Center` and `End` keep a control's own size; a long text still wraps. `Fill` stretches a `VStack`,
+  `Button`, `TextField` or labeled `Toggle` across the width; any other control sits centered, and nothing stretches
+  vertically. A linear `ProgressView` always spans the width.
+- Without options a control keeps its place: centered, with buttons, text fields, labeled toggles and linear progress
+  views across the width of a vertical stack. In a `List` row each platform keeps its own place: leading on watchOS,
+  centered on Wear OS.
+
+```razor
+<VStack>
+    <Button Text="Left" HorizontalOptions="LayoutOptions.Start" />
+    <Button Text="Wide" HorizontalOptions="LayoutOptions.Fill" />
+</VStack>
+```
+
+The Counter sample's Layout page shows each of them.
+
 A control with a value (`Toggle`, `Picker`, `DigitalCrownRotation`) shows the value the page passes it. With
 `@bind-IsOn`, `@bind-SelectedIndex` or `@bind-Value` the page takes the user's change; a page that handles the change
 itself and doesn't take it, because what it starts failed, keeps the control as it was.
@@ -632,7 +660,7 @@ artifact.
 | Naming | Watchious's own folders, projects and packages say `WearOS` and `watchOS`, never `Android` or `iOS`. Those names mean the phone, where the messaging code also runs. Like MAUI (`Platforms/iOS`, `DevicePlatform.watchOS`), a platform name on its own keeps Apple's casing (`Watchious.Hosts.watchOS`); inside a longer identifier it is Pascal-cased, as in .NET's `OperatingSystem.IsWatchOS()` (`WatchOSBridge`). Names are lowercase only where the tool requires it: the `net11.0-watchos` target framework, compiler target triples and Gradle project names. |
 | Supported Apple Watches | Series 9 / Ultra 2 / SE 3 and newer (`arm64`). No `arm64_32` watches. |
 | App startup | MAUI-style `WatchiousApp.CreateBuilder()` with dependency injection |
-| Control names | SwiftUI's vocabulary: `VStack`, `Toggle`, `List`, `TextField`... Not MAUI's names, except `Label` for SwiftUI's `Text`, because Razor reserves `<text>`. Every common UI element is wrapped with its common parameters, with SwiftUI's defaults (stacks center their children and leave the spacing to the platform). |
+| Control names | SwiftUI's vocabulary: `VStack`, `Toggle`, `List`, `TextField`... Not MAUI's names, except `Label` for SwiftUI's `Text`, because Razor reserves `<text>`. Every common UI element is wrapped with its common parameters, with SwiftUI's defaults (stacks center their children and leave the spacing to the platform). Placement is MAUI's: `HorizontalOptions` and `VerticalOptions` on every control, with MAUI's rules, instead of an alignment on the stacks. |
 | Toggle label | `Toggle` has a `Text` parameter. Both native toggles carry their own label, which looks native and is read together with the switch by VoiceOver and TalkBack. |
 | Events and binding | Blazor style: `OnClick`, `@bind-IsOn` |
 | App state | Blazor style: state in components with `@bind`, shared logic in services through dependency injection |

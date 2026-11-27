@@ -15,11 +15,19 @@ public sealed class Label : ComponentBase
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
 
+    [Parameter]
+    public LayoutOptions? HorizontalOptions { get; set; }
+
+    [Parameter]
+    public LayoutOptions? VerticalOptions { get; set; }
+
     protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
         builder.OpenElement(0, nameof(Label));
         builder.AddAttribute(1, nameof(Style), Style.ToString());
-        builder.AddContent(2, ChildContent);
+        builder.AddAttribute(2, nameof(HorizontalOptions), HorizontalOptions?.ToString());
+        builder.AddAttribute(3, nameof(VerticalOptions), VerticalOptions?.ToString());
+        builder.AddContent(4, ChildContent);
         builder.CloseElement();
     }
 }

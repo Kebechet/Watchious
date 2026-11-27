@@ -17,12 +17,20 @@ public sealed class Toggle : ComponentBase
     [Parameter]
     public EventCallback<bool> IsOnChanged { get; set; }
 
+    [Parameter]
+    public LayoutOptions? HorizontalOptions { get; set; }
+
+    [Parameter]
+    public LayoutOptions? VerticalOptions { get; set; }
+
     protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
         builder.OpenElement(0, nameof(Toggle));
         builder.AddAttribute(1, nameof(Text), Text);
         builder.AddAttribute(2, nameof(IsOn), ProtocolValue.Of(IsOn));
         builder.AddAttribute(3, "ontoggled", EventCallback.Factory.Create<NativeEventArgs>(this, OnNativeToggledAsync));
+        builder.AddAttribute(4, nameof(HorizontalOptions), HorizontalOptions?.ToString());
+        builder.AddAttribute(5, nameof(VerticalOptions), VerticalOptions?.ToString());
         builder.CloseElement();
     }
 

@@ -11,13 +11,15 @@ struct DigitalCrownRotationNode: View {
     // The value C# knows, from it or from the last change sent to it; a change of value to anything else is the crown's.
     @State private var knownValue = 0.0
     @State private var lastTurn = Date.distantPast
+    @Environment(\.watchiousLayoutParent) private var parent
 
     var body: some View {
-        VStack {
-            ForEach(node.children) { child in
+        StackLayout(spacing: nil, fillsWidth: parent != .row && !node.keepsOwnWidth) {
+            ForEach(node.placedChildren) { child in
                 NodeView(node: child, store: store)
             }
         }
+        .environment(\.watchiousLayoutParent, .stack)
         .focusable()
         .digitalCrownRotation($value, from: from, through: through, by: by)
         .onChange(of: value) { _, newValue in

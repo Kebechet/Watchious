@@ -102,9 +102,35 @@ main {
     inset: 0;
 }
 
+/* A page without a List or ScrollView shows its content in the middle, as both hosts do, clear of the time. */
 .page {
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.wearos .page:not(:has(.scroll-view, .list)) {
+    padding: 24px 12px;
+}
+
+/* Clear of the edge button, as the host's EdgesPage keeps it. */
+.wearos .page:has(.edge-button:not([hidden])):not(:has(.scroll-view, .list)) {
+    padding-bottom: 56px;
+}
+
+.watchos .page:not(:has(.scroll-view, .list)) {
+    padding: 34px 10px 10px;
+}
+
+/* A page's share of the height for a control with VerticalOptions (preview.js, render's Page). */
+.page > .slot {
+    flex: 1 1 0;
+    min-height: 0;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .page[hidden] {
@@ -139,6 +165,7 @@ main {
 .scroll-view,
 .list {
     flex: 1;
+    align-self: stretch;
     overflow-y: auto;
     scrollbar-width: none;
     display: flex;
@@ -179,12 +206,14 @@ main {
 .vstack {
     display: flex;
     flex-direction: column;
+    align-items: center;
     width: 100%;
 }
 
 .hstack {
     display: flex;
     flex-direction: row;
+    align-items: center;
 }
 
 /* Controls. */

@@ -3,8 +3,15 @@ import SwiftUI
 struct NodeView: View {
     let node: UiNode
     let store: WatchiousStore
+    @Environment(\.watchiousLayoutParent) private var parent
 
     var body: some View {
+        control
+            .modifier(LayoutOptionsModifier(node: node))
+    }
+
+    @ViewBuilder
+    private var control: some View {
         switch node.type {
         case "NavigationStack":
             NavigationStackView(node: node, store: store)
@@ -13,14 +20,20 @@ struct NodeView: View {
                 children
                     .scenePadding(.horizontal)
             }
+            .environment(\.watchiousLayoutParent, .column)
         case "VStack":
-            VStack(alignment: horizontalAlignment, spacing: spacing) {
+            StackLayout(spacing: spacing, fillsWidth: parent != .row && !node.keepsOwnWidth) {
                 children
             }
+            .environment(\.watchiousLayoutParent, .stack)
         case "HStack":
-            HStack(alignment: verticalAlignment, spacing: spacing) {
+            // A child's VerticalOptions places it within the row's height: its frame takes the height, and the row
+            // keeps the height of its tallest child.
+            HStack(spacing: spacing) {
                 children
             }
+            .fixedSize(horizontal: false, vertical: node.children.contains { $0.hasVerticalOptions })
+            .environment(\.watchiousLayoutParent, .row)
         case "Label":
             Text(node.joinedText)
                 .font(font(for: node.attribute("Style")))
@@ -67,7 +80,7 @@ struct NodeView: View {
 
     private var children: some View {
         // The node id keeps a view's identity (state, animations) when siblings are inserted, removed or moved.
-        ForEach(node.children) { child in
+        ForEach(node.placedChildren) { child in
             NodeView(node: child, store: store)
         }
     }
@@ -75,34 +88,6 @@ struct NodeView: View {
     // Nil leaves the spacing to SwiftUI, like a VStack without spacing.
     private var spacing: CGFloat? {
         node.attribute("Spacing").flatMap(Double.init).map { CGFloat($0) }
-    }
-
-    private var horizontalAlignment: HorizontalAlignment {
-        switch node.attribute("Alignment") {
-        case "Leading":
-            return .leading
-        case "Trailing":
-            return .trailing
-        case "Center", nil:
-            return .center
-        case let alignment?:
-            reportUnknownValue(alignment, of: "Alignment", on: node.type)
-            return .center
-        }
-    }
-
-    private var verticalAlignment: VerticalAlignment {
-        switch node.attribute("Alignment") {
-        case "Top":
-            return .top
-        case "Bottom":
-            return .bottom
-        case "Center", nil:
-            return .center
-        case let alignment?:
-            reportUnknownValue(alignment, of: "Alignment", on: node.type)
-            return .center
-        }
     }
 
     private var isOnBinding: Binding<Bool> {
@@ -156,10 +141,11 @@ struct UnknownNodeView: View {
                 .font(.caption)
                 .foregroundStyle(.orange)
             #endif
-            ForEach(node.children) { child in
+            ForEach(node.placedChildren) { child in
                 NodeView(node: child, store: store)
             }
         }
+        .environment(\.watchiousLayoutParent, .column)
         .onAppear {
             NSLog("[Watchious] unknown control %@: this host has no view for it", node.type)
         }

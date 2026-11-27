@@ -35,6 +35,12 @@ public sealed class Image : ComponentBase
     [Parameter]
     public string? Description { get; set; }
 
+    [Parameter]
+    public LayoutOptions? HorizontalOptions { get; set; }
+
+    [Parameter]
+    public LayoutOptions? VerticalOptions { get; set; }
+
     protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
         builder.OpenElement(0, nameof(Image));
@@ -45,6 +51,8 @@ public sealed class Image : ComponentBase
         builder.AddAttribute(5, nameof(Icon), Icon?.ToString());
         builder.AddAttribute(6, nameof(AppleSymbol), AppleSymbol);
         builder.AddAttribute(7, nameof(MaterialIcon), MaterialIcon);
+        builder.AddAttribute(8, nameof(HorizontalOptions), HorizontalOptions?.ToString());
+        builder.AddAttribute(9, nameof(VerticalOptions), VerticalOptions?.ToString());
         builder.CloseElement();
     }
 }

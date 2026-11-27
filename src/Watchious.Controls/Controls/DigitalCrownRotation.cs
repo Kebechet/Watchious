@@ -39,6 +39,12 @@ public sealed class DigitalCrownRotation : ComponentBase
         }
     }
 
+    [Parameter]
+    public LayoutOptions? HorizontalOptions { get; set; }
+
+    [Parameter]
+    public LayoutOptions? VerticalOptions { get; set; }
+
     protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
         builder.OpenElement(0, nameof(DigitalCrownRotation));
@@ -47,7 +53,9 @@ public sealed class DigitalCrownRotation : ComponentBase
         builder.AddAttribute(3, nameof(Through), ProtocolValue.Of(Through));
         builder.AddAttribute(4, nameof(By), ProtocolValue.Of(By));
         builder.AddAttribute(5, "onchanged", EventCallback.Factory.Create<NativeEventArgs>(this, OnNativeChangedAsync));
-        builder.AddContent(6, ChildContent);
+        builder.AddAttribute(6, nameof(HorizontalOptions), HorizontalOptions?.ToString());
+        builder.AddAttribute(7, nameof(VerticalOptions), VerticalOptions?.ToString());
+        builder.AddContent(8, ChildContent);
         builder.CloseElement();
     }
 

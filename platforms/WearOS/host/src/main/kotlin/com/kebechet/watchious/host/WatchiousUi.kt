@@ -40,32 +40,35 @@ internal fun WatchiousScreen(root: UiNode, dispatch: EventDispatch) {
     }
 }
 
+// Controls outside a stack: a NavigationStack, or a page that a List or ScrollView fills.
 @Composable
-internal fun RenderNodes(nodes: List<UiNode>, dispatch: EventDispatch, isInRow: Boolean = false) {
+internal fun RenderNodes(nodes: List<UiNode>, dispatch: EventDispatch) {
     // The node id keeps a control's Compose state (and animations) with its node when siblings are inserted,
     // removed or moved.
-    nodes.forEach { node -> key(node.id) { RenderNode(node, dispatch, isInRow) } }
+    nodes.forEach { node -> key(node.id) { RenderNode(node, dispatch, LayoutParent.COLUMN) } }
 }
 
 @Composable
-internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean) {
-    // Like MAUI's default HorizontalOptions.Fill: a control spans the width of a vertical stack, but takes only
-    // the width it needs in an HStack, where filling would push its siblings out.
-    val fillWidth = if (isInRow) Modifier else Modifier.fillMaxWidth()
+internal fun RenderNode(node: UiNode, dispatch: EventDispatch, parent: LayoutParent) {
+    // Like MAUI's default HorizontalOptions.Fill: a control (a VStack too) spans the width of a vertical stack, but
+    // takes only the width it needs in an HStack, where filling would push its siblings out. Its own Start, Center or
+    // End keeps its width too.
+    val fillWidth = if (parent == LayoutParent.ROW || node.keepsOwnWidth()) Modifier else Modifier.fillMaxWidth()
     when (node.type) {
         "NavigationStack" -> NavigationStack(node, dispatch)
         "ScrollView" -> WatchScrollView(node, dispatch)
         "VStack" -> Column(
+            modifier = fillWidth,
             verticalArrangement = Arrangement.spacedBy(node.spacing().dp),
-            horizontalAlignment = node.horizontalAlignment(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            RenderNodes(node.children, dispatch)
+            ColumnChildren(node.children, dispatch)
         }
         "HStack" -> Row(
             horizontalArrangement = Arrangement.spacedBy(node.spacing().dp),
-            verticalAlignment = node.verticalAlignment(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            RenderNodes(node.children, dispatch, isInRow = true)
+            RowChildren(node.children, dispatch)
         }
         "Label" -> Text(
             text = node.joinedText(),
@@ -89,7 +92,7 @@ internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
         "ProgressView" -> WatchProgressView(node, fillWidth)
         "Picker" -> WatchPicker(node, dispatch)
         "TextField" -> WatchTextField(node, dispatch, fillWidth)
-        "DigitalCrownRotation" -> WatchDigitalCrownRotation(node, dispatch, isInRow)
+        "DigitalCrownRotation" -> WatchDigitalCrownRotation(node, dispatch, fillWidth)
         "Toggle" -> {
             val text = node.attribute("Text")
             SwitchButton(
@@ -104,7 +107,7 @@ internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
         // Blank text is the whitespace between controls in the Razor markup.
         UiNode.TEXT_TYPE -> node.text?.takeIf { it.isNotBlank() }?.let { Text(it) }
         else -> if (!node.isAppleOnly()) {
-            UnknownNode(node, dispatch, isInRow)
+            UnknownNode(node, dispatch)
         }
     }
 }
@@ -112,18 +115,16 @@ internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
 // A control this host has no view for: a misspelled element in the Razor markup, or a control that C# has and this host
 // doesn't yet. Its children are still shown; a debug build also shows a warning in its place.
 @Composable
-private fun UnknownNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean) {
+private fun UnknownNode(node: UiNode, dispatch: EventDispatch) {
     LaunchedEffect(node.type) {
         Log.w(LOG_TAG, "Unknown control ${node.type}: this host has no view for it")
     }
     val isDebuggable = (LocalContext.current.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-    if (!isDebuggable) {
-        RenderNodes(node.children, dispatch, isInRow)
-        return
-    }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("⚠️ ${node.type}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-        RenderNodes(node.children, dispatch, isInRow)
+        if (isDebuggable) {
+            Text("⚠️ ${node.type}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        ColumnChildren(node.children, dispatch)
     }
 }
 
@@ -142,7 +143,7 @@ private fun WatchScrollView(node: UiNode, dispatch: EventDispatch) {
                     .padding(horizontal = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                RenderNodes(node.children, dispatch)
+                ColumnChildren(node.children, dispatch)
             }
         }
     }
@@ -171,26 +172,6 @@ internal fun reportUnknownValue(value: String?, attribute: String, type: String)
 private const val DEFAULT_SPACING = 4f
 
 private fun UiNode.spacing(): Float = attribute("Spacing")?.toFloatOrNull() ?: DEFAULT_SPACING
-
-private fun UiNode.horizontalAlignment(): Alignment.Horizontal = when (val alignment = attribute("Alignment")) {
-    "Leading" -> Alignment.Start
-    "Trailing" -> Alignment.End
-    "Center", null -> Alignment.CenterHorizontally
-    else -> {
-        reportUnknownValue(alignment, "Alignment", type)
-        Alignment.CenterHorizontally
-    }
-}
-
-private fun UiNode.verticalAlignment(): Alignment.Vertical = when (val alignment = attribute("Alignment")) {
-    "Top" -> Alignment.Top
-    "Bottom" -> Alignment.Bottom
-    "Center", null -> Alignment.CenterVertically
-    else -> {
-        reportUnknownValue(alignment, "Alignment", type)
-        Alignment.CenterVertically
-    }
-}
 
 private fun UiNode.joinedText(): String =
     children.filter { it.type == UiNode.TEXT_TYPE }.joinToString("") { it.text.orEmpty() }
