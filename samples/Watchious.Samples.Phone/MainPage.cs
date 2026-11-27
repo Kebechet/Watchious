@@ -71,7 +71,7 @@ public sealed class MainPage : ContentPage
     private async Task RunLaunchActionsAsync()
     {
         const string prefix = "--watchious-phone=";
-        var argument = Environment.GetCommandLineArgs().FirstOrDefault(candidate => candidate.StartsWith(prefix, StringComparison.Ordinal));
+        var argument = LaunchArguments().FirstOrDefault(candidate => candidate.StartsWith(prefix, StringComparison.Ordinal));
         if (argument is null)
         {
             return;
@@ -98,6 +98,17 @@ public sealed class MainPage : ContentPage
         }
     }
 
+    // .NET for iOS leaves the arguments of a launch (xcrun devicectl device process launch ... <bundle id> <arguments>)
+    // out of Environment.GetCommandLineArgs(); NSProcessInfo has them.
+    private static IEnumerable<string> LaunchArguments()
+    {
+#if IOS
+        return Foundation.NSProcessInfo.ProcessInfo.Arguments;
+#else
+        return Environment.GetCommandLineArgs();
+#endif
+    }
+
     private async Task SendAsync()
     {
         var sending = _messaging.SendMessageAsync(new Dictionary<string, string> { ["text"] = "Hello from the phone" });
@@ -106,6 +117,7 @@ public sealed class MainPage : ContentPage
             // Temporary workaround: on iOS, Plugin.Maui.WearableMessaging 0.6.5 completes this task only when sending
             // fails, so awaiting a delivered message never returns. Await it again, as on Android, once the package
             // contains https://github.com/Clinical-Support-Systems/Plugin.Maui.WearableMessaging/pull/6
+            // (https://github.com/Kebechet/Watchious/issues/34).
             _ = sending.ContinueWith(LogFailedSend, TaskContinuationOptions.OnlyOnFaulted);
         }
         else

@@ -19,7 +19,7 @@
   build that also builds it in parallel writes the same bin and obj folders twice at once. Item metadata:
     CodesignProvision  the watch app's provisioning profile (a path or an installed profile's UUID), for a device
     TargetFramework    the watch project's watchOS target framework (default: net<the iPhone app's .NET version>-watchos)
-  Once AdditionalWatchOSApp ships, it replaces this file.
+  Once AdditionalWatchOSApp ships, it replaces this file: https://github.com/Kebechet/Watchious/issues/33
 -->
 <Project>
 

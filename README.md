@@ -300,9 +300,11 @@ The names and shapes are MAUI Essentials' where it has the API (`IGeolocation`, 
 `NSLocationWhenInUseUsageDescription` and, for the barometer and the pedometer, `NSMotionUsageDescription` in
 `Platforms/watchOS/Info.plist`; `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, and `ACTIVITY_RECOGNITION` for the
 pedometer, in the Wear OS manifest. ⚠️ The watchOS host builds its location and compass code only when
-`NSLocationWhenInUseUsageDescription` is there, and its barometer and pedometer only with `NSMotionUsageDescription`: App Store Connect refuses an app whose code uses them without the text
-(ITMS-90683). Without the key, `IsSupported` is false and using the API throws `FeatureNotSupportedException` naming
-it. Events
+`NSLocationWhenInUseUsageDescription` is there, and its barometer and pedometer only with `NSMotionUsageDescription`:
+App Store Connect refuses an app whose code uses them without the text (ITMS-90683). An app made from the template,
+with neither key, went through App Store Connect's processing without ITMS-90683 (2026-11-25); its watch app
+references only `CMMotionManager`, which the accelerometer and gyroscope use and which needs no text. Without the key,
+`IsSupported` is false and using the API throws `FeatureNotSupportedException` naming it. Events
 come on the platform's thread, often many times a second for a sensor: a page updates itself through `InvokeAsync`,
 and unsubscribes in `Dispose`.
 
@@ -349,8 +351,9 @@ builder.Services.AddWatchiousHealth();  // Kebechet.Watchious.Health: inject IHe
   the phone and watch apps must share the applicationId and signing key. On watchOS it uses WatchConnectivity; the
   watch app must be the iPhone app's companion, installed from inside it (see "Companion apps").
   `samples/Watchious.Samples.Phone` is a MAUI phone app with the plugin for testing it; with
-  `--watchious-phone=check,hello,ask,context` it presses its own buttons and logs to the console (not on iOS yet:
-  the arguments of `xcrun devicectl device process launch` don't reach `Environment.GetCommandLineArgs()`).
+  `--watchious-phone=check,hello,ask,context` it presses its own buttons and logs to the console, on iOS from the
+  arguments of `xcrun devicectl device process launch` (which .NET for iOS leaves out of
+  `Environment.GetCommandLineArgs()`, so the sample reads them from `NSProcessInfo`).
   Messages, answers and the application context go both ways between a Galaxy Watch7 and a Pixel 6, and between an
   Apple Watch SE 3 and an iPhone SE.
   ⚠️ **On iOS, don't await the plugin's `SendMessageAsync` yet.** In 0.6.5 it completes only when sending fails, so
@@ -689,8 +692,10 @@ artifact.
    platform C# as the escape hatch. ✅ Haptics, device info, battery, connectivity, preferences, secure storage,
    app lifecycle, always-on (ambient) mode, local notifications, location and sensors. The ones added last (secure
    storage to sensors) work on an Apple Watch SE 3 and on the Wear OS emulator. ✅ Keeping the screen on, app info, the
-   file system, the pedometer and text to speech, so far tried in the watchOS simulator and the Wear OS emulator (which
-   have no step counter, and the emulator no speech engine).
+   file system, the pedometer and text to speech work in the watchOS simulator and the Wear OS emulator (which have no
+   step counter, and the emulator no speech engine). On real watches: on an Apple Watch SE 3 the pedometer asks for
+   motion access and counts steps, and `KeepScreenOn` keeps the app on screen with the wrist down for 3 minutes; on a
+   Galaxy Watch7 the pedometer asks for physical activity and counts steps, and text to speech speaks.
 7. ✅ **Messaging** between phone and watch (`Kebechet.Watchious.Messaging`, optional,
    https://github.com/Kebechet/Watchious/issues/4). ✅ A Galaxy Watch7 and a Pixel 6 running the plugin exchange
    messages, answers and the application context both ways, and so do an Apple Watch SE 3 and an iPhone SE, with the
