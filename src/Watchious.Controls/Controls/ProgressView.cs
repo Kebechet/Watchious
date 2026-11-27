@@ -15,12 +15,20 @@ public sealed class ProgressView : ComponentBase
     [Parameter]
     public ProgressViewStyle Style { get; set; }
 
+    [Parameter]
+    public LayoutOptions? HorizontalOptions { get; set; }
+
+    [Parameter]
+    public LayoutOptions? VerticalOptions { get; set; }
+
     protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
         builder.OpenElement(0, nameof(ProgressView));
         builder.AddAttribute(1, nameof(Value), ProtocolValue.Of(Value is null ? null : Math.Clamp(Value.Value, 0, 1)));
         builder.AddAttribute(2, nameof(Text), Text);
         builder.AddAttribute(3, nameof(Style), Style.ToString());
+        builder.AddAttribute(4, nameof(HorizontalOptions), HorizontalOptions?.ToString());
+        builder.AddAttribute(5, nameof(VerticalOptions), VerticalOptions?.ToString());
         builder.CloseElement();
     }
 }

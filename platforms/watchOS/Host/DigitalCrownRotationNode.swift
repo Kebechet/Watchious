@@ -18,6 +18,7 @@ struct DigitalCrownRotationNode: View {
                 NodeView(node: child, store: store)
             }
         }
+        .environment(\.watchiousLayoutParent, .column)
         .focusable()
         .digitalCrownRotation($value, from: from, through: through, by: by)
         .onChange(of: value) { _, newValue in

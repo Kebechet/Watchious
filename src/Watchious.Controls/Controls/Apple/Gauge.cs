@@ -44,6 +44,12 @@ public sealed class Gauge : ComponentBase
         }
     }
 
+    [Parameter]
+    public LayoutOptions? HorizontalOptions { get; set; }
+
+    [Parameter]
+    public LayoutOptions? VerticalOptions { get; set; }
+
     protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
         builder.OpenElement(0, "Apple.Gauge");
@@ -55,6 +61,8 @@ public sealed class Gauge : ComponentBase
         builder.AddAttribute(6, nameof(MinimumText), MinimumText);
         builder.AddAttribute(7, nameof(MaximumText), MaximumText);
         builder.AddAttribute(8, nameof(Style), Style.ToString());
+        builder.AddAttribute(9, nameof(HorizontalOptions), HorizontalOptions?.ToString());
+        builder.AddAttribute(10, nameof(VerticalOptions), VerticalOptions?.ToString());
         builder.CloseElement();
     }
 }

@@ -4,10 +4,12 @@ import android.content.pm.ApplicationInfo
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
@@ -41,31 +43,39 @@ internal fun WatchiousScreen(root: UiNode, dispatch: EventDispatch) {
 }
 
 @Composable
-internal fun RenderNodes(nodes: List<UiNode>, dispatch: EventDispatch, isInRow: Boolean = false) {
+internal fun RenderNodes(nodes: List<UiNode>, dispatch: EventDispatch, parent: LayoutParent = LayoutParent.COLUMN) {
     // The node id keeps a control's Compose state (and animations) with its node when siblings are inserted,
     // removed or moved.
-    nodes.forEach { node -> key(node.id) { RenderNode(node, dispatch, isInRow) } }
+    nodes.forEach { node -> key(node.id) { PlacedNode(node, dispatch, parent) } }
 }
 
 @Composable
-internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean) {
+internal fun RenderNode(node: UiNode, dispatch: EventDispatch, parent: LayoutParent) {
     // Like MAUI's default HorizontalOptions.Fill: a control spans the width of a vertical stack, but takes only
-    // the width it needs in an HStack, where filling would push its siblings out.
-    val fillWidth = if (isInRow) Modifier else Modifier.fillMaxWidth()
+    // the width it needs in an HStack, where filling would push its siblings out. Its own Start, Center or End keeps
+    // its width there too (PlacedNode puts it in place).
+    val fillWidth = when {
+        parent == LayoutParent.ROW -> Modifier
+        node.attribute("HorizontalOptions") in KEEP_WIDTH_OPTIONS -> Modifier
+        else -> Modifier.fillMaxWidth()
+    }
     when (node.type) {
         "NavigationStack" -> NavigationStack(node, dispatch)
         "ScrollView" -> WatchScrollView(node, dispatch)
         "VStack" -> Column(
             verticalArrangement = Arrangement.spacedBy(node.spacing().dp),
-            horizontalAlignment = node.horizontalAlignment(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             RenderNodes(node.children, dispatch)
         }
+        // A child's VerticalOptions places it within the row's height, which the row then takes from its tallest
+        // child.
         "HStack" -> Row(
+            modifier = if (node.children.any { it.hasVerticalOptions() }) Modifier.height(IntrinsicSize.Min) else Modifier,
             horizontalArrangement = Arrangement.spacedBy(node.spacing().dp),
-            verticalAlignment = node.verticalAlignment(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            RenderNodes(node.children, dispatch, isInRow = true)
+            RenderNodes(node.children, dispatch, LayoutParent.ROW)
         }
         "Label" -> Text(
             text = node.joinedText(),
@@ -89,7 +99,7 @@ internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
         "ProgressView" -> WatchProgressView(node, fillWidth)
         "Picker" -> WatchPicker(node, dispatch)
         "TextField" -> WatchTextField(node, dispatch, fillWidth)
-        "DigitalCrownRotation" -> WatchDigitalCrownRotation(node, dispatch, isInRow)
+        "DigitalCrownRotation" -> WatchDigitalCrownRotation(node, dispatch, parent)
         "Toggle" -> {
             val text = node.attribute("Text")
             SwitchButton(
@@ -104,7 +114,7 @@ internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
         // Blank text is the whitespace between controls in the Razor markup.
         UiNode.TEXT_TYPE -> node.text?.takeIf { it.isNotBlank() }?.let { Text(it) }
         else -> if (!node.isAppleOnly()) {
-            UnknownNode(node, dispatch, isInRow)
+            UnknownNode(node, dispatch, parent)
         }
     }
 }
@@ -112,18 +122,18 @@ internal fun RenderNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean)
 // A control this host has no view for: a misspelled element in the Razor markup, or a control that C# has and this host
 // doesn't yet. Its children are still shown; a debug build also shows a warning in its place.
 @Composable
-private fun UnknownNode(node: UiNode, dispatch: EventDispatch, isInRow: Boolean) {
+private fun UnknownNode(node: UiNode, dispatch: EventDispatch, parent: LayoutParent) {
     LaunchedEffect(node.type) {
         Log.w(LOG_TAG, "Unknown control ${node.type}: this host has no view for it")
     }
     val isDebuggable = (LocalContext.current.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     if (!isDebuggable) {
-        RenderNodes(node.children, dispatch, isInRow)
+        RenderNodes(node.children, dispatch, parent)
         return
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text("⚠️ ${node.type}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-        RenderNodes(node.children, dispatch, isInRow)
+        RenderNodes(node.children, dispatch, parent)
     }
 }
 
@@ -172,25 +182,8 @@ private const val DEFAULT_SPACING = 4f
 
 private fun UiNode.spacing(): Float = attribute("Spacing")?.toFloatOrNull() ?: DEFAULT_SPACING
 
-private fun UiNode.horizontalAlignment(): Alignment.Horizontal = when (val alignment = attribute("Alignment")) {
-    "Leading" -> Alignment.Start
-    "Trailing" -> Alignment.End
-    "Center", null -> Alignment.CenterHorizontally
-    else -> {
-        reportUnknownValue(alignment, "Alignment", type)
-        Alignment.CenterHorizontally
-    }
-}
-
-private fun UiNode.verticalAlignment(): Alignment.Vertical = when (val alignment = attribute("Alignment")) {
-    "Top" -> Alignment.Top
-    "Bottom" -> Alignment.Bottom
-    "Center", null -> Alignment.CenterVertically
-    else -> {
-        reportUnknownValue(alignment, "Alignment", type)
-        Alignment.CenterVertically
-    }
-}
+// The HorizontalOptions that keep a control's own width instead of the vertical stack's default Fill.
+private val KEEP_WIDTH_OPTIONS = setOf("Start", "Center", "End")
 
 private fun UiNode.joinedText(): String =
     children.filter { it.type == UiNode.TEXT_TYPE }.joinToString("") { it.text.orEmpty() }

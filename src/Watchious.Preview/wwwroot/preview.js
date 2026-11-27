@@ -218,6 +218,7 @@ function applyPatches(buffer) {
 
     for (const node of changedNodes) {
         render(node);
+        placeByOptions(node);
     }
     changedNodes.clear();
     hooks.onBatch?.(buffer.byteLength, operations);
@@ -409,7 +410,6 @@ function render(node) {
         case "HStack": {
             const spacing = Number(attribute(node, "Spacing") ?? defaultSpacing);
             target.style.gap = `${spacing}px`;
-            target.style.alignItems = alignment(attribute(node, "Alignment"));
             target.replaceChildren(...node.children.map((child) => child.element));
             return;
         }
@@ -584,16 +584,44 @@ function visibleChildren(node) {
     return node.children.filter((child) => child.type !== "#text" || (child.text ?? "").trim() !== "");
 }
 
-function alignment(value) {
-    switch (value) {
-        case "Leading":
-        case "Top":
+// A control's HorizontalOptions and VerticalOptions (MAUI's LayoutOptions, see LayoutOptions.cs). A stack ignores its
+// children's options along its own direction; a page without a List or ScrollView places its content by both. There,
+// auto margins share out the free height as the hosts do: each control with VerticalOptions sits in an equal share.
+function placeByOptions(node) {
+    const style = node.element?.style;
+    if (!style || node.type === "#text") {
+        return;
+    }
+    const parentType = node.parent?.type;
+    const isInRow = parentType === "HStack";
+    const horizontal = isInRow ? null : attribute(node, "HorizontalOptions");
+    const vertical = isInRow || parentType === "Page" ? attribute(node, "VerticalOptions") : null;
+    style.alignSelf = flexAlignment(isInRow ? vertical : horizontal);
+    const isPlacedInPage = parentType === "Page" && vertical !== null;
+    style.marginTop = isPlacedInPage && vertical !== "Start" ? "auto" : "";
+    style.marginBottom = isPlacedInPage && vertical !== "End" ? "auto" : "";
+    // A stack and the controls that stretch across the width keep their own width with Start, Center or End; a stack
+    // with children that have options keeps the whole width for them to move in.
+    const keepsWidth = ["Start", "Center", "End"].includes(horizontal)
+        && (stretchingTypes.has(node.type)
+            || (node.type === "VStack" && !node.children.some((child) => attribute(child, "HorizontalOptions") !== null)));
+    style.width = keepsWidth ? "auto" : "";
+}
+
+const stretchingTypes = new Set(["Button", "Toggle", "TextField", "ProgressView"]);
+
+function flexAlignment(options) {
+    switch (options) {
+        case "Start":
             return "flex-start";
-        case "Trailing":
-        case "Bottom":
-            return "flex-end";
-        default:
+        case "Center":
             return "center";
+        case "End":
+            return "flex-end";
+        case "Fill":
+            return "stretch";
+        default:
+            return "";
     }
 }
 

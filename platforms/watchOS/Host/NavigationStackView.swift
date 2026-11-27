@@ -53,11 +53,16 @@ struct PageView: View {
     let page: UiNode
     let store: WatchiousStore
 
+    // The page's content in the middle of the screen, unless its controls' options put it elsewhere. A List or ScrollView
+    // takes the whole page and keeps its content off the screen's sides itself; other content gets the same margin.
     var body: some View {
         VStack(spacing: 0) {
             ForEach(page.children) { child in
                 NodeView(node: child, store: store)
             }
         }
+        .environment(\.watchiousLayoutParent, .page)
+        .scenePadding(page.scrolls ? [] : .horizontal)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

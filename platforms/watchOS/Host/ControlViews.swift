@@ -9,6 +9,7 @@ struct ListNodeView: View {
         List(node.children.filter { !$0.isBlankText && !$0.type.hasPrefix("Wear.") }) { row in
             NodeView(node: row, store: store)
         }
+        .environment(\.watchiousLayoutParent, .column)
     }
 }
 

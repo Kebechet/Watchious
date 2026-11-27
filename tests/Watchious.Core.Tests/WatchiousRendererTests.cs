@@ -81,7 +81,46 @@ public class WatchiousRendererTests
         // Assert
         var stack = host.LastTree.Single("VStack");
         stack.Attributes.ShouldNotContainKey("Spacing");
-        stack.Attribute("Alignment").ShouldBe("Center");
+    }
+
+    [Fact]
+    public async Task Start_ControlsWithoutOptions_LeaveTheirPlaceToTheHost()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        await using var app = WatchiousApp.CreateBuilder().UseWatchiousApp<NestedPage>().Build();
+
+        // Act
+        await app.StartAsync(host);
+
+        // Assert
+        var stack = host.LastTree.Single("VStack");
+        stack.Attributes.ShouldNotContainKey("HorizontalOptions");
+        stack.Attributes.ShouldNotContainKey("VerticalOptions");
+    }
+
+    [Fact]
+    public async Task Start_SendsTheLayoutOptions()
+    {
+        // Arrange
+        var host = new RecordingHost();
+        await using var app = WatchiousApp.CreateBuilder().UseWatchiousApp<LayoutOptionsPage>().Build();
+
+        // Act
+        await app.StartAsync(host);
+
+        // Assert
+        var stack = host.LastTree.Single("VStack");
+        stack.Attribute("VerticalOptions").ShouldBe("End");
+        stack.Attributes.ShouldNotContainKey("HorizontalOptions");
+        var button = host.LastTree.Single("Button");
+        button.Attribute("HorizontalOptions").ShouldBe("Start");
+        button.Attributes.ShouldNotContainKey("VerticalOptions");
+        var image = host.LastTree.Single("Image");
+        image.Attribute("HorizontalOptions").ShouldBe("Fill");
+        var row = host.LastTree.Single("HStack");
+        row.Attribute("HorizontalOptions").ShouldBe("Center");
+        host.LastTree.Single("Label").Attribute("VerticalOptions").ShouldBe("Start");
     }
 
     [Fact]
