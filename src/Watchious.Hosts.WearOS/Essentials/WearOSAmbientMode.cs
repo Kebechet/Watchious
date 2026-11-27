@@ -80,6 +80,7 @@ internal sealed class WearOSAmbientMode(Activity activity, WearOSAppLifecycle ap
 
     private void OnAmbientChanged(bool isAmbient)
     {
+        ComposeWatchiousHost.SetAmbient(activity, isAmbient);
         _ambientModeChanged?.Invoke(this, new AmbientModeChangedEventArgs(isAmbient));
     }
 

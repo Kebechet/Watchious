@@ -38,4 +38,10 @@ public final class WatchiousComposeHost {
     public void setEventListener(@Nullable WatchiousEventListener listener) {
         host.setEventListener(listener);
     }
+
+    // Whether the watch shows the dimmed always-on screen, where every page's background is black. .NET's
+    // IAmbientMode reports it; without that service the app leaves the screen when the wrist goes down.
+    public void setAmbient(boolean isAmbient) {
+        host.setAmbient(isAmbient);
+    }
 }

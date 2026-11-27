@@ -64,5 +64,8 @@ struct PageView: View {
         .environment(\.watchiousLayoutParent, page.scrolls ? .column : .page)
         .scenePadding(page.scrolls ? [] : .horizontal)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .containerBackground(for: .navigation) {
+            PageBackgroundView(style: PageBackgroundStyle(page.attribute("Background")))
+        }
     }
 }

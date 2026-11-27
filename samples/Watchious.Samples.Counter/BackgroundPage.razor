@@ -1,0 +1,53 @@
+@page "/background"
+@inherits PageBase
+@inject WatchiousTheme Theme
+
+@* A page's own background (BackgroundColor, Background) wins over the app's (WatchiousTheme), as in MAUI. *@
+<ScrollView>
+    <VStack Spacing="6">
+        <Label Style="TextStyle.Headline">Background</Label>
+        <Button Text="Purple" OnClick="UsePurple" />
+        <Button Text="Linear" OnClick="UseLinear" />
+        <Button Text="Radial" OnClick="UseRadial" />
+        <Button Text="Theme" OnClick="UseTheme" />
+        <Button Text="Teal theme" OnClick="ToggleTealTheme" />
+    </VStack>
+</ScrollView>
+
+@code {
+    protected override void OnInitialized()
+    {
+        UsePurple();
+    }
+
+    private void UsePurple()
+    {
+        Background = null;
+        BackgroundColor = Color.FromArgb("#512BD4");
+    }
+
+    private void UseLinear()
+    {
+        Background = new LinearGradientBrush(
+            [new GradientStop(Color.FromArgb("#512BD4"), 0), new GradientStop(Colors.Black, 1)],
+            new Point(0, 0),
+            new Point(0, 1));
+    }
+
+    private void UseRadial()
+    {
+        Background = new RadialGradientBrush([new GradientStop(Colors.DarkOrange, 0), new GradientStop(Colors.Black, 1)]);
+    }
+
+    // The theme's background, which every other page without its own shows too.
+    private void UseTheme()
+    {
+        Background = null;
+        BackgroundColor = null;
+    }
+
+    private void ToggleTealTheme()
+    {
+        Theme.PageBackgroundColor = Theme.PageBackgroundColor is null ? Colors.Teal : null;
+    }
+}

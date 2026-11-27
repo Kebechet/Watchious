@@ -431,6 +431,7 @@ function render(node) {
                 slot.append(child.element);
                 return slot;
             }));
+            target.style.background = pageBackground(attribute(node, "Background"));
             return;
         }
         case "VStack":
@@ -651,6 +652,41 @@ function stretchesAcrossStack(child) {
     }
     return stretchingTypes.has(child.type) || stackTypes.has(child.type)
         || (child.type === "ProgressView" && attribute(child, "Style") === "Linear");
+}
+
+// A page's background as C# resolved it (PageBackground.cs): a color as #RRGGBBAA, or "linear x1 y1 x2 y2" or
+// "radial cx cy r" followed by each stop's color and offset, with MAUI's page-relative points. A linear gradient is an
+// SVG gradient, whose points are page-relative too; a radial one a CSS circle sized from the screen's longer side.
+function pageBackground(value) {
+    if (!value) {
+        return "";
+    }
+    const parts = value.split(" ");
+    if (parts.length === 1) {
+        return parts[0];
+    }
+    const [shape, ...rest] = parts;
+    const numbers = rest.slice(0, shape === "linear" ? 4 : 3).map(Number);
+    const stops = [];
+    for (let index = numbers.length; index + 1 < rest.length; index += 2) {
+        stops.push({ color: rest[index], offset: Number(rest[index + 1]) });
+    }
+    if (shape === "linear") {
+        const [x1, y1, x2, y2] = numbers;
+        const svgStops = stops.map((stop) =>
+            `<stop offset='${stop.offset}' stop-color='${stop.color.slice(0, 7)}' stop-opacity='${parseInt(stop.color.slice(7), 16) / 255}'/>`).join("");
+        const svg = `<svg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none' viewBox='0 0 1 1'>`
+            + `<linearGradient id='g' x1='${x1}' y1='${y1}' x2='${x2}' y2='${y2}'>${svgStops}</linearGradient>`
+            + `<rect width='1' height='1' fill='url(#g)'/></svg>`;
+        return `center / 100% 100% no-repeat url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+    }
+    if (shape === "radial") {
+        const [cx, cy, radius] = numbers;
+        const screen = document.querySelector(".screen").getBoundingClientRect();
+        const cssStops = stops.map((stop) => `${stop.color} ${stop.offset * 100}%`).join(", ");
+        return `radial-gradient(circle ${Math.max(radius * Math.max(screen.width, screen.height), 0.5)}px at ${cx * 100}% ${cy * 100}%, ${cssStops})`;
+    }
+    return "";
 }
 
 function scrolls(node) {

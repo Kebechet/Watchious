@@ -2,6 +2,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Watchious.Controls;
 using Watchious.Navigation;
 
 namespace Watchious.Hosting;
@@ -9,6 +11,7 @@ namespace Watchious.Hosting;
 public sealed class WatchiousAppBuilder
 {
     private readonly List<PageRoute> _routes = [];
+    private readonly WatchiousTheme _theme = new();
 
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
     private Type? _rootComponentType;
@@ -37,6 +40,15 @@ public sealed class WatchiousAppBuilder
         return this;
     }
 
+    // The app's defaults, such as the background of every page that sets none (WatchiousTheme). An app that registers
+    // its own ITheme in Services gets that one instead, and this one goes unused.
+    public WatchiousAppBuilder ConfigureTheme(Action<WatchiousTheme> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(_theme);
+        return this;
+    }
+
     public WatchiousApp Build()
     {
         if (_rootComponentType is null)
@@ -46,6 +58,8 @@ public sealed class WatchiousAppBuilder
 
         AddGeneratedRoutes(_rootComponentType.Assembly);
         var navigation = new NavigationService(_rootComponentType, _routes);
+        Services.TryAddSingleton(_theme);
+        Services.TryAddSingleton<ITheme>(services => services.GetRequiredService<WatchiousTheme>());
         Services.AddSingleton(navigation);
         Services.AddSingleton<INavigation>(navigation);
         return new WatchiousApp(Services.BuildServiceProvider(), navigation);

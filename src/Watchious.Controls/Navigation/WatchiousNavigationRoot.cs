@@ -1,24 +1,42 @@
+using System.ComponentModel;
 using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
+using Watchious.Controls;
 
 namespace Watchious.Navigation;
 
 // The renderer's root: a NavigationStack element with one Page element per page on the stack. Keeping the pages
 // below the top one rendered keeps their state, so going back shows them as they were, as on both platforms.
+// Each Page element carries the page's background, resolved from the page (when it is an IPage) and the theme; a
+// change to either renders the root again.
 internal sealed class WatchiousNavigationRoot : ComponentBase, IDisposable
 {
+    // The pages that are IPage, by navigation entry, whose PropertyChanged this root follows while they are open.
+    private readonly Dictionary<long, IPage> _pages = [];
+
     [Inject]
     private NavigationService Navigation { get; set; } = default!;
+
+    [Inject]
+    private ITheme Theme { get; set; } = default!;
 
     public void Dispose()
     {
         Navigation.Changed -= OnNavigationChanged;
+        Theme.PropertyChanged -= OnAppearanceChanged;
+        foreach (var page in _pages.Values)
+        {
+            page.PropertyChanged -= OnAppearanceChanged;
+        }
+
+        _pages.Clear();
     }
 
     protected override void OnInitialized()
     {
         Navigation.Changed += OnNavigationChanged;
+        Theme.PropertyChanged += OnAppearanceChanged;
     }
 
     protected override void BuildRenderTree(RenderTreeBuilder builder)
@@ -30,12 +48,16 @@ internal sealed class WatchiousNavigationRoot : ComponentBase, IDisposable
             builder.OpenElement(2, "Page");
             builder.SetKey(entry.Id);
             builder.AddAttribute(3, "Route", entry.Route);
-            builder.OpenComponent(4, entry.PageType);
+            builder.AddAttribute(4, "Background", PageBackground.Resolve(_pages.GetValueOrDefault(entry.Id), Theme));
+            builder.OpenComponent(5, entry.PageType);
             foreach (var (name, value) in entry.Parameters)
             {
-                builder.AddComponentParameter(5, name, value);
+                builder.AddComponentParameter(6, name, value);
             }
 
+            // Called once the page is created and initialized.
+            var entryId = entry.Id;
+            builder.AddComponentReferenceCapture(7, instance => OnPageCreated(entryId, instance));
             builder.CloseComponent();
             builder.CloseElement();
         }
@@ -43,9 +65,46 @@ internal sealed class WatchiousNavigationRoot : ComponentBase, IDisposable
         builder.CloseElement();
     }
 
+    private void OnPageCreated(long entryId, object instance)
+    {
+        if (instance is not IPage page || _pages.GetValueOrDefault(entryId) == page)
+        {
+            return;
+        }
+
+        Forget(entryId);
+        _pages[entryId] = page;
+        page.PropertyChanged += OnAppearanceChanged;
+        // A background the page set in OnInitialized, before this, goes to the host in the same batch as the page.
+        if (page.Background is not null || page.BackgroundColor is not null)
+        {
+            StateHasChanged();
+        }
+    }
+
     private void OnNavigationChanged()
     {
+        var openEntries = Navigation.Entries.Select(entry => entry.Id).ToHashSet();
+        foreach (var entryId in _pages.Keys.Where(entryId => !openEntries.Contains(entryId)).ToList())
+        {
+            Forget(entryId);
+        }
+
         StateHasChanged();
+    }
+
+    private void Forget(long entryId)
+    {
+        if (_pages.Remove(entryId, out var page))
+        {
+            page.PropertyChanged -= OnAppearanceChanged;
+        }
+    }
+
+    // A page or the theme may change on another thread than the renderer's.
+    private void OnAppearanceChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private void OnNativeBack(NativeEventArgs args)
