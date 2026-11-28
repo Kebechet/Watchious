@@ -1,5 +1,6 @@
-Resources/Images/dotnet_bot.png and Resources/Images/dotnet_wordmark.png are drawn from dotnet_bot.svg (template
-maui-blazor) and splash.svg (template maui-mobile) of .NET MAUI, https://github.com/dotnet/maui, under this license:
+Resources/AppIcon/dotnet_bot.svg is dotnet_bot.svg of .NET MAUI's template maui-blazor, and
+Resources/Images/dotnet_bot.png and Resources/Images/dotnet_wordmark.png are drawn from it and from splash.svg of its
+template maui-mobile (.NET MAUI, https://github.com/dotnet/maui), under this license:
 
 The MIT License (MIT)
 
