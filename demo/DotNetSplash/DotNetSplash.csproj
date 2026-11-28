@@ -1,4 +1,4 @@
-<Project Sdk="Kebechet.Watchious.Sdk/0.2.0-preview.1">
+<Project Sdk="Kebechet.Watchious.Sdk/0.3.0-preview.1">
 
   <PropertyGroup>
     <TargetFrameworks>net10.0-android</TargetFrameworks>
@@ -7,7 +7,6 @@
     <!-- The desktop preview, for debugging the pages: dotnet run -f net10.0. -->
     <TargetFrameworks>$(TargetFrameworks);net10.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
-    <!-- Not in the 0.2.0-preview.1 template, which leaves them out; its next version sets them. -->
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>DotNetSplash</RootNamespace>
@@ -16,5 +15,10 @@
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The .NET bot on MAUI's purple, as the app's icon on both watches. -->
+    <WatchiousAppIcon Include="Resources/AppIcon/dotnet_bot.svg" ForegroundSize="70%" BackgroundColor="#512BD4" />
+  </ItemGroup>
 
 </Project>
