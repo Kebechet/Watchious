@@ -27,6 +27,9 @@
     <ProjectReference Include="..\..\src\Watchious.AppIcon\Watchious.AppIcon.csproj" />
   </ItemGroup>
 
+  <!-- Only the native libraries the tool ships, without their debug symbols, of the SkiaSharp it brings. -->
+  <Import Project="..\..\src\Watchious.AppIcon\Watchious.AppIcon.Runtimes.targets" />
+
   <!-- RoutesGeneratorTests run the generator on test sources, so it is also a plain reference here, built by the
        analyzer reference above. -->
   <ItemGroup>

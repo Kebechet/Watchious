@@ -29,6 +29,10 @@
          Watchious.Sdk.BeforeCommon.targets instead, the release app shipped without the Java libraries'
          META-INF/services files and Kotlin coroutines found no main dispatcher at start-up; why wasn't found. -->
     <AndroidLinkTool Condition="'$(AndroidLinkTool)' == '' And '$(Configuration)' == 'Release'">r8</AndroidLinkTool>
+    <!-- The whole app in its APK, in Debug too: .NET for Android's Fast Deployment fails on a watch, on the Wear OS
+         emulator (XA0126, it can't copy its tools there) and on a watch over wireless adb (XAFD7000, device offline),
+         so dotnet build -t:Run failed the first time an app was run. An app that sets it keeps its own choice. -->
+    <EmbedAssembliesIntoApk Condition="'$(EmbedAssembliesIntoApk)' == ''">true</EmbedAssembliesIntoApk>
   </PropertyGroup>
 
 </Project>

@@ -3,7 +3,8 @@
   build: like MAUI's "Pair to Mac", the sources go to a Mac over ssh, dotnet builds there, and the app comes back.
     WatchiousRemoteMac            user@host of the Mac (ssh with key authentication)
     WatchiousRemoteSshOptions     extra ssh options, e.g. -i C:\Users\me\.ssh\mac -o IdentitiesOnly=yes
-    WatchiousRemoteDotnet         dotnet on the Mac (default ~/.dotnet/dotnet; it needs the ios workload)
+    WatchiousRemoteDotnet         dotnet on the Mac (default: ~/.dotnet/dotnet, /usr/local/share/dotnet/dotnet or the PATH's;
+                                  it needs the ios and android workloads)
     WatchiousRemoteBeforeBuild    shell command run on the Mac first, e.g. a script there that unlocks the signing
                                   keychain; it is written to obj, so it must not hold a password itself
     WatchiousRemoteSourceRoot     local folder sent to the Mac (default: the nearest folder above the project with a
@@ -23,7 +24,6 @@
 <Project>
 
   <PropertyGroup>
-    <WatchiousRemoteDotnet Condition="'$(WatchiousRemoteDotnet)' == ''">~/.dotnet/dotnet</WatchiousRemoteDotnet>
     <_WatchiousSourceRootMarker>$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', 'Directory.Build.props'))</_WatchiousSourceRootMarker>
     <_WatchiousSourceRootMarker Condition="'$(_WatchiousSourceRootMarker)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', 'nuget.config'))</_WatchiousSourceRootMarker>
     <_WatchiousSourceRootMarker Condition="'$(_WatchiousSourceRootMarker)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', 'global.json'))</_WatchiousSourceRootMarker>
@@ -133,7 +133,12 @@
       <_WatchiousRemotePropertyArguments>$(_WatchiousRemotePropertyArguments.Replace('%', '%2525').Replace(';', '%253B').Replace(',', '%252C'))</_WatchiousRemotePropertyArguments>
       <!-- No MSBuild node reuse: a worker node left by an earlier ssh session can't reach the keychain once that session
            has ended, and codesign then fails with errSecInternalComponent. -->
-      <_WatchiousRemoteBuild>DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 $(WatchiousRemoteDotnet) build '$(MSBuildProjectFile)' -f $(TargetFramework) $(_WatchiousRemoteTargetsArgument) $(_WatchiousRemotePropertyArguments) -nologo -v:m -nodeReuse:false</_WatchiousRemoteBuild>
+      <!-- The Mac's dotnet: the one set, else the dotnet-install script's (~/.dotnet), the .NET installer's
+           (/usr/local/share/dotnet), or the one on the PATH, which a login shell over ssh may not have. Backquotes, since
+           MSBuild would read the shell's dollar-parenthesis as a property. -->
+      <_WatchiousRemoteDotnetLine Condition="'$(WatchiousRemoteDotnet)' != ''">dotnet_path=$(WatchiousRemoteDotnet)</_WatchiousRemoteDotnetLine>
+      <_WatchiousRemoteDotnetLine Condition="'$(WatchiousRemoteDotnet)' == ''">dotnet_path=; for candidate in ~/.dotnet/dotnet /usr/local/share/dotnet/dotnet "`command -v dotnet`"; do if [ -x "$candidate" ]; then dotnet_path=$candidate; break; fi; done; [ -n "$dotnet_path" ] || { echo "Watchious: no dotnet on the Mac (in ~/.dotnet, /usr/local/share/dotnet or the PATH): install .NET there with the ios and android workloads, or set WatchiousRemoteDotnet." &gt;&amp;2; exit 1; }</_WatchiousRemoteDotnetLine>
+      <_WatchiousRemoteBuild>DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 "$dotnet_path" build '$(MSBuildProjectFile)' -f $(TargetFramework) $(_WatchiousRemoteTargetsArgument) $(_WatchiousRemotePropertyArguments) -nologo -v:m -nodeReuse:false</_WatchiousRemoteBuild>
       <!-- Unpacks the sources on the Mac. A file that an earlier build sent (.watchious-synced lists them) and that is
            gone here is deleted there; nothing else in the folder is, and bin and obj stay for incremental builds. -->
       <_WatchiousRemoteUnpack>tar -tf .watchious-sources.tar | sed '/\/$/d' | LC_ALL=C sort &gt; .watchious-synced.new; if [ -f .watchious-synced ]; then LC_ALL=C comm -23 .watchious-synced .watchious-synced.new | tr '\n' '\000' | xargs -0 rm -f --; fi; tar -xf .watchious-sources.tar; mv .watchious-synced.new .watchious-synced</_WatchiousRemoteUnpack>
@@ -154,7 +159,7 @@
          from splitting the line. tr drops the Windows line endings WriteLinesToFile writes there. -->
     <WriteLinesToFile File="$(_WatchiousRemoteScript)"
                       Overwrite="true"
-                      Lines="set -e;cd $([MSBuild]::Escape('$(_WatchiousRemoteDirectoryArgument)'));$([MSBuild]::Escape('$(_WatchiousRemoteUnpack)'));cd;cd $([MSBuild]::Escape('$(_WatchiousRemoteProjectDirectoryArgument)'));$([MSBuild]::Escape('$(_WatchiousRemoteBeforeBuildLine)'));$([MSBuild]::Escape('$(_WatchiousRemoteBuild)')) &lt; /dev/null" />
+                      Lines="set -e;cd $([MSBuild]::Escape('$(_WatchiousRemoteDirectoryArgument)'));$([MSBuild]::Escape('$(_WatchiousRemoteUnpack)'));cd;cd $([MSBuild]::Escape('$(_WatchiousRemoteProjectDirectoryArgument)'));$([MSBuild]::Escape('$(_WatchiousRemoteBeforeBuildLine)'));$([MSBuild]::Escape('$(_WatchiousRemoteDotnetLine)'));$([MSBuild]::Escape('$(_WatchiousRemoteBuild)')) &lt; /dev/null" />
     <Exec Command="$(_WatchiousSsh) &quot;tr -d '\r' | bash -s&quot; &lt; &quot;$(_WatchiousRemoteScript)&quot;" />
     <!-- Only the app (and the App Store package, if any) comes back, and an app's build without one fails; a library
          has nothing to bring back, and live mode builds no app. find, because the Mac's login shell (zsh) aborts on a

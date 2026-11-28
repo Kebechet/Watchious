@@ -1,0 +1,21 @@
+<!-- Keeps SkiaSharp's and HarfBuzzSharp's native libraries for the computers an app is built on, which the SDK package
+     carries (Windows, macOS, Linux; x64 and Arm64), without their debug symbols. Their packages bring a dozen platforms
+     and Windows symbols of about 100 MB each, which made every build of the tool, and of a project that references it,
+     more than 1 GB. Imported by the tool and by the tests that reference it. -->
+<Project>
+
+  <PropertyGroup>
+    <_WatchiousAppIconRuntimes>;win-x64;win-arm64;osx;linux-x64;linux-arm64;</_WatchiousAppIconRuntimes>
+  </PropertyGroup>
+
+  <!-- Only their packages' assets: another package's, such as System.Management's for Windows, stay as they are. -->
+  <Target Name="_WatchiousKeepShippedRuntimes" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <_WatchiousNativeAsset Include="@(RuntimeTargetsCopyLocalItems)"
+                             Condition="$([System.String]::Copy('%(RuntimeTargetsCopyLocalItems.NuGetPackageId)').StartsWith('SkiaSharp.NativeAssets.')) Or $([System.String]::Copy('%(RuntimeTargetsCopyLocalItems.NuGetPackageId)').StartsWith('HarfBuzzSharp.NativeAssets.'))" />
+      <RuntimeTargetsCopyLocalItems Remove="@(_WatchiousNativeAsset)"
+                                    Condition="!$(_WatchiousAppIconRuntimes.Contains(';%(_WatchiousNativeAsset.RuntimeIdentifier);')) Or '%(_WatchiousNativeAsset.Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
+
+</Project>

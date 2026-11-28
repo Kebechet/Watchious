@@ -4,7 +4,7 @@ The MSBuild SDK of [Watchious](https://github.com/Kebechet/Watchious), a .NET MA
 using the Blazor rendering engine. A watch app is written once in C# and Razor; Watchious renders it as native SwiftUI
 on Apple Watch and native Compose on Wear OS, and the app's C# runs on the watch itself.
 
-⚠️ **Status: proof of concept.** The API can still change from one version to the next.
+⚠️ **Status: preview.** The API can still change from one version to the next.
 
 ## What it does
 
@@ -116,7 +116,8 @@ dotnet workload update --version 10.0.404
 ```
 
 Run it on the Mac that builds the watchOS app. From Windows or Linux with `WatchiousRemoteMac`, that is the remote Mac,
-with the dotnet the remote build uses (`WatchiousRemoteDotnet`, by default `~/.dotnet/dotnet`):
+with the dotnet the remote build uses (`WatchiousRemoteDotnet`, by default `~/.dotnet/dotnet`,
+`/usr/local/share/dotnet/dotnet` or the one on the PATH, the first there is):
 `ssh user@host '~/.dotnet/dotnet workload update --version 10.0.404'`.
 
 ⚠️ **Building anyway can crash the app at start-up on the watch.** To build anyway, with the warning `WATCHIOUS003`

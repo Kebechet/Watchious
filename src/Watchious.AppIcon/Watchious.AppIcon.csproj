@@ -23,6 +23,8 @@
     <PackageReference Include="HarfBuzzSharp.NativeAssets.Win32" Version="14.4.0" GeneratePathProperty="true" />
   </ItemGroup>
 
+  <Import Project="Watchious.AppIcon.Runtimes.targets" />
+
   <!-- The native libraries' licenses, and the notices of what they are built from (Skia, HarfBuzz, FreeType, libpng...),
        the same for every platform, go with them into the SDK package. -->
   <ItemGroup>

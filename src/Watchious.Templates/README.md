@@ -4,7 +4,7 @@ The `dotnet new` template of [Watchious](https://github.com/Kebechet/Watchious),
 and watchOS, using the Blazor rendering engine. A watch app is written once in C# and Razor; Watchious renders it as
 native SwiftUI on Apple Watch and native Compose on Wear OS, and the app's C# runs on the watch itself.
 
-⚠️ **Status: proof of concept.** The API can still change from one version to the next.
+⚠️ **Status: preview.** The API can still change from one version to the next.
 
 ## Install
 
@@ -34,5 +34,6 @@ Mac or with `WatchiousRemoteMac=user@host`, `net10.0-watchos`. `dotnet run -f ne
 
 ## More
 
-Building and running on a watch, a simulator or an emulator: "Project and packaging" in the
-[Watchious README](https://github.com/Kebechet/Watchious#project-and-packaging).
+What a first run needs, and the commands: "Try it" in the [Watchious README](https://github.com/Kebechet/Watchious#try-it).
+Building and running on a watch, a simulator or an emulator: its
+[Project and packaging](https://github.com/Kebechet/Watchious#project-and-packaging).

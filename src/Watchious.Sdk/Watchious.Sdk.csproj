@@ -39,16 +39,12 @@
   </ItemGroup>
 
   <!-- The icon tool (Watchious.Sdk.AppIcon.targets), published by .github/scripts/pack.sh: its assemblies, the licenses,
-       and the native libraries for the computers an app is built on (Windows, macOS, Linux; x64 and Arm64), without
-       their debug symbols. -->
+       and the native libraries for the computers an app is built on (Windows, macOS, Linux; x64 and Arm64), which the
+       tool's project keeps, without their debug symbols. -->
   <ItemGroup>
     <None Include="$(_WatchiousAppIconTool)*.dll;$(_WatchiousAppIconTool)*.json" Pack="true" PackagePath="appicon/" />
     <None Include="$(_WatchiousAppIconTool)notices/*" Pack="true" PackagePath="appicon/notices/" />
-    <None Include="$(_WatchiousAppIconTool)runtimes/win-x64/native/*.dll" Pack="true" PackagePath="appicon/runtimes/win-x64/native/" />
-    <None Include="$(_WatchiousAppIconTool)runtimes/win-arm64/native/*.dll" Pack="true" PackagePath="appicon/runtimes/win-arm64/native/" />
-    <None Include="$(_WatchiousAppIconTool)runtimes/osx/native/*.dylib" Pack="true" PackagePath="appicon/runtimes/osx/native/" />
-    <None Include="$(_WatchiousAppIconTool)runtimes/linux-x64/native/*.so" Pack="true" PackagePath="appicon/runtimes/linux-x64/native/" />
-    <None Include="$(_WatchiousAppIconTool)runtimes/linux-arm64/native/*.so" Pack="true" PackagePath="appicon/runtimes/linux-arm64/native/" />
+    <None Include="$(_WatchiousAppIconTool)runtimes/**" Pack="true" PackagePath="appicon/runtimes/" />
   </ItemGroup>
 
   <Target Name="_WatchiousCheckAppIconTool" BeforeTargets="_GetPackageFiles">

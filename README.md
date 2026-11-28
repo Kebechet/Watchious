@@ -12,11 +12,11 @@ Write your smartwatch app once in C# and Razor. Watchious renders it as **native
 and native Compose on Wear OS (Samsung Galaxy Watch, Google Pixel Watch and others). Your C# runs **on
 the watch itself** on both platforms, so the app keeps working without the phone.
 
-> ⚠️ **Status: proof of concept.** The same Razor counter app runs as native UI on a real Apple Watch SE 3
-> (watchOS 27) and a Galaxy Watch7, and in the watchOS simulator and the Wear OS emulator. The watchOS device
-> build also passes App Store validation. Preview packages are on nuget.org (`Kebechet.Watchious.*`), and the API can
-> still change from one version to the next. This README also records the design, the decisions made so far and the
-> open questions.
+> ⚠️ **Status: preview.** The packages are on nuget.org (`Kebechet.Watchious.*`) and the template starts an app in
+> three commands ("Try it" below), but the API can still change from one version to the next. The same Razor app runs as
+> native UI on a real Apple Watch SE 3 (watchOS 27) and a Galaxy Watch7, and in the watchOS simulator and the Wear OS
+> emulator; the watchOS device build passes App Store validation. This README also records the design, the decisions
+> made so far and the open questions.
 
 ## Why
 
@@ -31,14 +31,26 @@ which Compose for Wear OS largely shares.
 
 ## Try it
 
+You need the .NET 10 or 11 SDK with the `android` workload (`dotnet workload install android`): an app targets
+Wear OS as well, so its restore needs the workload even for the preview. For Wear OS, Android Studio too, for the
+Android SDK, a JDK and a Wear OS emulator (Device Manager), or a watch with adb debugging on. For watchOS, a Mac with
+Xcode 27.2 and its watchOS simulator (`xcodebuild -downloadPlatform watchOS`), and on it .NET with the `ios` and
+`android` workloads, at a .NET for iOS version Watchious is tested with ("Tested .NET for iOS versions only" under
+"Project and packaging"). From Windows the Mac builds the watch app over ssh: turn on Remote Login, add your ssh key,
+and connect once with `ssh me@my-mac`, so that its host key is known.
+
 ```bash
 dotnet new install Kebechet.Watchious.Templates
 dotnet new watchious -n MyWatchApp
 cd MyWatchApp
 dotnet run -f net10.0                     # the preview, to debug the pages in a browser
 dotnet build -t:Run -f net10.0-android    # Wear OS: the emulator or a watch
-dotnet build -t:Run -f net10.0-watchos    # watchOS: the simulator, on a Mac (from Windows, see "Project and packaging")
+dotnet build -t:Run -f net10.0-watchos    # watchOS: the simulator, on a Mac
+dotnet build -t:Run -f net10.0-watchos -p:WatchiousRemoteMac=me@my-mac    # from Windows: built on the Mac, run in its simulator
 ```
+
+`-p:Device=<serial>` picks one of several Android devices (`adb devices`), and
+`-p:WatchiousRemoteSshOptions="-i <key>"` passes ssh options for the Mac. More in "Project and packaging".
 
 Two finished apps made this way are in [`demo/`](demo/): `DotNetSplash`, the .NET bot on MAUI's splash screen purple,
 and `Breathing`, a guided breathing app that taps your wrist at each step. They build from the packages on nuget.org,
@@ -531,8 +543,8 @@ NativeAOT has no C# debugger on Apple Watch, so Watchious brings two development
 ## Project and packaging
 
 Watchious copies MAUI's project model and packaging as closely as possible. Its packages are named
-`Kebechet.Watchious.*` (the table below); the projects, assemblies and namespaces stay `Watchious.*`. Nothing is
-published yet; "Publishing" below says how a version goes out. `.github/scripts/pack.sh <version>` packs all 10
+`Kebechet.Watchious.*` (the table below); the projects, assemblies and namespaces stay `Watchious.*`. They are on
+nuget.org as previews; "Publishing" below says how a version goes out. `.github/scripts/pack.sh <version>` packs all 10
 packages at one version into `artifacts/packages`: it builds the Wear OS libraries and the Wear OS live host with Gradle
 first (`JAVA_HOME` a JDK 17 to 21, the Android SDK in `ANDROID_HOME`), and fails unless exactly the 10
 `Kebechet.Watchious.*` packages come out. It packs with the android workload of the installed workload set; CI's
@@ -589,7 +601,10 @@ later stand in for the published one on that machine, and the test refuses a ver
 - **Build and run:** `dotnet build -t:Run -f net10.0-watchos` builds the watch app with no manual Xcode step
   and starts it in the watchOS simulator. `-r ios-arm64 -p:WatchiousDevice=<UDID>` installs it on a watch,
   signed with MAUI's `CodesignKey` and `CodesignProvision`. `-f net10.0-android` works as for any .NET for
-  Android app. These commands use the template's `net10.0-*` frameworks; an app on .NET 11 says `net11.0-*`.
+  Android app, except that a Debug build carries the whole app in its APK too (`EmbedAssembliesIntoApk`): .NET for
+  Android's Fast Deployment fails on the Wear OS emulator (XA0126) and over wireless adb (XAFD7000). Each run
+  installs the whole APK; an app that sets `EmbedAssembliesIntoApk` to `false` gets Fast Deployment back on a device
+  where it works. These commands use the template's `net10.0-*` frameworks; an app on .NET 11 says `net11.0-*`.
   - An Apple Watch is reached over a Wi-Fi tunnel that drops while the watch sleeps. Run waits for the watch,
     keeps the tunnel up during the install, and tries install and launch again while the watch can't be reached
     (up to 5 times, 10 s apart), so a dozing watch only needs a wake-up. Signing and provisioning errors fail at
