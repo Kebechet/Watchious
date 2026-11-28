@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.*" />
+    <PackageReference Include="xunit.v3" Version="4.*" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The app's preview build, which runs its pages on .NET without a watch. -->
+    <ProjectReference Include="..\Breathing\Breathing.csproj" SetTargetFramework="TargetFramework=net10.0" />
+  </ItemGroup>
+
+</Project>

@@ -24,8 +24,8 @@ public sealed record BreathingPattern(string Id, string Name, string Purpose, IR
 
     public int SecondsPerBreath => Steps.Sum(step => step.Seconds);
 
-    // "4 · 7 · 8": the seconds of each step.
-    public string Rhythm => string.Join(" · ", Steps.Select(step => step.Seconds));
+    // "4-7-8": the seconds of each step.
+    public string Rhythm => string.Join("-", Steps.Select(step => step.Seconds));
 
     public static BreathingPattern? Find(string id)
     {

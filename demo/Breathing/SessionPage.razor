@@ -4,6 +4,7 @@
 @inject INavigation Navigation
 @inject IHaptics Haptics
 @inject IDeviceDisplay DeviceDisplay
+@inject IAppLifecycle AppLifecycle
 @inject BreathingSettings Settings
 
 @* A page that doesn't scroll centers its content, over a glow that grows as the user breathes in and shrinks as they
@@ -12,14 +13,14 @@
     @if (moment.IsFinished)
     {
         <Label Style="TextStyle.Title">Well done</Label>
-        <Label>@Breaths breaths · @DurationText</Label>
+        <Label>@session.Breaths breaths · @DurationText</Label>
         <Button Text="Done" OnClick="() => Navigation.GoBackToRootAsync()" />
     }
     else
     {
         <Label Style="TextStyle.Headline">@StepText</Label>
         <Label Style="TextStyle.Title">@moment.SecondsLeft</Label>
-        <Label Style="TextStyle.Caption">Breath @moment.Breath of @Breaths</Label>
+        <Label Style="TextStyle.Caption">Breath @moment.Breath of @session.Breaths</Label>
         <Button Text="End" OnClick="() => Navigation.GoBackAsync()" />
     }
 </VStack>
@@ -30,13 +31,18 @@
     private static readonly Color DoneColor = Color.FromArgb("#3FA34D");
     private const double SmallGlow = 0.25;
     private const double LargeGlow = 0.75;
+    // The route can say anything; the pattern page offers up to 20.
+    private const int MostBreaths = 100;
 
     private readonly CancellationTokenSource stop = new();
     private readonly System.Diagnostics.Stopwatch clock = new();
     private BreathingSession session = default!;
     private SessionMoment moment;
     private double glow = -1;
+    private Color? glowColor;
     private bool keepsScreenOn;
+    private bool isPaused;
+    private bool isDisposed;
 
     [Parameter]
     public string PatternId { get; set; } = "";
@@ -51,12 +57,13 @@
         _ => "Hold",
     };
 
-    private string DurationText => $"{(int)session.Duration.TotalMinutes}:{session.Duration.Seconds:00} min";
+    private string DurationText => $"{(int)session.Duration.TotalMinutes}:{session.Duration.Seconds:00}";
 
     protected override void OnInitialized()
     {
         var pattern = BreathingPattern.Find(PatternId) ?? BreathingPattern.All[0];
-        session = new BreathingSession(pattern, Math.Max(Breaths, 1));
+        session = new BreathingSession(pattern, Math.Clamp(Breaths, 1, MostBreaths));
+        AppLifecycle.StateChanged += OnAppStateChanged;
         keepsScreenOn = TryKeepScreenOn(true);
         clock.Start();
         Show(session.At(TimeSpan.Zero));
@@ -66,11 +73,45 @@
 
     public void Dispose()
     {
+        isDisposed = true;
+        AppLifecycle.StateChanged -= OnAppStateChanged;
         stop.Cancel();
         stop.Dispose();
         if (keepsScreenOn)
         {
             TryKeepScreenOn(false);
+        }
+    }
+
+    // The session waits while the app is away (the user pressed the crown or a button), and goes on where it was when
+    // they come back. The screen-on session ended when the app left the screen, so it starts again.
+    private void OnAppStateChanged(object? sender, AppStateChangedEventArgs args)
+    {
+        _ = InvokeAsync(() => FollowAppState(args.State));
+    }
+
+    private void FollowAppState(AppState state)
+    {
+        if (isDisposed || moment.IsFinished)
+        {
+            return;
+        }
+
+        if (state == AppState.Background && !isPaused)
+        {
+            isPaused = true;
+            clock.Stop();
+            if (keepsScreenOn)
+            {
+                keepsScreenOn = false;
+                TryKeepScreenOn(false);
+            }
+        }
+        else if (state != AppState.Background && isPaused)
+        {
+            isPaused = false;
+            keepsScreenOn = TryKeepScreenOn(true);
+            clock.Start();
         }
     }
 
@@ -95,10 +136,21 @@
         {
             // The user left the page.
         }
+        catch (Exception exception)
+        {
+            // Shown as any page's error is, instead of a session that silently stops.
+            await DispatchExceptionAsync(exception);
+        }
     }
 
     private void Tick()
     {
+        // A tick queued just before the user left the page.
+        if (isDisposed)
+        {
+            return;
+        }
+
         var previous = moment;
         Show(session.At(clock.Elapsed));
         if (moment.IsFinished)
@@ -140,9 +192,10 @@
         var color = moment.Step.Step is BreathStep.BreatheIn or BreathStep.HoldIn ? InColor : OutColor;
         // A new brush only when the glow visibly changes: each one is sent to the watch.
         var rounded = Math.Round(size, 2);
-        if (rounded != glow || Background is null)
+        if (rounded != glow || color != glowColor)
         {
             glow = rounded;
+            glowColor = color;
             Background = Glow(color, glow);
         }
     }

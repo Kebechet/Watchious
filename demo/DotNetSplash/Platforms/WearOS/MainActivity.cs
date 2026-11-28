@@ -6,7 +6,7 @@ using Watchious.Hosts.WearOS;
 namespace DotNetSplash;
 
 // Compose redraws itself on these changes; without them Android would restart the activity, and with it the app.
-[Activity(Label = "DotNetSplash", MainLauncher = true, Exported = true,
+[Activity(Label = ".NET", MainLauncher = true, Exported = true,
     ConfigurationChanges = ConfigChanges.Density | ConfigChanges.FontScale | ConfigChanges.Keyboard
         | ConfigChanges.KeyboardHidden | ConfigChanges.LayoutDirection | ConfigChanges.Locale | ConfigChanges.Navigation
         | ConfigChanges.Orientation | ConfigChanges.ScreenLayout | ConfigChanges.ScreenSize

@@ -37,7 +37,7 @@ env:
 jobs:
   wearos:
     name: ${{ matrix.demo }} (Linux, Wear OS Release)
-    # Pinned for the JDK 21 (JAVA_HOME_21_X64) that .NET for Android builds with, as packages.yml.
+    # Pinned, as packages.yml, so the JDK 21 used below stays on the image.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
@@ -75,6 +75,11 @@ jobs:
       - name: Build the preview
         working-directory: demo/${{ matrix.demo }}
         run: dotnet build -f net10.0 -nologo
+
+      # They run the app's pages on .NET, with fake watch APIs.
+      - name: Test
+        if: hashFiles(format('demo/{0}.Tests/*.csproj', matrix.demo)) != ''
+        run: dotnet test --project "demo/${{ matrix.demo }}.Tests/${{ matrix.demo }}.Tests.csproj"
 
   watchos:
     name: ${{ matrix.demo }} (macOS, watchOS simulator)
