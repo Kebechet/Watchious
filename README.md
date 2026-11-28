@@ -109,7 +109,9 @@ checked by the compiler instead of relying on raw strings. The pages form a stac
 own navigation: SwiftUI's `NavigationStack` with its back button and edge swipe on watchOS, swipe-to-dismiss and
 the back button on Wear OS. Pages below the top one keep their state, and ignore a tap that reaches them once
 another page covers them: the second tap of a double tap on a button that opens a page, which the watch delivers
-before the new page is on its screen, opens it only once.
+before the new page is on its screen, opens it only once. That holds for a handler that navigates before its first
+`await`; one that awaits something else first (`await SaveAsync(); await Navigation.GoToAsync(...)`) handles the
+second tap too, since no page covers its own yet.
 
 ## Platforms
 

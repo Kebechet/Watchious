@@ -10,6 +10,7 @@ namespace Watchious;
 public sealed class WatchiousRenderer : Renderer
 {
     private readonly IWatchiousHost _host;
+    private readonly ILogger _logger;
     private readonly NativeTree _tree = new();
     private readonly PatchWriter _patches = new();
 
@@ -17,6 +18,7 @@ public sealed class WatchiousRenderer : Renderer
         : base(services, loggerFactory)
     {
         _host = host;
+        _logger = loggerFactory.CreateLogger<WatchiousRenderer>();
     }
 
     public override Dispatcher Dispatcher { get; } = Dispatcher.CreateDefault();
@@ -45,7 +47,14 @@ public sealed class WatchiousRenderer : Renderer
         return Dispatcher.InvokeAsync(() =>
         {
             var isCovered = CoveringElementType is not null && _tree.IsCovered(eventHandlerId, CoveringElementType);
-            return isCovered ? Task.CompletedTask : DispatchEventAsync(eventHandlerId, null, new NativeEventArgs(eventName, value));
+            if (isCovered)
+            {
+                _logger.LogDebug("Dropped the {EventName} event of a covered {ElementType} (handler {EventHandlerId}).",
+                    eventName, CoveringElementType, eventHandlerId);
+                return Task.CompletedTask;
+            }
+
+            return DispatchEventAsync(eventHandlerId, null, new NativeEventArgs(eventName, value));
         });
     }
 
@@ -53,7 +62,22 @@ public sealed class WatchiousRenderer : Renderer
     {
         _patches.Begin();
         _tree.Apply(renderBatch, _patches);
-        return _patches.HasOperations ? _host.ApplyPatches(_patches.WrittenSpan) : Task.CompletedTask;
+        var shown = _patches.HasOperations ? _host.ApplyPatches(_patches.WrittenSpan) : Task.CompletedTask;
+        var disposed = renderBatch.DisposedEventHandlerIDs;
+        if (disposed.Count > 0)
+        {
+            // Copied: Blazor reuses the batch's buffers once this returns.
+            _ = ForgetEventHandlersWhenShownAsync(shown, disposed.Array.AsSpan(0, disposed.Count).ToArray());
+        }
+
+        return shown;
+    }
+
+    // When Blazor itself lets go of them: once the host shows the batch that disposed them.
+    private async Task ForgetEventHandlersWhenShownAsync(Task shown, ulong[] eventHandlerIds)
+    {
+        await shown.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        await Dispatcher.InvokeAsync(() => _tree.ForgetEventHandlers(eventHandlerIds));
     }
 
     protected override void HandleException(Exception exception)

@@ -182,9 +182,9 @@ public class NavigationTests
 
         // Act
         await app.DispatchEventAsync(addHandlerId, "click", null);
+        await app.Services.GetRequiredService<INavigation>().GoBackAsync();
 
         // Assert
-        await app.Services.GetRequiredService<INavigation>().GoBackAsync();
         Pages(host).ShouldHaveSingleItem().Single("Label").Content.ShouldBe("Count: 0");
         host.Errors.ShouldBeEmpty();
     }
@@ -205,6 +205,7 @@ public class NavigationTests
         // Assert
         Pages(host)[0].Single("Label").Content.ShouldBe("Count: 1");
         app.Services.GetRequiredService<INavigation>().Stack.ShouldBe(["/", "/detail/7"]);
+        host.Errors.ShouldBeEmpty();
     }
 
     private static async Task<(WatchiousApp App, RecordingHost Host)> StartAsync()

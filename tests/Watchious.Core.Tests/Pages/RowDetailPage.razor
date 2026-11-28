@@ -1,0 +1,9 @@
+@inject INavigation Navigation
+
+<Label>Row @Id</Label>
+<Button Text="Back" OnClick="() => Navigation.GoBackAsync()" />
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+}
