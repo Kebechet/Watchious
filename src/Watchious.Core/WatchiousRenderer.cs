@@ -21,6 +21,11 @@ public sealed class WatchiousRenderer : Renderer
 
     public override Dispatcher Dispatcher { get; } = Dispatcher.CreateDefault();
 
+    // The type of element whose later siblings cover the earlier ones, as pages in a navigation stack ("Page" in
+    // Watchious.Controls). An event from a covered one is dropped: the user tapped it before the element that covers it
+    // reached the screen, such as the second tap of a double tap on a button that opens a page.
+    public string? CoveringElementType { get; init; }
+
     protected override RendererInfo RendererInfo { get; } = new("Watchious", isInteractive: true);
 
     public Task AddRootComponentAsync(
@@ -37,8 +42,11 @@ public sealed class WatchiousRenderer : Renderer
 
     public Task DispatchNativeEventAsync(ulong eventHandlerId, string eventName, string? value)
     {
-        return Dispatcher.InvokeAsync(
-            () => DispatchEventAsync(eventHandlerId, null, new NativeEventArgs(eventName, value)));
+        return Dispatcher.InvokeAsync(() =>
+        {
+            var isCovered = CoveringElementType is not null && _tree.IsCovered(eventHandlerId, CoveringElementType);
+            return isCovered ? Task.CompletedTask : DispatchEventAsync(eventHandlerId, null, new NativeEventArgs(eventName, value));
+        });
     }
 
     protected override Task UpdateDisplayAsync(in RenderBatch renderBatch)

@@ -154,6 +154,59 @@ public class NavigationTests
         host.Errors.ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task DoubleTap_OnAButtonThatOpensAPage_OpensItOnce()
+    {
+        // Arrange: both taps come from the button the host showed before the page opened.
+        var (app, host) = await StartAsync();
+        await using var disposeApp = app;
+        var openHandlerId = Button(host, "Open").Events["click"];
+
+        // Act
+        await app.DispatchEventAsync(openHandlerId, "click", null);
+        await app.DispatchEventAsync(openHandlerId, "click", null);
+
+        // Assert
+        app.Services.GetRequiredService<INavigation>().Stack.ShouldBe(["/", "/detail/7"]);
+        host.Errors.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Tap_OnAPageThatAnotherCovers_IsIgnored()
+    {
+        // Arrange
+        var (app, host) = await StartAsync();
+        await using var disposeApp = app;
+        var addHandlerId = Button(host, "+1").Events["click"];
+        await ClickAsync(app, host, "Open");
+
+        // Act
+        await app.DispatchEventAsync(addHandlerId, "click", null);
+
+        // Assert
+        await app.Services.GetRequiredService<INavigation>().GoBackAsync();
+        Pages(host).ShouldHaveSingleItem().Single("Label").Content.ShouldBe("Count: 0");
+        host.Errors.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Tap_OnThePageBackOnTop_Works()
+    {
+        // Arrange
+        var (app, host) = await StartAsync();
+        await using var disposeApp = app;
+        await ClickAsync(app, host, "Open");
+        await app.Services.GetRequiredService<INavigation>().GoBackAsync();
+
+        // Act
+        await ClickAsync(app, host, "+1");
+        await ClickAsync(app, host, "Open");
+
+        // Assert
+        Pages(host)[0].Single("Label").Content.ShouldBe("Count: 1");
+        app.Services.GetRequiredService<INavigation>().Stack.ShouldBe(["/", "/detail/7"]);
+    }
+
     private static async Task<(WatchiousApp App, RecordingHost Host)> StartAsync()
     {
         var host = new RecordingHost();
@@ -169,8 +222,12 @@ public class NavigationTests
 
     private static Task ClickAsync(WatchiousApp app, RecordingHost host, string buttonText)
     {
-        var button = host.LastTree.Descendants().Last(node => node.Type == "Button" && node.Content == buttonText);
-        return app.DispatchEventAsync(button.Events["click"], "click", null);
+        return app.DispatchEventAsync(Button(host, buttonText).Events["click"], "click", null);
+    }
+
+    private static UiNode Button(RecordingHost host, string text)
+    {
+        return host.LastTree.Descendants().Last(node => node.Type == "Button" && node.Content == text);
     }
 
     private static List<UiNode> Pages(RecordingHost host)

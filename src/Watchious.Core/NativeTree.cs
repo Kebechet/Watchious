@@ -12,7 +12,7 @@ internal sealed class NativeTree
 {
     private const string EventAttributePrefix = "on";
 
-    private readonly ElementNode _root = new(PatchProtocol.RootNodeId);
+    private readonly ElementNode _root = new(PatchProtocol.RootNodeId, "");
     private readonly Dictionary<int, ComponentNode> _components = [];
     private readonly List<(int From, int To)> _permutation = [];
     private uint _lastNodeId = PatchProtocol.RootNodeId;
@@ -22,6 +22,23 @@ internal sealed class NativeTree
         var component = new ComponentNode();
         Attach(_root, _root.Children.Count, component, writer: null);
         _components.Add(componentId, component);
+    }
+
+    // Whether the element that owns the event sits in an element of the given type that a later sibling of that type
+    // covers, as a page under the top one of a navigation stack. Searched when an event arrives, which is rare, so the
+    // tree keeps no index of handler ids to clean up as they are replaced.
+    public bool IsCovered(ulong eventHandlerId, string elementType)
+    {
+        Container? node = FindEventElement(_root, eventHandlerId);
+        for (; node is not null; node = node.Parent)
+        {
+            if (node is ElementNode element && element.Type == elementType && HasLaterSibling(element))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void Apply(in RenderBatch batch, PatchWriter writer)
@@ -114,7 +131,7 @@ internal sealed class NativeTree
     private ElementNode CreateElement(RenderTreeFrame[] frames, int elementIndex, PatchWriter writer)
     {
         ref var frame = ref frames[elementIndex];
-        var element = new ElementNode(++_lastNodeId);
+        var element = new ElementNode(++_lastNodeId, frame.ElementName);
         writer.CreateElement(element.Id, frame.ElementName);
 
         var end = elementIndex + frame.ElementSubtreeLength;
@@ -239,12 +256,12 @@ internal sealed class NativeTree
         var name = attribute.AttributeName;
         if (attribute.AttributeEventHandlerId != 0)
         {
-            (element.EventAttributes ??= []).Add(name);
+            (element.Events ??= [])[name] = attribute.AttributeEventHandlerId;
             writer.SetEvent(element.Id, ToEventName(name), attribute.AttributeEventHandlerId);
             return;
         }
 
-        if (element.EventAttributes is not null && element.EventAttributes.Remove(name))
+        if (element.Events is not null && element.Events.Remove(name))
         {
             writer.RemoveEvent(element.Id, ToEventName(name));
         }
@@ -254,7 +271,7 @@ internal sealed class NativeTree
 
     private static void RemoveAttribute(ElementNode element, string name, PatchWriter writer)
     {
-        if (element.EventAttributes is not null && element.EventAttributes.Remove(name))
+        if (element.Events is not null && element.Events.Remove(name))
         {
             writer.RemoveEvent(element.Id, ToEventName(name));
             return;
@@ -354,6 +371,47 @@ internal sealed class NativeTree
             ?? throw new InvalidOperationException($"Child {childIndex} of a render diff isn't an element.");
     }
 
+    private static ElementNode? FindEventElement(Container container, ulong eventHandlerId)
+    {
+        if (container is ElementNode element && element.Events is not null && element.Events.ContainsValue(eventHandlerId))
+        {
+            return element;
+        }
+
+        foreach (var child in container.Children)
+        {
+            if (child is Container childContainer)
+            {
+                var found = FindEventElement(childContainer, eventHandlerId);
+                if (found is not null)
+                {
+                    return found;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool HasLaterSibling(ElementNode element)
+    {
+        var siblings = element.Parent?.Children;
+        if (siblings is null)
+        {
+            return false;
+        }
+
+        for (var index = siblings.IndexOf(element) + 1; index < siblings.Count; index++)
+        {
+            if (siblings[index] is ElementNode sibling && sibling.Type == element.Type)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static TextNode TextAt(Container parent, int childIndex)
     {
         return parent.Children[childIndex] as TextNode
@@ -370,11 +428,14 @@ internal sealed class NativeTree
         public List<Node> Children { get; } = [];
     }
 
-    private sealed class ElementNode(uint id) : Container
+    private sealed class ElementNode(uint id, string type) : Container
     {
         public uint Id { get; } = id;
 
-        public HashSet<string>? EventAttributes { get; set; }
+        public string Type { get; } = type;
+
+        // Each event attribute's current handler id.
+        public Dictionary<string, ulong>? Events { get; set; }
     }
 
     private sealed class ComponentNode : Container;

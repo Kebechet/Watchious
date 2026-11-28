@@ -47,7 +47,8 @@ public sealed class WatchiousApp : IAsyncDisposable
         }
 
         var loggerFactory = _services.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance;
-        _renderer = new WatchiousRenderer(_services, loggerFactory, host);
+        // A tap on a page under the top one came before the top one reached the screen (WatchiousNavigationRoot).
+        _renderer = new WatchiousRenderer(_services, loggerFactory, host) { CoveringElementType = "Page" };
         _navigation.Start(_renderer.Dispatcher);
 
         // Services added with AddHostedService, as in an ASP.NET Core app, start with the app, before its first page,

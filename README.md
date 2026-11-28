@@ -107,7 +107,9 @@ A page uses SwiftUI's control names with Blazor-style events, binding and `@page
 `Routes.Workout(...)` is generated from the `@page` directive by a source generator, so navigation is
 checked by the compiler instead of relying on raw strings. The pages form a stack shown with each platform's
 own navigation: SwiftUI's `NavigationStack` with its back button and edge swipe on watchOS, swipe-to-dismiss and
-the back button on Wear OS. Pages below the top one keep their state.
+the back button on Wear OS. Pages below the top one keep their state, and ignore a tap that reaches them once
+another page covers them: the second tap of a double tap on a button that opens a page, which the watch delivers
+before the new page is on its screen, opens it only once.
 
 ## Platforms
 
