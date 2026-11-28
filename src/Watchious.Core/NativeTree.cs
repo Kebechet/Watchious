@@ -12,9 +12,11 @@ internal sealed class NativeTree
 {
     private const string EventAttributePrefix = "on";
 
-    private readonly ElementNode _root = new(PatchProtocol.RootNodeId);
+    private readonly ElementNode _root = new(PatchProtocol.RootNodeId, "");
     private readonly Dictionary<int, ComponentNode> _components = [];
     private readonly List<(int From, int To)> _permutation = [];
+    // Every handler id the host may still send, by its element: a replaced one too, until Blazor disposes it.
+    private readonly Dictionary<ulong, ElementNode> _eventElements = [];
     private uint _lastNodeId = PatchProtocol.RootNodeId;
 
     public void AddRootComponent(int componentId)
@@ -22,6 +24,33 @@ internal sealed class NativeTree
         var component = new ComponentNode();
         Attach(_root, _root.Children.Count, component, writer: null);
         _components.Add(componentId, component);
+    }
+
+    // Whether the element of the event sits in an element of the given type that a later sibling of that type covers,
+    // as a page under the top one of a navigation stack.
+    public bool IsCovered(ulong eventHandlerId, string elementType)
+    {
+        Container? node = _eventElements.GetValueOrDefault(eventHandlerId);
+        for (; node is not null; node = node.Parent)
+        {
+            if (node is ElementNode element && element.Type == elementType && HasLaterHostSibling(element))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Handler ids Blazor has disposed. Blazor keeps a replaced one working until the host shows the batch that replaced
+    // it (WatchiousRenderer.UpdateDisplayAsync), and a stale tap from a covered page can carry such an id: a list row
+    // whose OnClick is a new lambda after every render gets a new id, while the host still shows the old one.
+    public void ForgetEventHandlers(IEnumerable<ulong> eventHandlerIds)
+    {
+        foreach (var eventHandlerId in eventHandlerIds)
+        {
+            _eventElements.Remove(eventHandlerId);
+        }
     }
 
     public void Apply(in RenderBatch batch, PatchWriter writer)
@@ -114,7 +143,7 @@ internal sealed class NativeTree
     private ElementNode CreateElement(RenderTreeFrame[] frames, int elementIndex, PatchWriter writer)
     {
         ref var frame = ref frames[elementIndex];
-        var element = new ElementNode(++_lastNodeId);
+        var element = new ElementNode(++_lastNodeId, frame.ElementName);
         writer.CreateElement(element.Id, frame.ElementName);
 
         var end = elementIndex + frame.ElementSubtreeLength;
@@ -234,12 +263,13 @@ internal sealed class NativeTree
         }
     }
 
-    private static void SetAttribute(ElementNode element, in RenderTreeFrame attribute, PatchWriter writer)
+    private void SetAttribute(ElementNode element, in RenderTreeFrame attribute, PatchWriter writer)
     {
         var name = attribute.AttributeName;
         if (attribute.AttributeEventHandlerId != 0)
         {
             (element.EventAttributes ??= []).Add(name);
+            _eventElements[attribute.AttributeEventHandlerId] = element;
             writer.SetEvent(element.Id, ToEventName(name), attribute.AttributeEventHandlerId);
             return;
         }
@@ -354,6 +384,55 @@ internal sealed class NativeTree
             ?? throw new InvalidOperationException($"Child {childIndex} of a render diff isn't an element.");
     }
 
+    // Among the nodes the host has in the same element, as the hosts see them: a component's nodes sit directly in the
+    // element around it, so a page wrapped in a component still has the other pages as siblings.
+    private static bool HasLaterHostSibling(ElementNode element)
+    {
+        var host = element.Parent;
+        while (host is ComponentNode)
+        {
+            host = host.Parent;
+        }
+
+        if (host is null)
+        {
+            return false;
+        }
+
+        var isAfterElement = false;
+        foreach (var node in HostChildren(host))
+        {
+            if (ReferenceEquals(node, element))
+            {
+                isAfterElement = true;
+            }
+            else if (isAfterElement && node is ElementNode sibling && sibling.Type == element.Type)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<Node> HostChildren(Container container)
+    {
+        foreach (var child in container.Children)
+        {
+            if (child is ComponentNode component)
+            {
+                foreach (var node in HostChildren(component))
+                {
+                    yield return node;
+                }
+            }
+            else
+            {
+                yield return child;
+            }
+        }
+    }
+
     private static TextNode TextAt(Container parent, int childIndex)
     {
         return parent.Children[childIndex] as TextNode
@@ -370,9 +449,11 @@ internal sealed class NativeTree
         public List<Node> Children { get; } = [];
     }
 
-    private sealed class ElementNode(uint id) : Container
+    private sealed class ElementNode(uint id, string type) : Container
     {
         public uint Id { get; } = id;
+
+        public string Type { get; } = type;
 
         public HashSet<string>? EventAttributes { get; set; }
     }

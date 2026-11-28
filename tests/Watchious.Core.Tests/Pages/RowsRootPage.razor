@@ -1,0 +1,22 @@
+@inject INavigation Navigation
+
+@* Each row's OnClick is a new lambda after every render, so its handler id changes while the host still shows the
+   old one. *@
+<VStack>
+    <Label>Count: @count</Label>
+    <Button Text="+1" OnClick="() => count++" />
+    @foreach (var id in Ids)
+    {
+        <Button Text="@($"Item {id}")" OnClick="() => OpenAsync(id)" />
+    }
+</VStack>
+
+@code {
+    private static readonly int[] Ids = [7, 8];
+    private int count;
+
+    private Task OpenAsync(int id)
+    {
+        return Navigation.GoToAsync($"/row/{id}");
+    }
+}
