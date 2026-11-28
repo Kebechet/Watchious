@@ -1,0 +1,112 @@
+name: Demo
+
+# Builds the apps in demo/ as a user's app is built: from the Kebechet.Watchious.* packages on nuget.org at the
+# version each project names, with nothing from this repository's sources. Wear OS in Release (R8 included) on Linux,
+# watchOS for the simulator on macOS. A failure means the released packages don't build a template app, or a demo
+# uses something its version doesn't have. Also weekly, so a broken dependency of a released version shows up.
+
+on:
+  pull_request:
+    paths:
+      - 'demo/**'
+      - '.github/workflows/demo.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'demo/**'
+      - '.github/workflows/demo.yml'
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # As in packages.yml: the SDK and workload set the released packages are built and tested with.
+  DOTNET_SDK_VERSION: '10.0.404'
+  DOTNET_WORKLOAD_SET: '10.0.404'
+  XCODE_VERSION: '27.2'
+
+jobs:
+  wearos:
+    name: ${{ matrix.demo }} (Linux, Wear OS Release)
+    # Pinned for the JDK 21 (JAVA_HOME_21_X64) that .NET for Android builds with, as packages.yml.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: [DotNetSplash, Breathing]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install .NET ${{ env.DOTNET_SDK_VERSION }} and the android workload
+        run: |
+          set -euo pipefail
+          install_dir="$RUNNER_TEMP/dotnet"
+          curl -sSL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
+          bash "$RUNNER_TEMP/dotnet-install.sh" --version "$DOTNET_SDK_VERSION" --install-dir "$install_dir" --no-path
+          echo "DOTNET_ROOT=$install_dir" >> "$GITHUB_ENV"
+          echo "$install_dir" >> "$GITHUB_PATH"
+          "$install_dir/dotnet" workload install android --version "$DOTNET_WORKLOAD_SET"
+
+      - name: Use JDK 21 and Android platform 36
+        run: |
+          set -euo pipefail
+          echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Build for Wear OS (Release) from nuget.org
+        working-directory: demo/${{ matrix.demo }}
+        run: |
+          set -euo pipefail
+          dotnet build -f net10.0-android -c Release -nologo
+          apk="$(find bin/Release/net10.0-android -name '*-Signed.apk' | head -1)"
+          [ -n "$apk" ] || { echo "::error::The Release build made no signed APK."; exit 1; }
+          echo "Wear OS APK: $apk"
+
+      - name: Build the preview
+        working-directory: demo/${{ matrix.demo }}
+        run: dotnet build -f net10.0 -nologo
+
+  watchos:
+    name: ${{ matrix.demo }} (macOS, watchOS simulator)
+    # Xcode 27.2 with watchOS 27.2 simulators, as packages.yml.
+    runs-on: xcode-27
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: [DotNetSplash, Breathing]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      # android too: the app also targets Wear OS, and its restore covers that target framework.
+      - name: Install .NET ${{ env.DOTNET_SDK_VERSION }} and the ios and android workloads
+        run: |
+          set -euo pipefail
+          install_dir="$RUNNER_TEMP/dotnet"
+          curl -sSL https://dot.net/v1/dotnet-install.sh -o "$RUNNER_TEMP/dotnet-install.sh"
+          bash "$RUNNER_TEMP/dotnet-install.sh" --version "$DOTNET_SDK_VERSION" --install-dir "$install_dir" --no-path
+          echo "DOTNET_ROOT=$install_dir" >> "$GITHUB_ENV"
+          echo "$install_dir" >> "$GITHUB_PATH"
+          "$install_dir/dotnet" workload install ios android --version "$DOTNET_WORKLOAD_SET"
+
+      - name: Build for the watchOS simulator from nuget.org
+        working-directory: demo/${{ matrix.demo }}
+        run: |
+          set -euo pipefail
+          dotnet build -f net10.0-watchos -nologo
+          app="$(find bin -path '*net10.0-watchos*' -name '*.app' -type d | head -1)"
+          [ -n "$app" ] || { echo "::error::The watchOS build made no .app."; exit 1; }
+          echo "watchOS simulator app: $app"
