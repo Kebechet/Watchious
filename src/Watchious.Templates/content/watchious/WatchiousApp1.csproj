@@ -7,6 +7,8 @@
     <!-- The desktop preview, for debugging the pages: dotnet run -f net10.0. -->
     <TargetFrameworks>$(TargetFrameworks);net10.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
     <RootNamespace>WatchiousApp1</RootNamespace>
     <ApplicationId>com.companyname.watchiousapp1</ApplicationId>
     <ApplicationTitle>WatchiousApp1</ApplicationTitle>

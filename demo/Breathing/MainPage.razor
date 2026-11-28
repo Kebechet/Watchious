@@ -1,0 +1,42 @@
+@inherits PageBase
+@implements IDisposable
+@inject INavigation Navigation
+@inject BreathingSettings Settings
+
+<List>
+    <Label Style="TextStyle.Title">Breathing</Label>
+    @foreach (var pattern in BreathingPattern.All)
+    {
+        <Button Text="@pattern.Name" OnClick="() => Navigation.GoToAsync(Routes.Pattern(pattern.Id))" />
+    }
+    <Label Style="TextStyle.Caption">@Totals</Label>
+</List>
+
+@code {
+    private string Totals => Settings.FinishedSessions switch
+    {
+        0 => "No sessions yet",
+        1 => $"1 session · {TimeText}",
+        _ => $"{Settings.FinishedSessions} sessions · {TimeText}",
+    };
+
+    private string TimeText => Settings.TimeBreathing.TotalMinutes < 1
+        ? $"{(int)Settings.TimeBreathing.TotalSeconds} s"
+        : $"{(int)Math.Round(Settings.TimeBreathing.TotalMinutes, MidpointRounding.AwayFromZero)} min";
+
+    protected override void OnInitialized()
+    {
+        Settings.Changed += OnSettingsChanged;
+    }
+
+    public void Dispose()
+    {
+        Settings.Changed -= OnSettingsChanged;
+    }
+
+    // This page stays open under a session, so it shows the new totals when the user comes back.
+    private void OnSettingsChanged(object? sender, EventArgs args)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+}

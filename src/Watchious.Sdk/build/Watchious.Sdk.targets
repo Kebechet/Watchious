@@ -19,6 +19,15 @@
     <Content Remove="Platforms/**" />
   </ItemGroup>
 
+  <!-- The Razor SDK makes every page Content too, which .NET for iOS would then copy into the app, with a warning per
+       page ("would result in a file outside of the app bundle"). As MAUI's BlazorWebView targets do, the pages are
+       RazorComponent items instead, which is what the Razor SDK compiles: the same pages the other platforms compile,
+       so not the ones under Platforms/ or any the app removed from Content. -->
+  <ItemGroup Condition="'$(WatchiousTargetPlatform)' == 'watchos' And '$(DesignTimeBuild)' != 'true'">
+    <RazorComponent Include="@(Content->WithMetadataValue('Extension', '.razor'))" />
+    <Content Remove="@(Content->WithMetadataValue('Extension', '.razor'))" />
+  </ItemGroup>
+
   <!-- App images, like MAUI's: Resources/Images/*.png and *.jpg, shown with <Image Source="name" />. Wear OS gets
        them as Android drawables, watchOS as files in the app bundle (Watchious.Sdk.watchOS.targets), the preview
        next to its program. -->

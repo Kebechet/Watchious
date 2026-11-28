@@ -14,8 +14,9 @@ the watch itself** on both platforms, so the app keeps working without the phone
 
 > ⚠️ **Status: proof of concept.** The same Razor counter app runs as native UI on a real Apple Watch SE 3
 > (watchOS 27) and a Galaxy Watch7, and in the watchOS simulator and the Wear OS emulator. The watchOS device
-> build also passes App Store validation. There is nothing to install yet, and no package is
-> published. This README records the design, the decisions made so far and the open questions.
+> build also passes App Store validation. Preview packages are on nuget.org (`Kebechet.Watchious.*`), and the API can
+> still change from one version to the next. This README also records the design, the decisions made so far and the
+> open questions.
 
 ## Why
 
@@ -27,6 +28,22 @@ the watch itself** on both platforms, so the app keeps working without the phone
 Watchious copies the MAUI way of doing things (single project, app builder, dependency injection, platform
 code in C#), so a MAUI developer feels at home. Its controls use SwiftUI's names, the vocabulary of watch UI,
 which Compose for Wear OS largely shares.
+
+## Try it
+
+```bash
+dotnet new install Kebechet.Watchious.Templates
+dotnet new watchious -n MyWatchApp
+cd MyWatchApp
+dotnet run -f net10.0                     # the preview, to debug the pages in a browser
+dotnet build -t:Run -f net10.0-android    # Wear OS: the emulator or a watch
+dotnet build -t:Run -f net10.0-watchos    # watchOS: the simulator, on a Mac (from Windows, see "Project and packaging")
+```
+
+Two finished apps made this way are in [`demo/`](demo/): `DotNetSplash`, the .NET bot on MAUI's splash screen purple,
+and `Breathing`, a guided breathing app that taps your wrist at each step. They build from the packages on nuget.org,
+as your app does. [`samples/`](samples/) is for working on Watchious itself: it builds from this repository's sources
+and shows every control and watch API.
 
 ## How it works
 
@@ -127,7 +144,7 @@ the back button on Wear OS. Pages below the top one keep their state.
 | ✅ `Toggle` (with a `Text` label) | `Toggle` | `SwitchButton` |
 | ✅ `Image` (app images and system icons) | `Image`, `Image(systemName:)` for SF Symbols | `Image`, `Icon` for Material icons |
 | ✅ `ProgressView` | `ProgressView` | `CircularProgressIndicator` / `LinearProgressIndicator` |
-| ✅ `Picker` | `Picker` | `Picker`, which the crown turns once it is touched |
+| ✅ `Picker` | `Picker`: a wheel, or in a `List` a row that opens the choices | `Picker`, which the crown turns once it is touched |
 | ✅ `DigitalCrownRotation` (the crown turns a value) | `.digitalCrownRotation` on its content | its content with `onRotaryScrollEvent` |
 | ✅ `TextField` | `TextField` | `BasicTextField` with the system keyboard |
 | ✅ `Apple.Gauge` (watchOS only) | `Gauge` | nothing |
