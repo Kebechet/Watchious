@@ -7,9 +7,12 @@
     <!-- The desktop preview, for debugging the pages: dotnet run -f net10.0. -->
     <TargetFrameworks>$(TargetFrameworks);net10.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
+    <!-- Not in the 0.2.0-preview.1 template, which leaves them out; its next version sets them. -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
     <RootNamespace>DotNetSplash</RootNamespace>
     <ApplicationId>com.kebechet.watchious.dotnetsplash</ApplicationId>
-    <ApplicationTitle>DotNetSplash</ApplicationTitle>
+    <ApplicationTitle>.NET</ApplicationTitle>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
   </PropertyGroup>

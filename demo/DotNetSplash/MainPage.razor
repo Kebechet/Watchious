@@ -1,13 +1,7 @@
 @inherits PageBase
 
-<ScrollView>
-    <VStack Spacing="8">
-        <Label Style="TextStyle.Title">Hello, watch!</Label>
-        <Label>Count: @count</Label>
-        <Button Text="+1" OnClick="() => count++" />
-    </VStack>
-</ScrollView>
-
-@code {
-    private int count;
-}
+@* A page that doesn't scroll centers its content; the purple is the app's, from WatchiousProgram. *@
+<VStack Spacing="8">
+    <Image Source="dotnet_bot" Width="81" Height="100" Description=".NET bot" />
+    <Image Source="dotnet_wordmark" Width="78" Height="29" Description=".NET" />
+</VStack>
