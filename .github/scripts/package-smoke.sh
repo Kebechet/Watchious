@@ -142,11 +142,12 @@ new_app() {
         || fail "$name.csproj from the template starts with '$first_line', expected <Project Sdk=\"Kebechet.Watchious.Sdk/$sdk_version\">."
     echo "== $name.csproj names Kebechet.Watchious.Sdk/$sdk_version"
     # As every .NET template's app does. Inside the repository its Directory.Build.props sets both, which hid that the
-    # template didn't: an app's own code then couldn't use List<T> or Task without usings.
-    local setting value
+    # template didn't: an app's own code then couldn't use List<T> or Task without usings. Read from the file, not
+    # evaluated: an app made with --sdk-version names an SDK that doesn't exist.
+    local setting
     for setting in ImplicitUsings Nullable; do
-        value="$(property "$app/$name.csproj" "$setting")"
-        [ "$value" = enable ] || fail "$name.csproj from the template sets $setting to '$value', expected enable."
+        grep -q "<$setting>enable</$setting>" "$app/$name.csproj" \
+            || fail "$name.csproj from the template doesn't set $setting to enable."
     done
 }
 
