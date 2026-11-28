@@ -34,5 +34,6 @@ Mac or with `WatchiousRemoteMac=user@host`, `net10.0-watchos`. `dotnet run -f ne
 
 ## More
 
-Building and running on a watch, a simulator or an emulator: "Project and packaging" in the
-[Watchious README](https://github.com/Kebechet/Watchious#project-and-packaging).
+What a first run needs, and the commands: "Try it" in the [Watchious README](https://github.com/Kebechet/Watchious#try-it).
+Building and running on a watch, a simulator or an emulator: its
+[Project and packaging](https://github.com/Kebechet/Watchious#project-and-packaging).

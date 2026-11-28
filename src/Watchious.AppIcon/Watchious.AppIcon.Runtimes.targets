@@ -8,10 +8,13 @@
     <_WatchiousAppIconRuntimes>;win-x64;win-arm64;osx;linux-x64;linux-arm64;</_WatchiousAppIconRuntimes>
   </PropertyGroup>
 
+  <!-- Only their packages' assets: another package's, such as System.Management's for Windows, stay as they are. -->
   <Target Name="_WatchiousKeepShippedRuntimes" AfterTargets="ResolvePackageAssets">
     <ItemGroup>
-      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)"
-                                    Condition="!$(_WatchiousAppIconRuntimes.Contains(';%(RuntimeTargetsCopyLocalItems.RuntimeIdentifier);')) Or '%(RuntimeTargetsCopyLocalItems.Extension)' == '.pdb'" />
+      <_WatchiousNativeAsset Include="@(RuntimeTargetsCopyLocalItems)"
+                             Condition="$([System.String]::Copy('%(RuntimeTargetsCopyLocalItems.NuGetPackageId)').StartsWith('SkiaSharp.NativeAssets.')) Or $([System.String]::Copy('%(RuntimeTargetsCopyLocalItems.NuGetPackageId)').StartsWith('HarfBuzzSharp.NativeAssets.'))" />
+      <RuntimeTargetsCopyLocalItems Remove="@(_WatchiousNativeAsset)"
+                                    Condition="!$(_WatchiousAppIconRuntimes.Contains(';%(_WatchiousNativeAsset.RuntimeIdentifier);')) Or '%(_WatchiousNativeAsset.Extension)' == '.pdb'" />
     </ItemGroup>
   </Target>
 

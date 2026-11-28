@@ -377,10 +377,9 @@ for id in "${IDS[@]}"; do
             expect_entries "$id" 'appicon/Watchious\.AppIcon\.dll' 'appicon/Watchious\.AppIcon\.runtimeconfig\.json' \
                 'appicon/Watchious\.AppIcon\.deps\.json' 'appicon/SkiaSharp\.dll' 'appicon/Svg\.Skia\.dll' \
                 'appicon/notices/SkiaSharp-THIRD-PARTY-NOTICES\.txt' 'appicon/notices/HarfBuzzSharp-THIRD-PARTY-NOTICES\.txt'
-            for runtime in win-x64:dll win-arm64:dll osx:dylib linux-x64:so linux-arm64:so; do
-                expect_entries "$id" "appicon/runtimes/${runtime%%:*}/native/libSkiaSharp\.${runtime##*:}" \
-                    "appicon/runtimes/${runtime%%:*}/native/libHarfBuzzSharp\.${runtime##*:}"
-            done
+            expect_exactly "$id" appicon/runtimes/ "$(for runtime in win-x64:dll win-arm64:dll osx:dylib linux-x64:so linux-arm64:so; do
+                printf '%s/native/libSkiaSharp.%s\n%s/native/libHarfBuzzSharp.%s\n' "${runtime%%:*}" "${runtime##*:}" "${runtime%%:*}" "${runtime##*:}"
+            done)"
             pdbs="$(printf '%s\n' "$ENTRIES" | grep -E '^appicon/.+\.pdb$' || true)"
             [ -z "$pdbs" ] || error "$id carries debug symbols in appicon/: $(words "$pdbs")"
             # The Wear OS live host's AndroidX, Kotlin and other libraries (Apache-2.0); the icon tool's SkiaSharp

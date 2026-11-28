@@ -6,6 +6,8 @@
     <!-- A target framework without a platform (net10.0) builds the desktop preview of the app:
          dotnet run -f net10.0, or that framework picked in Visual Studio, to debug the pages. -->
     <WatchiousIsPreview Condition="'$(TargetFramework)' != '' And '$(WatchiousTargetPlatform)' == '' And '$(OutputType)' == 'Exe'">true</WatchiousIsPreview>
+    <!-- The preview of a net10.0 app runs on the computer's newest .NET, so that one with only .NET 11 can run it. -->
+    <RollForward Condition="'$(RollForward)' == '' And '$(WatchiousIsPreview)' == 'true'">Major</RollForward>
   </PropertyGroup>
 
   <!-- Single project, like MAUI: code under Platforms/WearOS and Platforms/watchOS takes part only in its own
