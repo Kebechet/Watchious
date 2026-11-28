@@ -1,0 +1,4 @@
+<Project>
+  <!-- Empty on purpose, as Directory.Build.props next to it: the repository's Directory.Build.targets sets up its own
+       packages, not a user's app. -->
+</Project>
