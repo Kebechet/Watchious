@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Components.Rendering;
 
 namespace Watchious.Controls;
 
-// A wheel of options the crown turns: SwiftUI's Picker on watchOS, Wear OS's Picker.
+// A wheel of options the crown turns: SwiftUI's Picker on watchOS, Wear OS's Picker. In a List, watchOS shows it as a
+// row that opens the options instead.
 // <Picker Text="Reps" Items="@reps" @bind-SelectedIndex="selected" />
 public sealed class Picker : ComponentBase
 {

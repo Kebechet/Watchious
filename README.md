@@ -144,7 +144,7 @@ the back button on Wear OS. Pages below the top one keep their state.
 | ✅ `Toggle` (with a `Text` label) | `Toggle` | `SwitchButton` |
 | ✅ `Image` (app images and system icons) | `Image`, `Image(systemName:)` for SF Symbols | `Image`, `Icon` for Material icons |
 | ✅ `ProgressView` | `ProgressView` | `CircularProgressIndicator` / `LinearProgressIndicator` |
-| ✅ `Picker` | `Picker` | `Picker`, which the crown turns once it is touched |
+| ✅ `Picker` | `Picker`: a wheel, or in a `List` a row that opens the choices | `Picker`, which the crown turns once it is touched |
 | ✅ `DigitalCrownRotation` (the crown turns a value) | `.digitalCrownRotation` on its content | its content with `onRotaryScrollEvent` |
 | ✅ `TextField` | `TextField` | `BasicTextField` with the system keyboard |
 | ✅ `Apple.Gauge` (watchOS only) | `Gauge` | nothing |

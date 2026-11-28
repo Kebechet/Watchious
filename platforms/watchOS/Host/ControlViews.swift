@@ -10,6 +10,19 @@ struct ListNodeView: View {
             NodeView(node: row, store: store)
         }
         .environment(\.watchiousLayoutParent, .column)
+        .environment(\.watchiousIsInList, true)
+    }
+}
+
+private struct WatchiousIsInListKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    // Whether a view is in a List's row, where a Picker is a row that opens its choices.
+    var watchiousIsInList: Bool {
+        get { self[WatchiousIsInListKey.self] }
+        set { self[WatchiousIsInListKey.self] = newValue }
     }
 }
 
@@ -52,17 +65,31 @@ struct ProgressViewNode: View {
 struct PickerNode: View {
     let node: UiNode
     let store: WatchiousStore
+    @Environment(\.watchiousIsInList) private var isInList
 
     var body: some View {
         let items = self.items
-        Picker(node.attribute("Text") ?? "", selection: selection(count: items.count)) {
+        let picker = Picker(node.attribute("Text") ?? "", selection: selection(count: items.count)) {
             ForEach(items.indices, id: \.self) { index in
                 Text(items[index]).tag(index)
             }
         }
-        // A row that opens the choices, as watchOS shows a Picker in a List. Its default outside a List is a wheel,
-        // which a stack gives almost no height: the choices squeezed into a thin bar, without the title.
-        .pickerStyle(.navigationLink)
+        if isInList {
+            // SwiftUI's own: a row that opens the choices.
+            picker
+        } else {
+            // A wheel the crown turns under its title, as on Wear OS. SwiftUI's wheel shows the title only while it
+            // has the crown, and a stack gives it almost no height of its own: the choices were a thin bar.
+            VStack(spacing: 2) {
+                if let title = node.attribute("Text"), !title.isEmpty {
+                    Text(title)
+                }
+                picker
+                    .pickerStyle(.wheel)
+                    .labelsHidden()
+                    .frame(height: 80)
+            }
+        }
     }
 
     private var items: [String] {

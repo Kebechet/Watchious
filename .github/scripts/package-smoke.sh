@@ -320,7 +320,8 @@ else
     echo "== WATCHIOUS003: an error for an untested .NET for iOS version, a warning with WatchiousAllowUntestedIOSSdk=true"
     run build-watchos "$DOTNET" build "$APP2" -f net10.0-watchos -nologo
     # .NET for iOS copies Content into the app, and the Razor SDK makes each page Content unless the SDK says otherwise.
-    ! grep -q 'would result in a file outside of the app bundle' "$LOGS/build-watchos.log"         || fail "the watchOS build tried to put the app's .razor files into the app bundle (log: $LOGS/build-watchos.log)."
+    ! grep -q 'would result in a file outside of the app bundle' "$LOGS/build-watchos.log" \
+        || fail "the watchOS build tried to put the app's .razor files into the app bundle (log: $LOGS/build-watchos.log)."
     linked="$(find "$WORK_ABS/WatchiousOptional/obj" -path '*net10.0-watchos*' -name host-sources.txt 2>/dev/null | head -1)"
     [ -n "$linked" ] || fail "the watchOS build wrote no host-sources.txt: the watch app wasn't linked."
     grep -q 'HealthKitWorkout\.swift' "$linked" && grep -q 'WatchConnectivity\.swift' "$linked" \
