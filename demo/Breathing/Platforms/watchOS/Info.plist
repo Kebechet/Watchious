@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- A session keeps the app running and on screen with the wrist down (IDeviceDisplay.KeepScreenOn) in a mindfulness
+         session, which lasts up to an hour. -->
+    <key>WKBackgroundModes</key>
+    <array>
+        <string>mindfulness</string>
+    </array>
+</dict>
+</plist>

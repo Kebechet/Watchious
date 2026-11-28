@@ -1,0 +1,190 @@
+@page "/session/{PatternId}/{Breaths:int}"
+@inherits PageBase
+@implements IDisposable
+@inject INavigation Navigation
+@inject IHaptics Haptics
+@inject IDeviceDisplay DeviceDisplay
+@inject BreathingSettings Settings
+
+@* A page that doesn't scroll centers its content, over a glow that grows as the user breathes in and shrinks as they
+   breathe out. *@
+<VStack Spacing="4">
+    @if (moment.IsFinished)
+    {
+        <Label Style="TextStyle.Title">Well done</Label>
+        <Label>@Breaths breaths · @DurationText</Label>
+        <Button Text="Done" OnClick="() => Navigation.GoBackToRootAsync()" />
+    }
+    else
+    {
+        <Label Style="TextStyle.Headline">@StepText</Label>
+        <Label Style="TextStyle.Title">@moment.SecondsLeft</Label>
+        <Label Style="TextStyle.Caption">Breath @moment.Breath of @Breaths</Label>
+        <Button Text="End" OnClick="() => Navigation.GoBackAsync()" />
+    }
+</VStack>
+
+@code {
+    private static readonly Color InColor = Color.FromArgb("#2BB3A3");
+    private static readonly Color OutColor = Color.FromArgb("#3D63D9");
+    private static readonly Color DoneColor = Color.FromArgb("#3FA34D");
+    private const double SmallGlow = 0.25;
+    private const double LargeGlow = 0.75;
+
+    private readonly CancellationTokenSource stop = new();
+    private readonly System.Diagnostics.Stopwatch clock = new();
+    private BreathingSession session = default!;
+    private SessionMoment moment;
+    private double glow = -1;
+    private bool keepsScreenOn;
+
+    [Parameter]
+    public string PatternId { get; set; } = "";
+
+    [Parameter]
+    public int Breaths { get; set; }
+
+    private string StepText => moment.Step.Step switch
+    {
+        BreathStep.BreatheIn => "Breathe in",
+        BreathStep.BreatheOut => "Breathe out",
+        _ => "Hold",
+    };
+
+    private string DurationText => $"{(int)session.Duration.TotalMinutes}:{session.Duration.Seconds:00} min";
+
+    protected override void OnInitialized()
+    {
+        var pattern = BreathingPattern.Find(PatternId) ?? BreathingPattern.All[0];
+        session = new BreathingSession(pattern, Math.Max(Breaths, 1));
+        keepsScreenOn = TryKeepScreenOn(true);
+        clock.Start();
+        Show(session.At(TimeSpan.Zero));
+        Tap(HapticFeedback.Start);
+        _ = RunAsync(stop.Token);
+    }
+
+    public void Dispose()
+    {
+        stop.Cancel();
+        stop.Dispose();
+        if (keepsScreenOn)
+        {
+            TryKeepScreenOn(false);
+        }
+    }
+
+    private async Task RunAsync(CancellationToken token)
+    {
+        // Ten times a second, so that the glow grows and shrinks smoothly.
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
+        try
+        {
+            while (!moment.IsFinished)
+            {
+                var hasTicked = await timer.WaitForNextTickAsync(token);
+                if (!hasTicked)
+                {
+                    return;
+                }
+
+                await InvokeAsync(Tick);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The user left the page.
+        }
+    }
+
+    private void Tick()
+    {
+        var previous = moment;
+        Show(session.At(clock.Elapsed));
+        if (moment.IsFinished)
+        {
+            Finish();
+        }
+        else if (moment.StepIndex != previous.StepIndex || moment.Breath != previous.Breath)
+        {
+            Tap(moment.Step.Step switch
+            {
+                BreathStep.BreatheIn => HapticFeedback.DirectionUp,
+                BreathStep.BreatheOut => HapticFeedback.DirectionDown,
+                _ => HapticFeedback.Click,
+            });
+        }
+
+        // Only the text changes once a second; the glow is the page's Background, which renders on its own.
+        if (moment.SecondsLeft != previous.SecondsLeft || moment.IsFinished)
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void Show(SessionMoment next)
+    {
+        moment = next;
+        if (moment.IsFinished)
+        {
+            return;
+        }
+
+        var size = moment.Step.Step switch
+        {
+            BreathStep.BreatheIn => SmallGlow + (LargeGlow - SmallGlow) * moment.StepProgress,
+            BreathStep.HoldIn => LargeGlow,
+            BreathStep.BreatheOut => LargeGlow - (LargeGlow - SmallGlow) * moment.StepProgress,
+            _ => SmallGlow,
+        };
+        var color = moment.Step.Step is BreathStep.BreatheIn or BreathStep.HoldIn ? InColor : OutColor;
+        // A new brush only when the glow visibly changes: each one is sent to the watch.
+        var rounded = Math.Round(size, 2);
+        if (rounded != glow || Background is null)
+        {
+            glow = rounded;
+            Background = Glow(color, glow);
+        }
+    }
+
+    private void Finish()
+    {
+        clock.Stop();
+        Background = Glow(DoneColor, LargeGlow);
+        Settings.AddFinishedSession(session.Duration);
+        Tap(HapticFeedback.Success);
+        if (keepsScreenOn)
+        {
+            keepsScreenOn = false;
+            TryKeepScreenOn(false);
+        }
+    }
+
+    private static RadialGradientBrush Glow(Color color, double radius)
+    {
+        return new RadialGradientBrush([new GradientStop(color, 0), new GradientStop(Colors.Black, 1)], new Point(0.5, 0.5), radius);
+    }
+
+    private void Tap(HapticFeedback feedback)
+    {
+        if (Settings.IsHapticsOn)
+        {
+            Haptics.Play(feedback);
+        }
+    }
+
+    // On watchOS this keeps the app running with the wrist down, in the mindfulness session Info.plist declares; on Wear OS
+    // it keeps the screen on. Where it isn't available, the session still runs while the app is open.
+    private bool TryKeepScreenOn(bool isOn)
+    {
+        try
+        {
+            DeviceDisplay.KeepScreenOn = isOn;
+            return isOn;
+        }
+        catch (FeatureNotSupportedException)
+        {
+            return false;
+        }
+    }
+}

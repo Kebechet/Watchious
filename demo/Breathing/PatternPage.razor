@@ -1,0 +1,66 @@
+@page "/pattern/{PatternId}"
+@inject INavigation Navigation
+@inject BreathingSettings Settings
+
+@* A List, as a watch's settings are: on watchOS a Picker in a List is a row that opens its choices. *@
+<List>
+    <VStack HorizontalOptions="LayoutOptions.Fill">
+        <Label Style="TextStyle.Headline" HorizontalOptions="LayoutOptions.Start">@pattern.Name</Label>
+        <Label Style="TextStyle.Caption" HorizontalOptions="LayoutOptions.Start">@pattern.Purpose · @pattern.Rhythm s</Label>
+    </VStack>
+    <Picker Text="Breaths" Items="BreathCountTexts" SelectedIndex="SelectedIndex" SelectedIndexChanged="OnBreathsPicked" />
+    <Toggle Text="Haptics" IsOn="Settings.IsHapticsOn" IsOnChanged="OnHapticsChanged" />
+    <Button Text="@StartText" OnClick="StartAsync" />
+</List>
+
+@code {
+    private static readonly int[] BreathCounts = [3, 5, 8, 10, 15, 20];
+    private static readonly string[] BreathCountTexts = BreathCounts.Select(count => count.ToString()).ToArray();
+
+    private BreathingPattern pattern = BreathingPattern.All[0];
+    private int breaths;
+
+    [Parameter]
+    public string PatternId { get; set; } = "";
+
+    // The remembered count, or the default when the picker doesn't offer it.
+    private int SelectedIndex
+    {
+        get
+        {
+            var index = Array.IndexOf(BreathCounts, breaths);
+            return index >= 0 ? index : Array.IndexOf(BreathCounts, BreathingSettings.DefaultBreaths);
+        }
+    }
+
+    private string StartText
+    {
+        get
+        {
+            var duration = TimeSpan.FromSeconds(pattern.SecondsPerBreath * BreathCounts[SelectedIndex]);
+            return $"Start · {(int)duration.TotalMinutes}:{duration.Seconds:00}";
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        pattern = BreathingPattern.Find(PatternId) ?? BreathingPattern.All[0];
+        breaths = Settings.BreathsFor(pattern);
+    }
+
+    private void OnBreathsPicked(int index)
+    {
+        breaths = BreathCounts[index];
+        Settings.SetBreathsFor(pattern, breaths);
+    }
+
+    private void OnHapticsChanged(bool isOn)
+    {
+        Settings.IsHapticsOn = isOn;
+    }
+
+    private Task StartAsync()
+    {
+        return Navigation.GoToAsync(Routes.Session(pattern.Id, BreathCounts[SelectedIndex]));
+    }
+}
