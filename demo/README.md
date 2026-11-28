@@ -5,7 +5,7 @@ nuget.org, with nothing from this repository's sources. Copy one out of the repo
 
 | App | What it is | What it shows |
 |---|---|---|
-| [DotNetSplash](DotNetSplash) | MAUI's splash screen: the .NET bot and wordmark on `#512BD4` | the app's background from `ConfigureTheme`; a page that doesn't scroll, centered; images from `Resources/Images` |
+| [DotNetSplash](DotNetSplash) | MAUI's splash screen: the .NET bot and wordmark on `#512BD4` | the app's background from `ConfigureTheme`; a page that doesn't scroll, centered; images from `Resources/Images`; an app icon on both platforms: watchOS's `AppIcon` in `Platforms/watchOS/Assets.xcassets`, and a Wear OS adaptive icon in `Platforms/WearOS/Resources` (`mipmap-anydpi-v26/appicon.xml`, named in `AndroidManifest.xml`) |
 | [Breathing](Breathing) | Guided breathing: pick a pattern (Box, 4-7-8, Calm) and a number of breaths, then breathe with the watch, which taps your wrist at each step while a glow grows as you breathe in and shrinks as you breathe out | a `List`; navigation with route parameters (`Routes.Session(...)`); `Picker` and `Toggle`; `IPreferences` (the choices and the totals stay on the watch); `IHaptics`; `IDeviceDisplay.KeepScreenOn` (a mindfulness session on watchOS); `IAppLifecycle` (a session waits while the app is away); a theme gradient, and a page's own `RadialGradientBrush` that changes up to ten times a second; tests that run the app with fake watch APIs |
 
 [`samples/`](../samples) is the other kind of app: it builds from the repository's sources, to work on Watchious
