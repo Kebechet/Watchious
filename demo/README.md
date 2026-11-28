@@ -29,12 +29,13 @@ On Windows, a Mac builds the watchOS app: `-p:WatchiousRemoteMac=user@host` (REA
 ## What each demo changed
 
 The first commit of `demo/` is the template's output as it is (of 0.2.0-preview.1); the commits after it are what each
-demo adds, and the move to 0.3.0-preview.1, whose template draws the icon from a `WatchiousAppIcon`.
+demo adds, and the moves to newer versions: 0.3.0-preview.1, whose template draws the icon from a `WatchiousAppIcon`,
+and 0.3.1-preview.1.
 
 `demo/Directory.Build.props` and `Directory.Build.targets` are empty so that the repository's own build settings, which
 build apps from its sources, don't reach the demos. A copy outside the repository doesn't need them.
 
-⚠️ **Each project names the SDK's version**, `<Project Sdk="Kebechet.Watchious.Sdk/0.3.0-preview.1">`. After a release,
+⚠️ **Each project names the SDK's version**, `<Project Sdk="Kebechet.Watchious.Sdk/0.3.1-preview.1">`. After a release,
 a follow-up commit moves both demos to the new version; `publish.yml` can't, because it runs before the packages exist.
 
 ## Images
