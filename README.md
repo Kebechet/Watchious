@@ -12,11 +12,11 @@ Write your smartwatch app once in C# and Razor. Watchious renders it as **native
 and native Compose on Wear OS (Samsung Galaxy Watch, Google Pixel Watch and others). Your C# runs **on
 the watch itself** on both platforms, so the app keeps working without the phone.
 
-> ⚠️ **Status: proof of concept.** The same Razor counter app runs as native UI on a real Apple Watch SE 3
-> (watchOS 27) and a Galaxy Watch7, and in the watchOS simulator and the Wear OS emulator. The watchOS device
-> build also passes App Store validation. Preview packages are on nuget.org (`Kebechet.Watchious.*`), and the API can
-> still change from one version to the next. This README also records the design, the decisions made so far and the
-> open questions.
+> ⚠️ **Status: preview.** The packages are on nuget.org (`Kebechet.Watchious.*`) and an app takes five minutes to
+> start ("Try it" below), but the API can still change from one version to the next. The same Razor app runs as
+> native UI on a real Apple Watch SE 3 (watchOS 27) and a Galaxy Watch7, and in the watchOS simulator and the Wear OS
+> emulator; the watchOS device build passes App Store validation. This README also records the design, the decisions
+> made so far and the open questions.
 
 ## Why
 
@@ -31,14 +31,24 @@ which Compose for Wear OS largely shares.
 
 ## Try it
 
+You need the .NET 10 or 11 SDK. For Wear OS, the `android` workload (`dotnet workload install android`), the
+Android SDK and a JDK (Android Studio brings both, or `dotnet build -t:InstallAndroidDependencies` downloads them),
+and a Wear OS emulator or a watch with adb debugging on. For watchOS, a Mac with Xcode 27.2 and its watchOS
+simulator, and on it the `ios` and `android` workloads (the app's restore covers both platforms); from Windows the
+Mac builds the watch app over ssh, so it needs Remote Login and your ssh key.
+
 ```bash
 dotnet new install Kebechet.Watchious.Templates
 dotnet new watchious -n MyWatchApp
 cd MyWatchApp
 dotnet run -f net10.0                     # the preview, to debug the pages in a browser
 dotnet build -t:Run -f net10.0-android    # Wear OS: the emulator or a watch
-dotnet build -t:Run -f net10.0-watchos    # watchOS: the simulator, on a Mac (from Windows, see "Project and packaging")
+dotnet build -t:Run -f net10.0-watchos    # watchOS: the simulator, on a Mac
+dotnet build -t:Run -f net10.0-watchos -p:WatchiousRemoteMac=me@my-mac    # the same from Windows
 ```
+
+`-p:Device=<serial>` picks one of several Android devices (`adb devices`), and
+`-p:WatchiousRemoteSshOptions="-i <key>"` passes ssh options for the Mac. More in "Project and packaging".
 
 Two finished apps made this way are in [`demo/`](demo/): `DotNetSplash`, the .NET bot on MAUI's splash screen purple,
 and `Breathing`, a guided breathing app that taps your wrist at each step. They build from the packages on nuget.org,
