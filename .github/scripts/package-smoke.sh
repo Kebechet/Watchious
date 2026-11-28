@@ -141,6 +141,13 @@ new_app() {
     [ "$first_line" = "<Project Sdk=\"Kebechet.Watchious.Sdk/$sdk_version\">" ] \
         || fail "$name.csproj from the template starts with '$first_line', expected <Project Sdk=\"Kebechet.Watchious.Sdk/$sdk_version\">."
     echo "== $name.csproj names Kebechet.Watchious.Sdk/$sdk_version"
+    # As every .NET template's app does. Inside the repository its Directory.Build.props sets both, which hid that the
+    # template didn't: an app's own code then couldn't use List<T> or Task without usings.
+    local setting value
+    for setting in ImplicitUsings Nullable; do
+        value="$(property "$app/$name.csproj" "$setting")"
+        [ "$value" = enable ] || fail "$name.csproj from the template sets $setting to '$value', expected enable."
+    done
 }
 
 # Adds lines before the project's closing tag.
@@ -311,6 +318,8 @@ else
         || fail "WatchiousAllowUntestedIOSSdk=true didn't turn WATCHIOUS003 into a warning."
     echo "== WATCHIOUS003: an error for an untested .NET for iOS version, a warning with WatchiousAllowUntestedIOSSdk=true"
     run build-watchos "$DOTNET" build "$APP2" -f net10.0-watchos -nologo
+    # .NET for iOS copies Content into the app, and the Razor SDK makes each page Content unless the SDK says otherwise.
+    ! grep -q 'would result in a file outside of the app bundle' "$LOGS/build-watchos.log"         || fail "the watchOS build tried to put the app's .razor files into the app bundle (log: $LOGS/build-watchos.log)."
     linked="$(find "$WORK_ABS/WatchiousOptional/obj" -path '*net10.0-watchos*' -name host-sources.txt 2>/dev/null | head -1)"
     [ -n "$linked" ] || fail "the watchOS build wrote no host-sources.txt: the watch app wasn't linked."
     grep -q 'HealthKitWorkout\.swift' "$linked" && grep -q 'WatchConnectivity\.swift' "$linked" \

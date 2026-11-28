@@ -60,6 +60,9 @@ struct PickerNode: View {
                 Text(items[index]).tag(index)
             }
         }
+        // A row that opens the choices, as watchOS shows a Picker in a List. Its default outside a List is a wheel,
+        // which a stack gives almost no height: the choices squeezed into a thin bar, without the title.
+        .pickerStyle(.navigationLink)
     }
 
     private var items: [String] {
