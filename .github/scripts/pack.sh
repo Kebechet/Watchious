@@ -59,6 +59,12 @@ echo "== Gradle: the Wear OS libraries and live host"
 (cd "$ROOT/platforms/WearOS" && ./gradlew --console=plain :host:assembleRelease :messaging:assembleRelease :health:assembleRelease \
     :live:assembleRelease "-PwatchiousVersion=$VERSION")
 
+# The icon tool that Kebechet.Watchious.Sdk carries (Watchious.Sdk.csproj packs it from there). A fresh folder, so a
+# file an earlier version had doesn't ship.
+echo "== dotnet publish Watchious.AppIcon, the SDK's icon tool"
+rm -rf "$ROOT/artifacts/appicon"
+"$DOTNET" publish "$ROOT/src/Watchious.AppIcon/Watchious.AppIcon.csproj" -c Release -o "$ROOT/artifacts/appicon" -nologo
+
 for project in "${PROJECTS[@]}"; do
     echo "== dotnet pack Watchious.$project $VERSION"
     "$DOTNET" pack "$ROOT/src/Watchious.$project/Watchious.$project.csproj" -c Release "-p:Version=$VERSION" -o "$OUT" -nologo

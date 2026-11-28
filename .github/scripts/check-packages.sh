@@ -176,6 +176,13 @@ bundled_binaries() {
     done | sort -u
 }
 
+# What the SDK's icon tool (appicon/) bundles of other projects, one per line by file name: every assembly and native
+# library but the tool's own, so each has to be named in the THIRD-PARTY-NOTICES.txt.
+appicon_binaries() {
+    printf '%s\n' "$ENTRIES" | grep -E '^appicon/.+\.(dll|so|dylib)$' | sed 's|.*/||' \
+        | grep -vxF Watchious.AppIcon.dll | sort -u || true
+}
+
 # For an error about a native library inside the AAR .NET for Android makes of the project: .NET for Android 36.1.69
 # (workload set 10.0.401) on Windows copies a dependency's native libraries into it, CI's (10.0.404) doesn't.
 native_hint() {
@@ -365,8 +372,20 @@ for id in "${IDS[@]}"; do
             expect_exactly "$id" live/watchOS/ "$(source_files "$ROOT/platforms/watchOS/Live")"
             expect_exactly "$id" live/WearOS/ watchious-live.apk
             check_live_apk
-            # The Wear OS live host's AndroidX, Kotlin and other libraries.
-            license='MIT AND Apache-2.0'
+            # The icon tool, run with dotnet when an app has a WatchiousAppIcon, and its native libraries for every
+            # computer an app is built on, without their debug symbols (about 100 MB each).
+            expect_entries "$id" 'appicon/Watchious\.AppIcon\.dll' 'appicon/Watchious\.AppIcon\.runtimeconfig\.json' \
+                'appicon/Watchious\.AppIcon\.deps\.json' 'appicon/SkiaSharp\.dll' 'appicon/Svg\.Skia\.dll' \
+                'appicon/notices/SkiaSharp-THIRD-PARTY-NOTICES\.txt' 'appicon/notices/HarfBuzzSharp-THIRD-PARTY-NOTICES\.txt'
+            for runtime in win-x64:dll win-arm64:dll osx:dylib linux-x64:so linux-arm64:so; do
+                expect_entries "$id" "appicon/runtimes/${runtime%%:*}/native/libSkiaSharp\.${runtime##*:}" \
+                    "appicon/runtimes/${runtime%%:*}/native/libHarfBuzzSharp\.${runtime##*:}"
+            done
+            pdbs="$(printf '%s\n' "$ENTRIES" | grep -E '^appicon/.+\.pdb$' || true)"
+            [ -z "$pdbs" ] || error "$id carries debug symbols in appicon/: $(words "$pdbs")"
+            # The Wear OS live host's AndroidX, Kotlin and other libraries (Apache-2.0); the icon tool's SkiaSharp
+            # (Skia: BSD-3-Clause), HarfBuzzSharp and Svg.Skia, whose Svg.Custom is MS-PL.
+            license='MIT AND Apache-2.0 AND MS-PL AND BSD-3-Clause'
             # The version the SDK adds its packages at, its own, written at pack time.
             version_props="$(unzip -p "$PACKAGE" build/Watchious.Sdk.Version.props 2>/dev/null | tr -d '\r' || true)"
             printf '%s\n' "$version_props" | grep -qF "<WatchiousVersion>$VERSION</WatchiousVersion>" \
@@ -435,7 +454,7 @@ for id in "${IDS[@]}"; do
 
     printf '%s\n' "$nuspec" | grep -qF "<license type=\"expression\">$license</license>" \
         || error "$id: its license isn't the expression '$license': $(printf '%s\n' "$nuspec" | grep -oE '<license[^<]*</license>' || echo none)."
-    bundled="$(maven_libraries "$ROOT/src/$name/$name.csproj"; bundled_binaries; apk_libraries)"
+    bundled="$(maven_libraries "$ROOT/src/$name/$name.csproj"; bundled_binaries; apk_libraries; appicon_binaries)"
     notices="$(unzip -p "$PACKAGE" THIRD-PARTY-NOTICES.txt 2>/dev/null | tr -d '\r' || true)"
     if [ "$license" = MIT ]; then
         [ -z "$bundled" ] || error "$id bundles other projects' binaries but its license is MIT alone: $(words "$bundled"). Name them and their licenses in a THIRD-PARTY-NOTICES.txt, and set the expression in the project and here.$(native_hint "$bundled")"

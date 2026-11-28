@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Merged into a Wear OS app's manifest when the app has a WatchiousAppIcon (Watchious.Sdk.AppIcon.targets): the
+     launcher icon that the SDK draws from it. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon" />
+</manifest>

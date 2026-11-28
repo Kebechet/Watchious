@@ -24,6 +24,7 @@
     <!-- The Kebechet.Watchious.Controls package ships the routes source generator; here it is referenced directly. -->
     <ProjectReference Include="..\..\src\Watchious.SourceGenerators\Watchious.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\samples\Watchious.Samples.Counter\Watchious.Samples.Counter.csproj" />
+    <ProjectReference Include="..\..\src\Watchious.AppIcon\Watchious.AppIcon.csproj" />
   </ItemGroup>
 
   <!-- RoutesGeneratorTests run the generator on test sources, so it is also a plain reference here, built by the

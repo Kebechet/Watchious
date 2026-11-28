@@ -1,0 +1,35 @@
+<!-- Draws an app's icon for each platform from its WatchiousAppIcon item (Kebechet.Watchious.Sdk's
+     Watchious.Sdk.AppIcon.targets runs it). Not a package of its own: .github/scripts/pack.sh publishes it into the
+     SDK package, with SkiaSharp's and HarfBuzzSharp's native libraries for each platform an app is built on. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Run with the dotnet that builds the app, which can be a later .NET. -->
+    <RollForward>Major</RollForward>
+    <UseAppHost>false</UseAppHost>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="4.158.0" />
+    <!-- Without fontconfig, which a build machine doesn't need for an icon. -->
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.158.0" />
+    <PackageReference Include="Svg.Skia" Version="5.2.4" />
+    <!-- Named for their license files (below); the versions SkiaSharp and Svg.Skia bring anyway. -->
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="4.158.0" GeneratePathProperty="true" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Win32" Version="14.4.0" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <!-- The native libraries' licenses, and the notices of what they are built from (Skia, HarfBuzz, FreeType, libpng...),
+       the same for every platform, go with them into the SDK package. -->
+  <ItemGroup>
+    <None Include="$(PkgSkiaSharp_NativeAssets_Win32)/LICENSE.txt" Link="notices/SkiaSharp-LICENSE.txt" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(PkgSkiaSharp_NativeAssets_Win32)/THIRD-PARTY-NOTICES.txt" Link="notices/SkiaSharp-THIRD-PARTY-NOTICES.txt" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(PkgHarfBuzzSharp_NativeAssets_Win32)/LICENSE.txt" Link="notices/HarfBuzzSharp-LICENSE.txt" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(PkgHarfBuzzSharp_NativeAssets_Win32)/THIRD-PARTY-NOTICES.txt" Link="notices/HarfBuzzSharp-THIRD-PARTY-NOTICES.txt" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

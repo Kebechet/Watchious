@@ -16,7 +16,7 @@
        .github/scripts/pack.sh puts the packages in artifacts/packages. Version is the one all 10 packages are published
        at, by .github/workflows/publish.yml (README, "Publishing"). -->
   <PropertyGroup Label="Packages">
-    <Version>0.2.0-preview.1</Version>
+    <Version>0.3.0-preview.1</Version>
     <Authors>Kebechet</Authors>
     <Copyright>Copyright (c) 2026 Kebechet</Copyright>
     <!-- A package that bundles another project's binaries sets its own expression and packs THIRD-PARTY-NOTICES.txt

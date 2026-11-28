@@ -33,6 +33,10 @@ dotnet new watchious -n MyWatchApp
     <ApplicationVersion>1</ApplicationVersion>
   </PropertyGroup>
 
+  <ItemGroup>
+    <WatchiousAppIcon Include="Resources/AppIcon/appicon.svg" BackgroundColor="#17122B" />
+  </ItemGroup>
+
 </Project>
 ```
 
@@ -62,6 +66,44 @@ each `Kebechet.Watchious.*` package the solution uses a `PackageVersion` there, 
 a library project of the solution has no `$(WatchiousVersion)`. The SDK ignores the entries of the packages it adds
 itself. ⚠️ Nothing reports an entry left at an older version, so an update changes the SDK's version and these entries
 together.
+
+## App icon
+
+One item draws the app's icon for both watches, from an SVG or a PNG:
+
+```xml
+<ItemGroup>
+  <WatchiousAppIcon Include="Resources/AppIcon/appicon.svg"
+                    ForegroundSize="65%"
+                    ForegroundTintColor="#FFFFFF"
+                    BackgroundColor="#512BD4"
+                    BackgroundFile="Resources/AppIcon/background.svg" />
+</ItemGroup>
+```
+
+| Setting | What it is | Default |
+|---|---|---|
+| `Include` | The picture: an SVG, PNG or JPEG, drawn as large as fits into `ForegroundSize`, its own margins included | required |
+| `ForegroundSize` | How much of the icon's width the picture takes, from `1%` to `100%`. `100%` for a finished edge-to-edge icon | `65%` |
+| `ForegroundTintColor` | Paints every shape of the picture in one color, its transparency kept | the picture's own colors |
+| `BackgroundColor` | The color behind the picture: `#RRGGBB`, `#AARRGGBB` or `#RGB` | black |
+| `BackgroundFile` | An image behind the picture (SVG, PNG or JPEG), covering the icon, over `BackgroundColor` | none |
+
+Both watches show an app icon cut into a circle, and `ForegroundSize` is a share of the width each of them shows, so
+the picture is as large on both. The SDK draws, when the app is built:
+- watchOS: an opaque 1024×1024 image in the `AppIcon` set of an asset catalog, from which `actool` makes every size;
+- Wear OS: an adaptive icon (`@mipmap/appicon`, its background and foreground layers), which the SDK names in the
+  manifest.
+
+A different icon for one watch is an item with a condition:
+`Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'watchos'"` (or `'android'`).
+Without the item, an app keeps its icon each platform's own way: `Platforms/watchOS/Assets.xcassets` with an
+`AppIcon` set, and `android:icon` in `Platforms/WearOS/AndroidManifest.xml`. The build fails when one is there along
+with the item (`WATCHIOUS007`), and when a platform has more than one item or the item can't be drawn: a missing or
+unsupported file, a size or color it can't read (`WATCHIOUS006`, with the reason).
+
+The icon tool (`appicon/` in this package) runs with the `dotnet` that builds the app and draws with SkiaSharp and
+Svg.Skia, as MAUI's own icon tool does. It carries their native libraries for Windows, macOS and Linux (x64 and Arm64).
 
 ## WATCHIOUS003: an untested .NET for iOS version
 
@@ -116,8 +158,9 @@ Watch7 over adb, and on an Apple Watch SE 3 with the app on Windows.
 ## License
 
 Watchious is MIT-licensed. The Wear OS live host in this package (`live/WearOS/watchious-live.apk`) is built with
-AndroidX, Kotlin and other libraries under the Apache License 2.0: `THIRD-PARTY-NOTICES.txt` in the package lists them,
-with their license.
+AndroidX, Kotlin and other libraries under the Apache License 2.0, and the icon tool (`appicon/`) carries SkiaSharp
+(with Skia, BSD-3-Clause), HarfBuzzSharp and Svg.Skia (MIT; its Svg.Custom under the MS-PL): `THIRD-PARTY-NOTICES.txt`
+in the package lists them, with their licenses.
 
 ## More
 

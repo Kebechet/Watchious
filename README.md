@@ -570,8 +570,10 @@ later stand in for the published one on that machine, and the test refuses a ver
   ```
   with shared `.razor` pages, shared images in `Resources/Images` (`<Image Source="logo" />` shows
   `logo.png`), `Platforms/WearOS` (`MainActivity`, `AndroidManifest.xml`, Android resources in `Resources/`) and
-  `Platforms/watchOS` (`Info.plist`, `Assets.xcassets` with the app icon, `Entitlements.plist` for capabilities such as
-  HealthKit, or MAUI's `CodesignEntitlements`). It is an MSBuild SDK, like Uno's
+  `Platforms/watchOS` (`Info.plist`, `Entitlements.plist` for capabilities such as HealthKit, or MAUI's
+  `CodesignEntitlements`), and the app icon for both watches from one item, as MAUI's `MauiIcon`:
+  `<WatchiousAppIcon Include="Resources/AppIcon/appicon.svg" BackgroundColor="#512BD4" />`, with `ForegroundSize`,
+  `ForegroundTintColor` and `BackgroundFile` ("App icon" in `Kebechet.Watchious.Sdk`'s README). It is an MSBuild SDK, like Uno's
   `Uno.Sdk`, rather than a `UseWatchious` property, because the watchOS target framework has to exist before
   NuGet restore runs. The SDK adds the `Kebechet.Watchious.*` packages of its own version itself, so `<version>`, the
   version of `Kebechet.Watchious.Sdk`, is the one number to change to update Watchious in an app (⚠️ plus, with

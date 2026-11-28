@@ -1,0 +1,121 @@
+<!--
+  The app's icon on both platforms, from one item (README, "App icon"):
+    <WatchiousAppIcon Include="Resources/AppIcon/appicon.svg" BackgroundColor="#512BD4" />
+  with ForegroundSize (65% by default), ForegroundTintColor and BackgroundFile. The SDK's Watchious.AppIcon tool draws
+  it: for watchOS the AppIcon set of an asset catalog, for Wear OS an adaptive icon that the manifest names. Without the
+  item, an app keeps its icon the platforms' own way (Platforms/watchOS/Assets.xcassets, the Wear OS manifest).
+-->
+<Project>
+
+  <PropertyGroup>
+    <_WatchiousAppIconPlatform Condition="'$(WatchiousTargetPlatform)' == 'android'">wearos</_WatchiousAppIconPlatform>
+    <!-- On Windows a watchOS build happens on the Mac, which draws the icon there. -->
+    <_WatchiousAppIconPlatform Condition="'$(WatchiousTargetPlatform)' == 'watchos' And '$(WatchiousBuildsOnRemoteMac)' != 'true'">watchos</_WatchiousAppIconPlatform>
+    <_WatchiousAppIconDirectory>$(MSBuildProjectDirectory)/$(IntermediateOutputPath)watchious-appicon/</_WatchiousAppIconDirectory>
+    <!-- Inside the Watchious repository the app builds the tool from source (the reference below); a packed SDK
+         carries it. -->
+    <WatchiousAppIconTool Condition="'$(WatchiousAppIconTool)' == '' And '$(WatchiousUseProjectReferences)' == 'true'">$(WatchiousRepositoryRoot)src/Watchious.AppIcon/bin/$(Configuration)/net10.0/Watchious.AppIcon.dll</WatchiousAppIconTool>
+    <WatchiousAppIconTool Condition="'$(WatchiousAppIconTool)' == ''">$(WatchiousSdkDirectory)appicon/Watchious.AppIcon.dll</WatchiousAppIconTool>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_WatchiousAppIconPlatform)' == 'wearos' And '@(WatchiousAppIcon)' != ''">
+    <AndroidManifestOverlay Include="$(MSBuildThisFileDirectory)Watchious.AppIcon.AndroidManifest.xml" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(WatchiousUseProjectReferences)' == 'true' And '$(_WatchiousAppIconPlatform)' != '' And '@(WatchiousAppIcon)' != ''">
+    <ProjectReference Include="$(WatchiousRepositoryRoot)src/Watchious.AppIcon/Watchious.AppIcon.csproj"
+                      ReferenceOutputAssembly="false" Private="false" SkipGetTargetFrameworkProperties="true"
+                      GlobalPropertiesToRemove="TargetFramework;RuntimeIdentifier;SelfContained" />
+  </ItemGroup>
+
+  <!-- Before .NET for Android collects the resources, and before the watch app is completed with its icon. Only for the
+       app itself: .NET for Android builds an app as a Library with AndroidApplication true. -->
+  <Target Name="_WatchiousAppIcon"
+          BeforeTargets="_ComputeAndroidResourcePaths;_WatchiousCompleteWatchApp"
+          Condition="'@(WatchiousAppIcon)' != '' And '$(DesignTimeBuild)' != 'true' And (('$(_WatchiousAppIconPlatform)' == 'wearos' And '$(AndroidApplication)' == 'true') Or ('$(_WatchiousAppIconPlatform)' == 'watchos' And '$(OutputType)' == 'Exe'))"
+          DependsOnTargets="_WatchiousDrawAppIcon">
+    <PropertyGroup Condition="'$(_WatchiousAppIconPlatform)' == 'watchos'">
+      <_WatchiousAssets>$(_WatchiousAppIconOutput)</_WatchiousAssets>
+    </PropertyGroup>
+    <!-- Metadata named with its item type: an unqualified %(RecursiveDir) in a target batches over the app's other
+         AndroidResource items too and moves them. -->
+    <ItemGroup Condition="'$(_WatchiousAppIconPlatform)' == 'wearos'">
+      <_WatchiousAppIconResource Include="$(_WatchiousAppIconOutput)**/*" />
+      <AndroidResource Include="@(_WatchiousAppIconResource)"
+                       Link="$(MonoAndroidResourcePrefix)\%(_WatchiousAppIconResource.RecursiveDir)%(_WatchiousAppIconResource.Filename)%(_WatchiousAppIconResource.Extension)" />
+      <FileWrites Include="@(_WatchiousAppIconResource)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_WatchiousCheckAppIcon">
+    <PropertyGroup>
+      <_WatchiousAppIconPlatformName Condition="'$(_WatchiousAppIconPlatform)' == 'wearos'">Wear OS</_WatchiousAppIconPlatformName>
+      <_WatchiousAppIconPlatformName Condition="'$(_WatchiousAppIconPlatform)' == 'watchos'">watchOS</_WatchiousAppIconPlatformName>
+    </PropertyGroup>
+    <Error Condition="@(WatchiousAppIcon->Count()) &gt; 1" Code="WATCHIOUS006" File="$(MSBuildProjectFullPath)"
+           Text="WatchiousAppIcon: the app has more than one for $(_WatchiousAppIconPlatformName) (@(WatchiousAppIcon)). Keep one, or give each a Condition on its platform: Condition=&quot;%24([MSBuild]::GetTargetPlatformIdentifier('%24(TargetFramework)')) == 'watchos'&quot;." />
+    <!-- Its Contents.json, not the folder: a remote build's copy on the Mac keeps the folders of deleted files. -->
+    <Error Condition="'$(_WatchiousAppIconPlatform)' == 'watchos' And Exists('$(MSBuildProjectDirectory)/Platforms/watchOS/Assets.xcassets/AppIcon.appiconset/Contents.json')"
+           Code="WATCHIOUS007" File="$(MSBuildProjectFullPath)"
+           Text="WatchiousAppIcon: Platforms/watchOS/Assets.xcassets has an AppIcon set too. Remove one of the two: the WatchiousAppIcon draws the watchOS icon." />
+    <XmlPeek Condition="'$(_WatchiousAppIconPlatform)' == 'wearos' And '$(AndroidManifest)' != '' And Exists('$(AndroidManifest)')"
+             XmlInputPath="$(AndroidManifest)" Query="/manifest/application/@android:icon"
+             Namespaces="&lt;Namespace Prefix='android' Uri='http://schemas.android.com/apk/res/android' /&gt;">
+      <Output TaskParameter="Result" PropertyName="_WatchiousManifestIcon" />
+    </XmlPeek>
+    <Error Condition="'$(_WatchiousManifestIcon)' != ''" Code="WATCHIOUS007" File="$(MSBuildProjectFullPath)"
+           Text="WatchiousAppIcon: $(AndroidManifest) names an icon too (android:icon=&quot;$(_WatchiousManifestIcon)&quot;). Remove one of the two: the WatchiousAppIcon draws the Wear OS icon." />
+  </Target>
+
+  <!-- The item's settings in a file: the tool reads them from it, and a change to them draws the icon again. -->
+  <Target Name="_WatchiousAppIconSettings" DependsOnTargets="_WatchiousCheckAppIcon">
+    <PropertyGroup>
+      <_WatchiousAppIconOutput>$(_WatchiousAppIconDirectory)$(_WatchiousAppIconPlatform)/</_WatchiousAppIconOutput>
+      <_WatchiousAppIconOutput Condition="'$(_WatchiousAppIconPlatform)' == 'watchos'">$(_WatchiousAppIconOutput)Assets.xcassets/</_WatchiousAppIconOutput>
+      <_WatchiousAppIconOutput Condition="'$(_WatchiousAppIconPlatform)' == 'wearos'">$(_WatchiousAppIconOutput)res/</_WatchiousAppIconOutput>
+      <_WatchiousAppIconSettingsFile>$(_WatchiousAppIconDirectory)$(_WatchiousAppIconPlatform).settings</_WatchiousAppIconSettingsFile>
+      <_WatchiousAppIconStamp>$(_WatchiousAppIconDirectory)$(_WatchiousAppIconPlatform).stamp</_WatchiousAppIconStamp>
+      <_WatchiousAppIconBackgroundFile>@(WatchiousAppIcon->'%(BackgroundFile)')</_WatchiousAppIconBackgroundFile>
+      <_WatchiousAppIconBackgroundFile Condition="'$(_WatchiousAppIconBackgroundFile)' != ''">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(_WatchiousAppIconBackgroundFile)'))</_WatchiousAppIconBackgroundFile>
+    </PropertyGroup>
+    <ItemGroup>
+      <!-- An app's own watchOS asset catalog, without an AppIcon set, goes into the one with the icon. -->
+      <_WatchiousAppAssetFile Condition="'$(_WatchiousAppIconPlatform)' == 'watchos'" Include="$(MSBuildProjectDirectory)/Platforms/watchOS/Assets.xcassets/**" />
+      <_WatchiousAppIconSetting Include="platform=$(_WatchiousAppIconPlatform)" />
+      <_WatchiousAppIconSetting Include="origin=$(MSBuildProjectFullPath)" />
+      <_WatchiousAppIconSetting Include="output=$(_WatchiousAppIconOutput)" />
+      <_WatchiousAppIconSetting Include="@(WatchiousAppIcon->'foreground=%(FullPath)')" />
+      <_WatchiousAppIconSetting Include="@(WatchiousAppIcon->'foreground-size=%(ForegroundSize)')" />
+      <_WatchiousAppIconSetting Include="@(WatchiousAppIcon->'foreground-tint-color=%(ForegroundTintColor)')" />
+      <_WatchiousAppIconSetting Include="@(WatchiousAppIcon->'background-color=%(BackgroundColor)')" />
+      <_WatchiousAppIconSetting Include="background-file=$(_WatchiousAppIconBackgroundFile)" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_WatchiousAppIconSettingsFile)" Lines="@(_WatchiousAppIconSetting)" Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <FileWrites Include="$(_WatchiousAppIconSettingsFile)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_WatchiousDrawAppIcon" DependsOnTargets="_WatchiousAppIconSettings"
+          Inputs="@(WatchiousAppIcon);$(_WatchiousAppIconBackgroundFile);@(_WatchiousAppAssetFile);$(_WatchiousAppIconSettingsFile);$(WatchiousAppIconTool)"
+          Outputs="$(_WatchiousAppIconStamp)">
+    <PropertyGroup>
+      <_WatchiousDotNet>$(DOTNET_HOST_PATH)</_WatchiousDotNet>
+      <_WatchiousDotNet Condition="'$(_WatchiousDotNet)' == ''">dotnet</_WatchiousDotNet>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_WatchiousAppIconOutput)" />
+    <Copy SourceFiles="@(_WatchiousAppAssetFile)" DestinationFiles="@(_WatchiousAppAssetFile->'$(_WatchiousAppIconOutput)%(RecursiveDir)%(Filename)%(Extension)')" />
+    <!-- The tool reports a problem as an error of the project; the check after it covers a crash that printed none. -->
+    <Exec Command="&quot;$(_WatchiousDotNet)&quot; &quot;$(WatchiousAppIconTool)&quot; &quot;$(_WatchiousAppIconSettingsFile)&quot;" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="_WatchiousAppIconExitCode" />
+    </Exec>
+    <Error Condition="'$(_WatchiousAppIconExitCode)' != '0'" Code="WATCHIOUS006" File="$(MSBuildProjectFullPath)"
+           Text="WatchiousAppIcon: drawing the icon failed ($(WatchiousAppIconTool) exited with $(_WatchiousAppIconExitCode))." />
+    <Touch Files="$(_WatchiousAppIconStamp)" AlwaysCreate="true" />
+    <ItemGroup>
+      <FileWrites Include="$(_WatchiousAppIconStamp)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

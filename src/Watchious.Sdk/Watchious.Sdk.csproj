@@ -11,16 +11,19 @@
     <PackageType>MSBuildSdk</PackageType>
     <Description>The Watchious MSBuild SDK: one project for Wear OS and watchOS watch apps written in Razor.</Description>
     <PackageTags>$(PackageTags);msbuild;msbuild-sdk</PackageTags>
-    <!-- The Wear OS live host is built with AndroidX, Kotlin and other Apache-2.0 libraries (THIRD-PARTY-NOTICES.txt). -->
-    <PackageLicenseExpression>MIT AND Apache-2.0</PackageLicenseExpression>
+    <!-- The Wear OS live host is built with AndroidX, Kotlin and other Apache-2.0 libraries; the icon tool carries
+         SkiaSharp (with Skia, BSD-3-Clause), HarfBuzzSharp and Svg.Skia, whose Svg.Custom is MS-PL
+         (THIRD-PARTY-NOTICES.txt). -->
+    <PackageLicenseExpression>MIT AND Apache-2.0 AND MS-PL AND BSD-3-Clause</PackageLicenseExpression>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <EnableDefaultItems>false</EnableDefaultItems>
     <!-- NU5128: an SDK package has no lib/ assembly on purpose. NU5129: NuGet looks for build/<package id>.props and
          .targets, but an SDK package is never a PackageReference: Sdk/Sdk.props and Sdk.targets import the build/
-         files by path. -->
-    <NoWarn>$(NoWarn);NU5128;NU5129</NoWarn>
+         files by path. NU5100: the icon tool's assemblies in appicon/ are run with dotnet, never referenced. -->
+    <NoWarn>$(NoWarn);NU5128;NU5129;NU5100</NoWarn>
     <_WatchiousWearOSLiveApk>..\..\platforms\WearOS\live\build\outputs\apk\release\live-release.apk</_WatchiousWearOSLiveApk>
+    <_WatchiousAppIconTool>..\..\artifacts\appicon\</_WatchiousAppIconTool>
   </PropertyGroup>
 
   <!-- host/watchOS/ with forward slashes: packed on Linux, host\watchOS\ gives entries like
@@ -34,6 +37,24 @@
     <None Include="$(_WatchiousWearOSLiveApk)" Pack="true" PackagePath="live/WearOS/watchious-live.apk" />
     <None Include="THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="" />
   </ItemGroup>
+
+  <!-- The icon tool (Watchious.Sdk.AppIcon.targets), published by .github/scripts/pack.sh: its assemblies, the licenses,
+       and the native libraries for the computers an app is built on (Windows, macOS, Linux; x64 and Arm64), without
+       their debug symbols. -->
+  <ItemGroup>
+    <None Include="$(_WatchiousAppIconTool)*.dll;$(_WatchiousAppIconTool)*.json" Pack="true" PackagePath="appicon/" />
+    <None Include="$(_WatchiousAppIconTool)notices/*" Pack="true" PackagePath="appicon/notices/" />
+    <None Include="$(_WatchiousAppIconTool)runtimes/win-x64/native/*.dll" Pack="true" PackagePath="appicon/runtimes/win-x64/native/" />
+    <None Include="$(_WatchiousAppIconTool)runtimes/win-arm64/native/*.dll" Pack="true" PackagePath="appicon/runtimes/win-arm64/native/" />
+    <None Include="$(_WatchiousAppIconTool)runtimes/osx/native/*.dylib" Pack="true" PackagePath="appicon/runtimes/osx/native/" />
+    <None Include="$(_WatchiousAppIconTool)runtimes/linux-x64/native/*.so" Pack="true" PackagePath="appicon/runtimes/linux-x64/native/" />
+    <None Include="$(_WatchiousAppIconTool)runtimes/linux-arm64/native/*.so" Pack="true" PackagePath="appicon/runtimes/linux-arm64/native/" />
+  </ItemGroup>
+
+  <Target Name="_WatchiousCheckAppIconTool" BeforeTargets="_GetPackageFiles">
+    <Error Condition="!Exists('$(_WatchiousAppIconTool)Watchious.AppIcon.dll')"
+           Text="Watchious: the icon tool isn't published: run dotnet publish src/Watchious.AppIcon -c Release -o artifacts/appicon, or pack with .github/scripts/pack.sh, which does." />
+  </Target>
 
   <!-- Gradle builds the Wear OS live host, signed with the repository's live key: .github/scripts/pack.sh runs it first. -->
   <Target Name="_WatchiousCheckWearOSLiveApk" BeforeTargets="_GetPackageFiles">

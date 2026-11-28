@@ -134,6 +134,7 @@ internal static class WatchiousPreviewProgram
   </Target>
 
   <Import Project="$(MSBuildThisFileDirectory)Watchious.Sdk.Live.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Watchious.Sdk.AppIcon.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Watchious.Sdk.watchOS.targets"
           Condition="'$(WatchiousTargetPlatform)' == 'watchos' And '$(WatchiousBuildsOnRemoteMac)' != 'true'" />
   <Import Project="$(MSBuildThisFileDirectory)Watchious.Sdk.watchOS.Remote.targets" Condition="'$(WatchiousBuildsOnRemoteMac)' == 'true'" />
