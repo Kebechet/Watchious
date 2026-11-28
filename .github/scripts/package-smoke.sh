@@ -308,6 +308,34 @@ if [ "$WATCHOS" != true ]; then
     apks="$(find "$WORK_ABS/WatchiousOptional/bin/Release/net10.0-android" -name '*-Signed.apk' 2>/dev/null || true)"
     [ -n "$apks" ] || fail "the Release build for Wear OS made no signed APK."
     echo "== Wear OS Release APK: $apks"
+    # The template's WatchiousAppIcon: the SDK's icon tool drew an adaptive icon, which the manifest names.
+    apk="$(printf '%s\n' "$apks" | head -1)"
+    aapt2="$(find "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/nonexistent}}/build-tools" -name 'aapt2*' -type f 2>/dev/null | sort | tail -1 || true)"
+    [ -n "$aapt2" ] || fail "no aapt2 in the Android SDK's build-tools, to read the Wear OS app's icon."
+    icon="$("$aapt2" dump badging "$apk" | tr -d '\r' | grep -oE "application-icon-[0-9]+:'[^']*'" | head -1 || true)"
+    printf '%s\n' "$icon" | grep -q 'mipmap-anydpi-v26/appicon\.xml' \
+        || fail "the Wear OS app's icon isn't the adaptive icon its WatchiousAppIcon draws (${icon:-none})."
+    echo "== Wear OS app icon: drawn from the WatchiousAppIcon ($icon)"
+
+    # The two problems a WatchiousAppIcon reports itself (Kebechet.Watchious.Sdk's README), each checked with its one
+    # target: an icon the Wear OS manifest names too, and a second item for the platform.
+    new_app WatchiousIconCheck "$TEMPLATE_HIVE" "$VERSION"
+    icon_app="$WORK/WatchiousIconCheck/WatchiousIconCheck.csproj"
+    manifest="$WORK_ABS/WatchiousIconCheck/Platforms/WearOS/AndroidManifest.xml"
+    sed 's|<application |<application android:icon="@mipmap/own" |' "$manifest" > "$manifest.new"
+    mv "$manifest.new" "$manifest"
+    expect_failure icon-manifest WATCHIOUS007 \
+        "$DOTNET" msbuild "$icon_app" -nologo -t:_WatchiousCheckAppIcon -p:TargetFramework=net10.0-android
+    sed 's| android:icon="@mipmap/own"||' "$manifest" > "$manifest.new"
+    mv "$manifest.new" "$manifest"
+    add_to_project "$WORK_ABS/WatchiousIconCheck/WatchiousIconCheck.csproj" '
+  <ItemGroup>
+    <WatchiousAppIcon Include="Resources/AppIcon/appicon.svg" />
+  </ItemGroup>
+'
+    expect_failure icon-two WATCHIOUS006 \
+        "$DOTNET" msbuild "$icon_app" -nologo -t:_WatchiousCheckAppIcon -p:TargetFramework=net10.0-android
+    echo "== WatchiousAppIcon: WATCHIOUS007 for an icon the manifest names too, WATCHIOUS006 for a second item"
 else
     # WATCHIOUS003 (Kebechet.Watchious.Sdk's README), with this .NET for iOS made an untested version.
     untested="$("$DOTNET" msbuild "$APP2" -nologo -t:_WatchiousCheckIOSSdkVersion -p:TargetFramework=net10.0-watchos \
@@ -329,6 +357,9 @@ else
     app_bundle="$(find "$WORK_ABS/WatchiousOptional/bin" -path '*net10.0-watchos*' -name '*.app' -type d 2>/dev/null | head -1)"
     [ -n "$app_bundle" ] || fail "the watchOS build made no .app."
     echo "== watchOS simulator app: $app_bundle"
+    xcrun assetutil --info "$app_bundle/Assets.car" 2>/dev/null | grep -q '"Name" : "AppIcon"' \
+        || fail "the watchOS app's Assets.car has no AppIcon: the template's WatchiousAppIcon wasn't drawn."
+    echo "== watchOS app icon: drawn from the WatchiousAppIcon"
 fi
 
 # 3. Central Package Management: the SDK's references are implicit, and the app's own come from
